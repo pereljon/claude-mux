@@ -12,7 +12,7 @@ On login (or manual run), the script:
 2. Migrates any Claude Code processes already running outside tmux in managed directories — SIGTERMs them so they resume cleanly inside tmux via `claude -c`
 3. Optionally initializes git repos where missing (disabled by default, enable via `AUTO_GIT_INIT`)
 4. Optionally creates a `.gitignore` in each project (when `AUTO_GIT_INIT` is enabled) and sets `permissions.defaultMode` to `DEFAULT_PERMISSION_MODE` (default: `auto`)
-5. Creates a persistent tmux session per project with Claude Code running, with Remote Control enabled
+5. Creates a persistent tmux session per project with Claude Code running, with Remote Control enabled (if you've enabled RC globally via `/config`, the flag is redundant but harmless)
 6. Attempts to resume the last conversation (`claude -c`), falling back to a fresh start
 
 Each Claude session is injected with its tmux session name (so it can send slash commands like `/model` and `/compact` to itself), and any GitHub SSH accounts found in `~/.ssh/config` (so it knows which accounts are available for git operations).
@@ -42,14 +42,13 @@ launchctl list | grep claude-sessions
 ## Usage
 
 ```bash
-# Preview what would happen (no changes made)
-~/Claude/claude-mux --dry-run
-
-# Run manually
-~/Claude/claude-mux
-
-# Check running sessions
-tmux list-sessions
+~/Claude/claude-mux              # start all sessions
+~/Claude/claude-mux --status     # show session status
+~/Claude/claude-mux --dry-run    # preview actions without executing
+~/Claude/claude-mux --shutdown   # gracefully exit all Claude sessions
+~/Claude/claude-mux --restart    # shutdown then restart all sessions
+~/Claude/claude-mux --version    # print version
+~/Claude/claude-mux --help       # show all options
 
 # Attach to a session
 tmux attach -t project-name
@@ -106,21 +105,11 @@ After completing auth once, kill and relaunch all sessions — they'll pick up t
 
 ### Sessions not appearing in Claude Code Remote
 
-Sessions must be authenticated (not showing "Not logged in") and launched with `--remote-control`. After a clean authenticated launch, they should appear in the RC list within a few seconds.
-
-**Alternative:** Instead of passing `--remote-control` per session, you can enable RC globally for all interactive Claude Code sessions via `/config` inside any session. If you do this, the `--remote-control` flag in the script becomes redundant (but harmless).
+Sessions must be authenticated (not showing "Not logged in"). After a clean authenticated launch they should appear in the RC list within a few seconds.
 
 ### Slash commands not available over Remote Control
 
-Most slash commands (e.g. `/model`, `/clear`) are currently not supported in RC sessions — they either fail with "not available over Remote Control" or get sent as plain text. This is a [known open issue](https://github.com/anthropics/claude-code/issues/30674).
-
-**Possible fix (unofficial, wiped on `claude` updates):** The feature is built and functional behind a flag called `tengu_bridge_slash_commands` that defaults to off. To enable it:
-
-```bash
-sed -i 's/tengu_bridge_slash_commands",!1/tengu_bridge_slash_commands",!0/g' "$(readlink -f $(which claude))"
-```
-
-This patches the bundled JS in the `claude` binary directly. Re-apply after each `brew upgrade claude`.
+Most slash commands (e.g. `/model`, `/clear`) are not currently supported in RC sessions. This is a [known open issue](https://github.com/anthropics/claude-code/issues/30674).
 
 ## Logs
 

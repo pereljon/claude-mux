@@ -68,7 +68,7 @@ The script has two locations:
 - **Repo**: `~/Claude/development/claude-code-sessions/claude-mux` (version-controlled)
 - **Active**: `~/Claude/claude-mux` (what actually runs)
 
-Always edit the repo copy first, commit and push, then deploy to the active location:
+Always edit the repo copy first, then **ask before committing** — do not run `git commit` or `git push` without explicit approval. After committing, deploy to the active location:
 
 ```bash
 # After editing and committing in the repo:
