@@ -1,0 +1,14 @@
+# Claude Auto Remote Control — project gitignore
+
+# Claude local settings
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs (generated at runtime, not part of the project)
+*.log
+
+# Temp files from launch scripts
+/tmp/claude-launch-*.sh
