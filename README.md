@@ -1,6 +1,6 @@
 # Claude Auto Remote Control (`claude-autorc`)
 
-A shell script and macOS LaunchAgent that automatically creates persistent tmux sessions running Claude Code with Remote Control for each project directory under `~/Claude/`.
+A shell script and macOS LaunchAgent that automatically creates persistent tmux sessions running Claude Code with Remote Control for each project directory under `~/Claude/` (configurable via `~/.claude-autorc`).
 
 ## What It Does
 
