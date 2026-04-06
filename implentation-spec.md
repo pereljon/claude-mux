@@ -126,11 +126,10 @@ Builds a system prompt based on `ALLOW_CROSS_SESSION_CONTROL`:
   ```
   You are running inside tmux session '<name>'. You can send slash commands
   to yourself via: /opt/homebrew/bin/tmux send-keys -t '<name>' "/command args" Enter.
-  To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'.
   <GITHUB_SSH_INFO>
   ```
 
-- **true:** Claude also learns how to target other sessions and list all sessions.
+- **true:** Claude also learns how to target other sessions, find its own session name, and list all sessions.
 
 Writes the launch command to a temp script (`/tmp/claude-launch-XXXXXX.sh`) to avoid quoting complexity. The temp script uses `trap EXIT` to guarantee self-cleanup. Sends the temp script path to the tmux pane via `send-keys`. Sleeps `SLEEP_BETWEEN` seconds after launching.
 
