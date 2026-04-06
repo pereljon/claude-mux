@@ -67,6 +67,7 @@ Edit the variables at the top of `start-claude-sessions.sh`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `BASE_DIR` | `$HOME/Claude` | Root directory containing category and project subdirectories |
 | `AUTO_GITIGNORE` | `true` | Create `.gitignore` with common dev exclusions (secrets, tokens, .env, IDE files, build artifacts) if one doesn't exist |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set Claude's `permissions.defaultMode` in each project. Valid: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Set to `""` to disable. |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | Allow Claude sessions to send slash commands to other sessions via tmux. When `false`, sessions can only send commands to themselves. Enable for multi-agent orchestration workflows. |

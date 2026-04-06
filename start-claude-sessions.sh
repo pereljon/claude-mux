@@ -5,6 +5,9 @@
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
+# Root directory containing category and project directories.
+BASE_DIR="$HOME/Claude"
+
 # When true, create a .gitignore with common development exclusions
 # if one does not already exist in the project directory
 AUTO_GITIGNORE=true
@@ -21,7 +24,6 @@ ALLOW_CROSS_SESSION_CONTROL=false
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-BASE_DIR="$HOME/Claude"
 SLEEP_BETWEEN=5
 LOG_FILE="$BASE_DIR/startup.log"
 
