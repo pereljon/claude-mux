@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-The startup script dynamically discovers category directories under `~/Claude/` (any subdir not starting with `.` or `-`), migrates stray Claude processes into tmux, initializes git repos where missing (required for Claude to operate in the directory), and creates one tmux session per project with Claude running in RC mode. It attempts `claude -c` to resume a prior session, falling back to a fresh `claude --remote-control` on failure.
+The startup script dynamically discovers category directories under `~/Claude/` (any subdir not starting with `.` or `-`), migrates stray Claude processes into tmux, initializes git repos where missing, and creates one tmux session per project with Claude running in RC mode. It attempts `claude -c` to resume a prior session, falling back to a fresh `claude --remote-control` on failure.
 
 The LaunchAgent runs the script at login with a 45-second startup delay for system services to initialize.
 

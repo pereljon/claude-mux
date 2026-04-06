@@ -275,7 +275,7 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 | Case | Handling |
 |------|----------|
 | No prior Claude session in directory | `claude -c` fails, `\|\|` falls back to `claude --remote-control --name <name>` |
-| Directory has no `.git` | Script runs `git init` before launching Claude (bypasses trust prompt) |
+| Directory has no `.git` | Script runs `git init` before launching Claude |
 | tmux session already exists with claude running | Skip, log, continue to next |
 | Claude exited but tmux session still alive | Detect via process tree check; relaunch claude into existing session |
 | Category directory missing | Log warning, skip to next category |
