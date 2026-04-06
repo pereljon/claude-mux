@@ -20,11 +20,5 @@
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     </dict>
-
-    <key>StandardOutPath</key>
-    <string>/Users/jonathan/Claude/launchagent-stdout.log</string>
-
-    <key>StandardErrorPath</key>
-    <string>/Users/jonathan/Claude/launchagent-stderr.log</string>
 </dict>
 </plist>

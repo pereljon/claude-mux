@@ -60,7 +60,7 @@ source "$HOME/.claude-autorc"
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 SLEEP_BETWEEN=5
-LOG_FILE="$BASE_DIR/startup.log"
+LOG_FILE="$BASE_DIR/claude-autorc.log"
 
 TMUX="/opt/homebrew/bin/tmux"
 CLAUDE="/opt/homebrew/bin/claude"

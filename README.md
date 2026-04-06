@@ -59,6 +59,9 @@ launchctl load ~/Library/LaunchAgents/com.user.claude-sessions.plist
 
 # Verify
 launchctl list | grep claude-sessions
+
+# Check the log
+tail -f ~/Claude/claude-autorc.log
 ```
 
 ## Configuration
@@ -137,6 +140,6 @@ tmux attach -t project-name
 
 ## Logs
 
-- `~/Claude/startup.log` — script actions (UTC timestamps)
-- `~/Claude/launchagent-stdout.log` — LaunchAgent stdout
-- `~/Claude/launchagent-stderr.log` — LaunchAgent stderr
+- `~/Claude/claude-autorc.log` — all script actions with UTC timestamps
+
+LaunchAgent stdout/stderr are not redirected to files — if needed for low-level debugging, use Console.app or `log show`.

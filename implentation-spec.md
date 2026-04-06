@@ -207,7 +207,7 @@ Applies at both the category level (subdirs of `BASE_DIR`) and project level (su
 
 ### Logging
 
-All output appended to `$BASE_DIR/startup.log` with UTC timestamps in ISO 8601 format:
+All output appended to `$BASE_DIR/claude-autorc.log` with UTC timestamps in ISO 8601 format:
 ```
 [2026-04-06T08:00:00Z] message
 ```
@@ -240,11 +240,6 @@ In `--dry-run` mode, output goes to stdout instead of the log file.
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
     </dict>
 
-    <key>StandardOutPath</key>
-    <string>/Users/jonathan/Claude/launchagent-stdout.log</string>
-
-    <key>StandardErrorPath</key>
-    <string>/Users/jonathan/Claude/launchagent-stderr.log</string>
 </dict>
 </plist>
 ```
@@ -254,7 +249,7 @@ In `--dry-run` mode, output goes to stdout instead of the log file.
 - `RunAtLoad: true` — executes at user login.
 - 45-second startup delay in the script allows networking and Homebrew services to initialize.
 - `~` does NOT expand in `ProgramArguments` — use fully-qualified paths (`/Users/<username>/...`).
-- `~` DOES expand in `StandardOutPath`/`StandardErrorPath` — but hardcoded paths are used for consistency.
+- stdout/stderr are not redirected to files. LaunchAgent output goes to the macOS unified log. Use Console.app or `log show` for low-level LaunchAgent debugging.
 - LaunchAgent runs in the user's login session, inheriting `$USER` and `$HOME`.
 
 ## Edge Cases
