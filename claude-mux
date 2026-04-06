@@ -102,8 +102,16 @@ if [[ ! -f "$HOME/.claude-mux-rc" ]]; then
 # Enable for multi-agent orchestration workflows.
 # Default: false
 #ALLOW_CROSS_SESSION_CONTROL=false
+
+# Seconds to wait between launching each session.
+# Increase if sessions fail to register with Remote Control.
+# Default: 5
+#SLEEP_BETWEEN=5
 CONFIG_EOF
-    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Created default config at $HOME/.claude-mux-rc" >> "$BASE_DIR/claude-mux.log"
+    # Log to file if BASE_DIR exists, otherwise just stderr
+    if [[ -d "$BASE_DIR" ]]; then
+        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Created default config at $HOME/.claude-mux-rc" >> "$BASE_DIR/claude-mux.log"
+    fi
 fi
 
 # shellcheck source=/dev/null
@@ -385,7 +393,10 @@ except: pass
     log "Setting defaultMode=$DEFAULT_PERMISSION_MODE in $dir"
     [[ "$DRY_RUN" == "true" ]] && return
 
-    mkdir -p "$dir/.claude"
+    if ! mkdir -p "$dir/.claude" 2>/dev/null; then
+        log "WARN: Cannot create $dir/.claude — skipping defaultMode setup"
+        return
+    fi
     if [[ -f "$settings_file" ]]; then
         if ! /usr/bin/python3 - "$settings_file" "$DEFAULT_PERMISSION_MODE" >> "$LOG_FILE" 2>&1 << 'PYEOF'
 import json, sys
@@ -450,35 +461,38 @@ create_claude_session() {
             return
         fi
         log "Session '$session_name' exists but claude is not running — relaunching"
+    else
+        log "Creating tmux session '$session_name' in $working_dir"
     fi
 
     [[ "$DRY_RUN" == "true" ]] && return
 
     if ! "$TMUX_BIN" has-session -t "$session_name" 2>/dev/null; then
-        log "Creating tmux session '$session_name' in $working_dir"
         "$TMUX_BIN" new-session -d -s "$session_name" -c "$working_dir"
-    else
-        log "Relaunching claude in existing session '$session_name'"
     fi
 
-    # Build system prompt; use a variable to avoid quoting complexity in send-keys
+    # Build system prompt
     local tmux_prompt
     if [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]]; then
-        tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself or any other Claude session via: /opt/homebrew/bin/tmux send-keys -t <session-name> \"/command args\" Enter. To list all sessions: /opt/homebrew/bin/tmux list-sessions. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'.${GITHUB_SSH_INFO}"
+        tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself or any other Claude session via: /opt/homebrew/bin/tmux send-keys -t <session-name> '/command args' Enter. To list all sessions: /opt/homebrew/bin/tmux list-sessions. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'.${GITHUB_SSH_INFO}"
     else
-        tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself via: /opt/homebrew/bin/tmux send-keys -t '${session_name}' \"/command args\" Enter.${GITHUB_SSH_INFO}"
+        tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself via: /opt/homebrew/bin/tmux send-keys -t '${session_name}' '/command args' Enter.${GITHUB_SSH_INFO}"
     fi
 
     # Write the launch command to a temp script to avoid quoting complexity.
     # A trap inside the script guarantees cleanup even if claude exits unexpectedly.
-    local launch_script
+    # The prompt is written to a separate file to avoid any quoting issues in the heredoc.
+    local launch_script prompt_file
     launch_script=$(mktemp /tmp/claude-launch-XXXXXX)
+    prompt_file=$(mktemp /tmp/claude-prompt-XXXXXX)
+    printf '%s' "$tmux_prompt" > "$prompt_file"
     cat > "$launch_script" << LAUNCH_EOF
 #!/bin/bash
-trap 'rm -f "${launch_script}"' EXIT
+trap 'rm -f "${launch_script}" "${prompt_file}"' EXIT
 export PATH="/opt/homebrew/bin:\$PATH"
-claude -c --remote-control --permission-mode auto --name '${session_name}' --append-system-prompt "${tmux_prompt}" 2>/dev/null || \
-claude --remote-control --permission-mode auto --name '${session_name}' --append-system-prompt "${tmux_prompt}"
+_prompt=\$(cat '${prompt_file}')
+claude -c --remote-control --permission-mode auto --name '${session_name}' --append-system-prompt "\$_prompt" 2>/dev/null || \
+claude --remote-control --permission-mode auto --name '${session_name}' --append-system-prompt "\$_prompt"
 LAUNCH_EOF
     chmod +x "$launch_script"
 
@@ -591,6 +605,7 @@ ensure_base_dir() {
 
 start_sessions() {
     log "=== claude-mux starting (dry-run=${DRY_RUN}) ==="
+    declare -A _session_dirs  # track session name → dir for collision detection
 
     ensure_base_dir
     discover_categories
@@ -620,6 +635,12 @@ start_sessions() {
             continue
         fi
 
+        if [[ -n "${_session_dirs[$cat_session]+x}" ]]; then
+            log "WARN: Session name '$cat_session' collision — '$CATEGORY_DIR' conflicts with '${_session_dirs[$cat_session]}', skipping"
+            continue
+        fi
+        _session_dirs[$cat_session]="$CATEGORY_DIR"
+
         ensure_git_repo "$CATEGORY_DIR"
         create_claude_session "$cat_session" "$CATEGORY_DIR"
 
@@ -641,6 +662,12 @@ start_sessions() {
                 log "Skipping '$dir_name': name is empty after sanitization"
                 continue
             fi
+
+            if [[ -n "${_session_dirs[$session_name]+x}" ]]; then
+                log "WARN: Session name '$session_name' collision — '$SUBDIR' conflicts with '${_session_dirs[$session_name]}', skipping"
+                continue
+            fi
+            _session_dirs[$session_name]="$SUBDIR"
 
             ensure_git_repo "$SUBDIR"
             setup_gitignore "$SUBDIR"

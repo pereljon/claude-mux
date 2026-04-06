@@ -156,6 +156,11 @@ ${permission_line}
 # Allow sessions to send slash commands to other sessions via tmux.
 # Enable for multi-agent orchestration. Default: false
 ${cross_line}
+
+# Seconds to wait between launching each session.
+# Increase if sessions fail to register with Remote Control.
+# Default: 5
+#SLEEP_BETWEEN=5
 CONFIG_EOF
 else
     echo "Config $CONFIG_FILE already exists — skipping."
@@ -181,6 +186,10 @@ if [[ "$INSTALL_LAUNCHAGENT" == "true" ]]; then
         echo "Installing LaunchAgent to $PLIST_DEST..."
         # Template the binary path into the plist so it matches --bin-dir
         sed "s|exec \"\\\$HOME/Claude/claude-mux\"|exec \"$BIN_DIR/claude-mux\"|" "$PLIST_SRC" > "$PLIST_DEST"
+        if ! grep -q "$BIN_DIR/claude-mux" "$PLIST_DEST" 2>/dev/null; then
+            echo "WARNING: Could not template binary path into plist — LaunchAgent may point to wrong location."
+            echo "         Manually edit $PLIST_DEST to set the correct path to claude-mux."
+        fi
         launchctl bootstrap "gui/$(id -u)" "$PLIST_DEST"
         echo "LaunchAgent installed and loaded."
     fi

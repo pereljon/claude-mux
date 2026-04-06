@@ -22,3 +22,8 @@
 # Enable for multi-agent orchestration workflows.
 # Default: false
 #ALLOW_CROSS_SESSION_CONTROL=false
+
+# Seconds to wait between launching each session.
+# Increase if sessions fail to register with Remote Control.
+# Default: 5
+#SLEEP_BETWEEN=5

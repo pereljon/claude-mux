@@ -134,7 +134,7 @@ Builds a system prompt based on `ALLOW_CROSS_SESSION_CONTROL`:
 
 - **true:** Claude also learns how to target other sessions, find its own session name, and list all sessions.
 
-Writes the launch command to a temp script (`/tmp/claude-launch-XXXXXX.sh`) to avoid quoting complexity. The temp script uses `trap EXIT` to guarantee self-cleanup. Sends the temp script path to the tmux pane via `send-keys`. Sleeps `SLEEP_BETWEEN` seconds after launching.
+Writes the launch command to a temp script (`/tmp/claude-launch-XXXXXX`) and the system prompt to a separate temp file (`/tmp/claude-prompt-XXXXXX`) to avoid quoting complexity. The temp script uses `trap EXIT` to guarantee self-cleanup. Sends the temp script path to the tmux pane via `send-keys`. Sleeps `SLEEP_BETWEEN` seconds after launching.
 
 Launch command inside temp script:
 ```bash

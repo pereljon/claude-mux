@@ -72,6 +72,7 @@ On first run, `~/.claude-mux-rc` is created automatically with all settings comm
 | `AUTO_GIT_INIT` | `false` | Run `git init` and create a `.gitignore` in project directories that don't have a git repo |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set Claude's `permissions.defaultMode` in each project. Valid: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Set to `""` to disable. |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions can send slash commands to other sessions via tmux — useful for multi-agent orchestration. When `false`, sessions can only command themselves. |
+| `SLEEP_BETWEEN` | `5` | Seconds to wait between launching each session. Increase if sessions fail to register with Remote Control. |
 
 ## Directory Structure
 
