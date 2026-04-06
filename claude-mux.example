@@ -1,6 +1,6 @@
-# ~/.claude-autorc — Claude Auto Remote Control user configuration
-# Copy this file to ~/.claude-autorc and uncomment settings to override defaults.
-# This file is sourced by claude-autorc at startup.
+# ~/.claude-mux — Claude Auto Remote Control user configuration
+# Copy this file to ~/.claude-mux and uncomment settings to override defaults.
+# This file is sourced by claude-mux at startup.
 
 # Root directory containing category and project directories.
 # Default: $HOME/Claude

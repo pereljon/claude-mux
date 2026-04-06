@@ -4,7 +4,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.user.claude-sessions</string>
+    <string>com.user.claude-mux</string>
 
     <key>ProgramArguments</key>
     <array>

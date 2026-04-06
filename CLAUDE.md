@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**Claude Auto Remote Control** (`claude-autorc`) — a shell script and macOS LaunchAgent that automatically creates persistent tmux sessions running Claude Code with Remote Control for each project directory under `~/Claude/`.
+**claude-mux** (Claude Code Multiplexer) — a shell script and macOS LaunchAgent that automatically creates and maintains persistent Claude Code sessions in tmux for every project directory under `~/Claude/`.
 
 ### Deliverables
 
-1. `~/Claude/claude-autorc` — main startup script (Bash)
-2. `~/Library/LaunchAgents/com.user.claude-sessions.plist` — triggers script at user login
+1. `~/Claude/claude-mux` — main startup script (Bash)
+2. `~/Library/LaunchAgents/com.user.claude-mux.plist` — triggers script at user login
 
 ## Architecture
 
@@ -24,7 +24,7 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 - **Dynamic categories**: all top-level subdirs of `~/Claude/` (not starting with `.` or `-`) are treated as categories
 - **Session migration**: SIGTERMs Claude processes running outside tmux in managed directories; `claude -c` resumes them in the new tmux session
 - **Dry run**: `--dry-run` flag prints actions without executing (skips migration)
-- **Logging**: all actions appended to `~/Claude/claude-autorc.log` (UTC ISO 8601)
+- **Logging**: all actions appended to `~/Claude/claude-mux.log` (UTC ISO 8601)
 - **Auto-gitignore**: optionally creates `.gitignore` with common dev exclusions (secrets, tokens, .env, IDE, build artifacts)
 - **Default permission mode**: optionally sets Claude's `permissions.defaultMode` per project via `.claude/settings.local.json`
 - **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name, so Claude knows how to send slash commands (e.g. `/model`, `/compact`) to itself or other sessions via `tmux send-keys`
@@ -40,23 +40,23 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 
 ```bash
 # Dry run
-~/Claude/claude-autorc --dry-run
+~/Claude/claude-mux --dry-run
 
 # Full run
-~/Claude/claude-autorc
+~/Claude/claude-mux
 
 # Check sessions
 tmux list-sessions
 
 # Install LaunchAgent
-cp com.user.claude-sessions.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.user.claude-sessions.plist
+cp com.user.claude-mux.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.user.claude-mux.plist
 
 # Verify LaunchAgent
 launchctl list | grep claude-sessions
 
 # Check logs
-tail -f ~/Claude/claude-autorc.log
+tail -f ~/Claude/claude-mux.log
 
 # LaunchAgent debug (stdout/stderr go to macOS unified log, not a file)
 log show --predicate 'process == "launchd"' --last 5m | grep claude
@@ -65,21 +65,21 @@ log show --predicate 'process == "launchd"' --last 5m | grep claude
 ## Development workflow
 
 The script has two locations:
-- **Repo**: `~/Claude/development/claude-code-sessions/claude-autorc` (version-controlled)
-- **Active**: `~/Claude/claude-autorc` (what actually runs)
+- **Repo**: `~/Claude/development/claude-code-sessions/claude-mux` (version-controlled)
+- **Active**: `~/Claude/claude-mux` (what actually runs)
 
 Always edit the repo copy first, commit and push, then deploy to the active location:
 
 ```bash
 # After editing and committing in the repo:
-cp ~/Claude/development/claude-code-sessions/claude-autorc ~/Claude/
+cp ~/Claude/development/claude-code-sessions/claude-mux ~/Claude/
 ```
 
-The plist and `claude-autorc.example` follow the same pattern — edit in repo, copy to deploy.
+The plist and `claude-mux.example` follow the same pattern — edit in repo, copy to deploy.
 
 ## Configuration file
 
-`~/.claude-autorc` is the user config (not in this repo). A documented template is at `claude-autorc.example`. Key variables:
+`~/.claude-mux` is the user config (not in this repo). A documented template is at `claude-mux.example`. Key variables:
 
 - `BASE_DIR` — root directory (default: `~/Claude`)
 - `AUTO_GIT_INIT` — run `git init` and create `.gitignore` in projects without a repo (default: `false`)

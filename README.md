@@ -1,6 +1,8 @@
-# Claude Auto Remote Control (`claude-autorc`)
+# claude-mux — Claude Code Multiplexer
 
-A shell script and macOS LaunchAgent that automatically creates persistent tmux sessions running Claude Code with Remote Control for each project directory under `~/Claude/` (configurable via `~/.claude-autorc`).
+Persistent Claude Code sessions for all your projects.
+
+A shell script and macOS LaunchAgent that automatically creates and maintains Claude Code sessions in tmux for every project directory under `~/Claude/` (configurable via `~/.claude-mux`).
 
 ## What It Does
 
@@ -27,11 +29,11 @@ The LaunchAgent runs the script automatically at login with a 45-second startup 
 
 ```bash
 # Copy the script to ~/Claude/
-cp claude-autorc ~/Claude/
-chmod +x ~/Claude/claude-autorc
+cp claude-mux ~/Claude/
+chmod +x ~/Claude/claude-mux
 
-cp com.user.claude-sessions.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.user.claude-sessions.plist
+cp com.user.claude-mux.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.user.claude-mux.plist
 
 # Verify
 launchctl list | grep claude-sessions
@@ -41,10 +43,10 @@ launchctl list | grep claude-sessions
 
 ```bash
 # Preview what would happen (no changes made)
-~/Claude/claude-autorc --dry-run
+~/Claude/claude-mux --dry-run
 
 # Run manually
-~/Claude/claude-autorc
+~/Claude/claude-mux
 
 # Check running sessions
 tmux list-sessions
@@ -53,14 +55,14 @@ tmux list-sessions
 tmux attach -t project-name
 
 # Watch the log
-tail -f ~/Claude/claude-autorc.log
+tail -f ~/Claude/claude-mux.log
 ```
 
 When run from the terminal, output is mirrored to stdout in real time. When run via LaunchAgent, output goes to the log file only.
 
 ## Configuration
 
-On first run, `~/.claude-autorc` is created automatically with all settings commented out. Edit it to override any defaults — the script never needs to be modified directly.
+On first run, `~/.claude-mux` is created automatically with all settings commented out. Edit it to override any defaults — the script never needs to be modified directly.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -122,6 +124,6 @@ This patches the bundled JS in the `claude` binary directly. Re-apply after each
 
 ## Logs
 
-- `~/Claude/claude-autorc.log` — all script actions with UTC timestamps
+- `~/Claude/claude-mux.log` — all script actions with UTC timestamps
 
 For low-level LaunchAgent debugging, use Console.app or `log show`.

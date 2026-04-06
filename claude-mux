@@ -1,12 +1,11 @@
 #!/bin/bash
-# claude-autorc — Claude Auto Remote Control
-# Automatically creates persistent tmux sessions running Claude Code with
-# Remote Control for each project directory under ~/Claude/.
+# claude-mux — Claude Code Multiplexer
+# Persistent Claude Code sessions for all your projects.
 
 VERSION="1.0.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
-# Override any of these in ~/.claude-autorc
+# Override any of these in ~/.claude-mux
 
 # Root directory containing category and project directories.
 BASE_DIR="$HOME/Claude"
@@ -33,10 +32,10 @@ COMMAND="start"
 
 usage() {
     cat << EOF
-Usage: claude-autorc [OPTIONS]
+claude-mux — Claude Code Multiplexer
+Persistent Claude Code sessions for all your projects.
 
-Automatically create and maintain persistent tmux sessions running Claude Code
-for each project directory under ~/Claude/.
+Usage: claude-mux [OPTIONS]
 
 Options:
   --dry-run     Print actions without executing (no sessions created or modified)
@@ -47,10 +46,10 @@ Options:
   -h, --help    Show this help message
 
 Configuration:
-  ~/.claude-autorc    User config file (created automatically on first run)
+  ~/.claude-mux    User config file (created automatically on first run)
 
 Logs:
-  ~/Claude/claude-autorc.log
+  ~/Claude/claude-mux.log
 EOF
 }
 
@@ -60,7 +59,7 @@ while [[ $# -gt 0 ]]; do
         --status)         COMMAND="status"; shift ;;
         --shutdown)       COMMAND="shutdown"; shift ;;
         --restart)        COMMAND="restart"; shift ;;
-        -v|--version)     echo "claude-autorc $VERSION"; exit 0 ;;
+        -v|--version)     echo "claude-mux $VERSION"; exit 0 ;;
         -h|--help)        usage; exit 0 ;;
         -*)               echo "Unknown option: $1" >&2; echo >&2; usage >&2; exit 1 ;;
         *)                echo "Unexpected argument: $1" >&2; echo >&2; usage >&2; exit 1 ;;
@@ -69,11 +68,11 @@ done
 
 # ── User config (overrides defaults above) ────────────────────────────────────
 
-if [[ ! -f "$HOME/.claude-autorc" ]]; then
-    cat > "$HOME/.claude-autorc" << 'CONFIG_EOF'
-# ~/.claude-autorc — Claude Auto Remote Control user configuration
+if [[ ! -f "$HOME/.claude-mux" ]]; then
+    cat > "$HOME/.claude-mux" << 'CONFIG_EOF'
+# ~/.claude-mux — Claude Auto Remote Control user configuration
 # Generated on first run. Uncomment and edit settings to override defaults.
-# This file is sourced by claude-autorc at startup.
+# This file is sourced by claude-mux at startup.
 
 # Root directory containing category and project directories.
 # Default: $HOME/Claude
@@ -95,16 +94,16 @@ if [[ ! -f "$HOME/.claude-autorc" ]]; then
 # Default: false
 #ALLOW_CROSS_SESSION_CONTROL=false
 CONFIG_EOF
-    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Created default config at $HOME/.claude-autorc" >> "$BASE_DIR/startup.log"
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Created default config at $HOME/.claude-mux" >> "$BASE_DIR/startup.log"
 fi
 
 # shellcheck source=/dev/null
-source "$HOME/.claude-autorc"
+source "$HOME/.claude-mux"
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 SLEEP_BETWEEN=5
-LOG_FILE="$BASE_DIR/claude-autorc.log"
+LOG_FILE="$BASE_DIR/claude-mux.log"
 
 TMUX="/opt/homebrew/bin/tmux"
 CLAUDE="/opt/homebrew/bin/claude"
@@ -162,12 +161,12 @@ fi
 # ── Shutdown ──────────────────────────────────────────────────────────────────
 
 shutdown_claude_sessions() {
-    log "=== claude-autorc shutdown starting (dry-run=${DRY_RUN}) ==="
+    log "=== claude-mux shutdown starting (dry-run=${DRY_RUN}) ==="
 
     local sessions
     sessions=$("$TMUX" list-sessions -F '#{session_name}' 2>/dev/null) || {
         log "No tmux sessions found"
-        log "=== claude-autorc shutdown complete ==="
+        log "=== claude-mux shutdown complete ==="
         return
     }
 
@@ -187,7 +186,7 @@ shutdown_claude_sessions() {
         log "Sent /exit to $shutdown_count session(s)"
     fi
 
-    log "=== claude-autorc shutdown complete ==="
+    log "=== claude-mux shutdown complete ==="
 }
 
 status_claude_sessions() {
@@ -491,7 +490,7 @@ ensure_base_dir() {
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 start_sessions() {
-    log "=== claude-autorc starting (dry-run=${DRY_RUN}) ==="
+    log "=== claude-mux starting (dry-run=${DRY_RUN}) ==="
 
     ensure_base_dir
     discover_categories
@@ -500,7 +499,7 @@ start_sessions() {
 
     if [[ "${#CATEGORIES[@]}" -eq 0 ]]; then
         log "WARN: No category directories found under $BASE_DIR — nothing to do"
-        log "=== claude-autorc complete ==="
+        log "=== claude-mux complete ==="
         return
     fi
 
@@ -543,7 +542,7 @@ start_sessions() {
         done
     done
 
-    log "=== claude-autorc complete ==="
+    log "=== claude-mux complete ==="
 }
 
 case "$COMMAND" in

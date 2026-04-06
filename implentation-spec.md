@@ -1,8 +1,8 @@
-# Claude Auto Remote Control (`claude-autorc`): Implementation Spec
+# claude-mux — Claude Code Multiplexer: Implementation Spec
 
 ## Overview
 
-A shell script and macOS LaunchAgent that automatically creates persistent tmux sessions running Claude Code with Remote Control for each project directory under `~/Claude/` (configurable).
+A shell script and macOS LaunchAgent that automatically creates and maintains persistent Claude Code sessions in tmux for every project directory under `~/Claude/` (configurable).
 
 ## Directory Structure (Expected)
 
@@ -22,13 +22,13 @@ Categories are discovered dynamically — any subdirectory of `BASE_DIR` not sta
 
 ## Deliverables
 
-1. `~/Claude/claude-autorc` — main script
-2. `com.user.claude-sessions.plist` — LaunchAgent plist (user installs to `~/Library/LaunchAgents/`)
-3. `claude-autorc.example` — example user config file
+1. `~/Claude/claude-mux` — main script
+2. `com.user.claude-mux.plist` — LaunchAgent plist (user installs to `~/Library/LaunchAgents/`)
+3. `claude-mux.example` — example user config file
 
-## User Configuration: ~/.claude-autorc
+## User Configuration: ~/.claude-mux
 
-On first run, the script creates `~/.claude-autorc` with all settings commented out. Users edit this file to override defaults without touching the script.
+On first run, the script creates `~/.claude-mux` with all settings commented out. Users edit this file to override defaults without touching the script.
 
 ### Settings
 
@@ -39,9 +39,9 @@ On first run, the script creates `~/.claude-autorc` with all settings commented 
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set `permissions.defaultMode` in `.claude/settings.local.json` per project. Valid: `""` (disabled), `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions are told they can send slash commands to other sessions via tmux. When `false`, sessions can only send commands to themselves. |
 
-The script sources `~/.claude-autorc` after setting defaults, so any variable set in the config overrides the default.
+The script sources `~/.claude-mux` after setting defaults, so any variable set in the config overrides the default.
 
-## Script: claude-autorc
+## Script: claude-mux
 
 ### Requirements
 
@@ -61,8 +61,8 @@ The script sources `~/.claude-autorc` after setting defaults, so any variable se
 
 ```
 1. Set defaults (BASE_DIR, AUTO_GIT_INIT, DEFAULT_PERMISSION_MODE, ALLOW_CROSS_SESSION_CONTROL)
-2. Create ~/.claude-autorc with commented defaults if it doesn't exist
-3. Source ~/.claude-autorc (user overrides apply from here on)
+2. Create ~/.claude-mux with commented defaults if it doesn't exist
+3. Source ~/.claude-mux (user overrides apply from here on)
 4. Parse --dry-run flag
 5. Create BASE_DIR if it doesn't exist (exit cleanly in dry-run if missing)
 6. Discover CATEGORIES (subdirs of BASE_DIR not starting with . or -)
@@ -195,7 +195,7 @@ When `--dry-run` is passed as the first argument:
 - Log to stdout instead of file
 - Skip `migrate_stray_sessions()` entirely
 - Exit cleanly if `BASE_DIR` doesn't exist (don't create it)
-- Still creates `~/.claude-autorc` if missing (one-time setup, not an operational action)
+- Still creates `~/.claude-mux` if missing (one-time setup, not an operational action)
 
 ### Exclusion Rules
 
@@ -222,7 +222,7 @@ If the result is empty (e.g. a directory named `*`), the directory is skipped wi
 
 ### Logging
 
-All output appended to `$BASE_DIR/claude-autorc.log` with UTC timestamps in ISO 8601 format:
+All output appended to `$BASE_DIR/claude-mux.log` with UTC timestamps in ISO 8601 format:
 ```
 [2026-04-06T08:00:00Z] message
 ```
@@ -231,7 +231,7 @@ When stdout is a terminal (`-t 1`), output is also mirrored to stdout in real ti
 
 In `--dry-run` mode, output goes to stdout only (not the log file).
 
-## LaunchAgent: com.user.claude-sessions.plist
+## LaunchAgent: com.user.claude-mux.plist
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -240,13 +240,13 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.user.claude-sessions</string>
+    <string>com.user.claude-mux</string>
 
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>exec "$HOME/Claude/claude-autorc"</string>
+        <string>exec "$HOME/Claude/claude-mux"</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -290,7 +290,7 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 | Stray claude process outside tmux in managed dir | SIGTERMed; new tmux session resumes via `claude -c` |
 | Stray claude process in unmanaged dir | Left untouched |
 | Claude Desktop or IDE extension processes | Not matched — filter uses full path `/opt/homebrew/bin/claude` |
-| `~/.claude-autorc` does not exist | Created with commented defaults on first run |
+| `~/.claude-mux` does not exist | Created with commented defaults on first run |
 | `.claude` exists as a file (not dir) | `mkdir -p` fails; `setup_default_mode` logs warning and skips |
 | `settings.local.json` contains invalid JSON | Python merge fails; logs warning and skips |
 | No GitHub SSH accounts in `~/.ssh/config` | `GITHUB_SSH_INFO` is empty; prompt omits the SSH section |
@@ -301,8 +301,8 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 ### Phase 1: Dry Run
 
 ```bash
-chmod +x ~/Claude/claude-autorc
-~/Claude/claude-autorc --dry-run
+chmod +x ~/Claude/claude-mux
+~/Claude/claude-mux --dry-run
 ```
 
 Verify output lists correct directories, session names, git init targets, and detected GitHub SSH accounts. Confirm no files are created or modified.
@@ -313,13 +313,13 @@ Test with one project directory:
 
 - Verify tmux session is created with correct name
 - Verify Claude starts with Remote Control enabled
-- Verify `~/.claude-autorc` was created on first run
+- Verify `~/.claude-mux` was created on first run
 - Verify re-running the script skips the existing session
 
 ### Phase 3: Full Run
 
 ```bash
-~/Claude/claude-autorc
+~/Claude/claude-mux
 tmux list-sessions
 ```
 
@@ -336,17 +336,17 @@ With a Claude process running outside tmux in a managed directory, run the scrip
 
 ```bash
 # Install
-cp com.user.claude-sessions.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.user.claude-sessions.plist
+cp com.user.claude-mux.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.user.claude-mux.plist
 
 # Verify
 launchctl list | grep claude-sessions
 
 # Check logs
-tail -f ~/Claude/claude-autorc.log
+tail -f ~/Claude/claude-mux.log
 
 # Unload for debugging
-launchctl unload ~/Library/LaunchAgents/com.user.claude-sessions.plist
+launchctl unload ~/Library/LaunchAgents/com.user.claude-mux.plist
 ```
 
 ### Phase 6: Reboot Test
@@ -357,7 +357,7 @@ Restart the Mac. After login, wait 60 seconds, then verify:
 tmux list-sessions
 ```
 
-All sessions should be present. Check `~/Claude/claude-autorc.log` for any errors.
+All sessions should be present. Check `~/Claude/claude-mux.log` for any errors.
 
 ## Resolved Implementation Notes
 
