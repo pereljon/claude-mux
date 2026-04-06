@@ -1,7 +1,7 @@
 #!/bin/bash
-# start-claude-sessions.sh
-# Automatically creates persistent tmux sessions running Claude Code for each
-# project directory under ~/Claude/.
+# claude-autorc — Claude Auto Remote Control
+# Automatically creates persistent tmux sessions running Claude Code with
+# Remote Control for each project directory under ~/Claude/.
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
