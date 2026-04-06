@@ -1,0 +1,225 @@
+#!/bin/bash
+# start-claude-sessions.sh
+# Automatically creates persistent tmux sessions running Claude Code for each
+# project directory under ~/Claude/.
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+
+# When true, create a .gitignore with common development exclusions
+# if one does not already exist in the project directory
+AUTO_GITIGNORE=true
+
+# When set to a valid mode, create/update .claude/settings.local.json
+# to set permissions.defaultMode for the project.
+# Valid values: "" (disabled), "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"
+DEFAULT_PERMISSION_MODE="auto"
+
+# ── Constants ─────────────────────────────────────────────────────────────────
+
+BASE_DIR="$HOME/Claude"
+CATEGORIES=("work" "personal")
+SLEEP_BETWEEN=5
+LOG_FILE="$BASE_DIR/startup.log"
+
+TMUX="/opt/homebrew/bin/tmux"
+CLAUDE="/opt/homebrew/bin/claude"
+
+export PATH="/opt/homebrew/bin:$PATH"
+
+# ── Flags ─────────────────────────────────────────────────────────────────────
+
+DRY_RUN=false
+if [[ "${1:-}" == "--dry-run" ]]; then
+    DRY_RUN=true
+fi
+
+# ── Startup delay (LaunchAgent only, skipped in dry-run) ──────────────────────
+
+if [[ "$DRY_RUN" != "true" ]]; then
+    echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Waiting 45 seconds for system services to initialize..." >> "$LOG_FILE"
+    sleep 45
+fi
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+log() {
+    local msg="[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $1"
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "$msg"
+    else
+        echo "$msg" >> "$LOG_FILE"
+    fi
+}
+
+# ── Dependency check ──────────────────────────────────────────────────────────
+
+if [[ ! -x "$TMUX" ]]; then
+    log "ERROR: tmux not found at $TMUX — aborting"
+    exit 1
+fi
+
+if [[ ! -x "$CLAUDE" ]]; then
+    log "ERROR: claude not found at $CLAUDE — aborting"
+    exit 1
+fi
+
+# ── Functions ─────────────────────────────────────────────────────────────────
+
+ensure_git_repo() {
+    local dir="$1"
+    if [[ ! -d "$dir/.git" ]]; then
+        log "Initializing git repo in $dir"
+        if [[ "$DRY_RUN" != "true" ]]; then
+            git init "$dir" >> "$LOG_FILE" 2>&1
+        fi
+    fi
+}
+
+setup_gitignore() {
+    local dir="$1"
+    [[ "$AUTO_GITIGNORE" != "true" ]] && return
+
+    if [[ -f "$dir/.gitignore" ]]; then
+        log "Gitignore already exists in $dir, skipping"
+        return
+    fi
+
+    log "Creating .gitignore in $dir"
+    [[ "$DRY_RUN" == "true" ]] && return
+
+    cat > "$dir/.gitignore" << 'GITIGNORE_EOF'
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+tokens.json
+credentials.json
+secrets.yaml
+secrets.yml
+
+# Claude
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Dependencies
+node_modules/
+vendor/
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Build
+dist/
+build/
+*.o
+*.so
+*.dylib
+GITIGNORE_EOF
+}
+
+setup_default_mode() {
+    local dir="$1"
+    [[ -z "$DEFAULT_PERMISSION_MODE" ]] && return
+
+    local settings_file="$dir/.claude/settings.local.json"
+    log "Setting defaultMode=$DEFAULT_PERMISSION_MODE in $dir"
+    [[ "$DRY_RUN" == "true" ]] && return
+
+    mkdir -p "$dir/.claude"
+    if [[ -f "$settings_file" ]]; then
+        /usr/bin/python3 - "$settings_file" "$DEFAULT_PERMISSION_MODE" << 'PYEOF'
+import json, sys
+with open(sys.argv[1]) as f: d = json.load(f)
+d.setdefault('permissions', {})['defaultMode'] = sys.argv[2]
+with open(sys.argv[1], 'w') as f: json.dump(d, f, indent=2)
+print('')
+PYEOF
+    else
+        printf '{"permissions":{"defaultMode":"%s"}}\n' "$DEFAULT_PERMISSION_MODE" > "$settings_file"
+    fi
+}
+
+create_claude_session() {
+    local session_name="$1"
+    local working_dir="$2"
+
+    if "$TMUX" has-session -t "$session_name" 2>/dev/null; then
+        log "Session '$session_name' already exists, skipping"
+        return
+    fi
+
+    log "Creating tmux session '$session_name' in $working_dir"
+
+    [[ "$DRY_RUN" == "true" ]] && return
+
+    "$TMUX" new-session -d -s "$session_name" -c "$working_dir"
+
+    # Build system prompt; use a variable to avoid quoting complexity in send-keys
+    local tmux_prompt
+    tmux_prompt="You are running inside tmux session '${session_name}'. You can send slash commands to yourself or any other Claude session via: /opt/homebrew/bin/tmux send-keys -t <session-name> \"/command args\" Enter. To list all sessions: /opt/homebrew/bin/tmux list-sessions. To find your own session name: /opt/homebrew/bin/tmux display-message -p '#S'."
+
+    # Write the launch command to a temp script to avoid quoting complexity
+    local launch_script
+    launch_script=$(mktemp /tmp/claude-launch-XXXXXX.sh)
+    cat > "$launch_script" << LAUNCH_EOF
+#!/bin/bash
+export PATH="/opt/homebrew/bin:\$PATH"
+claude -c --rc --name '${session_name}' --append-system-prompt "${tmux_prompt}" 2>/dev/null || \
+claude --rc --name '${session_name}' --append-system-prompt "${tmux_prompt}"
+rm -f "${launch_script}"
+LAUNCH_EOF
+    chmod +x "$launch_script"
+
+    "$TMUX" send-keys -t "$session_name" "bash '${launch_script}'" Enter
+
+    sleep "$SLEEP_BETWEEN"
+}
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+log "=== start-claude-sessions.sh starting (dry-run=${DRY_RUN}) ==="
+
+for CATEGORY in "${CATEGORIES[@]}"; do
+    CATEGORY_DIR="$BASE_DIR/$CATEGORY"
+
+    if [[ ! -d "$CATEGORY_DIR" ]]; then
+        log "WARN: $CATEGORY_DIR not found, skipping"
+        continue
+    fi
+
+    ensure_git_repo "$CATEGORY_DIR"
+    create_claude_session "$CATEGORY" "$CATEGORY_DIR"
+
+    for SUBDIR in "$CATEGORY_DIR"/*/; do
+        # Strip trailing slash and get basename
+        SUBDIR="${SUBDIR%/}"
+        dir_name="$(basename "$SUBDIR")"
+
+        # Skip hidden dirs and dirs starting with -
+        if [[ "$dir_name" == .* ]] || [[ "$dir_name" == -* ]]; then
+            log "Skipping excluded directory: $SUBDIR"
+            continue
+        fi
+
+        ensure_git_repo "$SUBDIR"
+        setup_gitignore "$SUBDIR"
+        setup_default_mode "$SUBDIR"
+        create_claude_session "$dir_name" "$SUBDIR"
+    done
+done
+
+log "=== start-claude-sessions.sh complete ==="
