@@ -228,7 +228,8 @@ In `--dry-run` mode, output goes to stdout instead of the log file.
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/jonathan/Claude/start-claude-sessions.sh</string>
+        <string>-c</string>
+        <string>exec "$HOME/Claude/start-claude-sessions.sh"</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -248,7 +249,7 @@ In `--dry-run` mode, output goes to stdout instead of the log file.
 
 - `RunAtLoad: true` — executes at user login.
 - 45-second startup delay in the script allows networking and Homebrew services to initialize.
-- `~` does NOT expand in `ProgramArguments` — use fully-qualified paths (`/Users/<username>/...`).
+- `~` does NOT expand in `ProgramArguments` — use `bash -c 'exec "$HOME/..."'` so bash expands `$HOME` at runtime. No hardcoded username needed.
 - stdout/stderr are not redirected to files. LaunchAgent output goes to the macOS unified log. Use Console.app or `log show` for low-level LaunchAgent debugging.
 - LaunchAgent runs in the user's login session, inheriting `$USER` and `$HOME`.
 
@@ -342,7 +343,7 @@ All sessions should be present. Check `~/Claude/startup.log` for any errors.
 
 ## Resolved Implementation Notes
 
-1. **Plist path expansion**: `~` does not expand in `ProgramArguments` — hardcoded `/Users/<username>/Claude/start-claude-sessions.sh` used.
+1. **Plist path expansion**: `~` does not expand in `ProgramArguments` — resolved by using `bash -c 'exec "$HOME/..."'` so bash expands `$HOME` at runtime. No hardcoded username in the repo.
 2. **`claude -c` exit code**: Confirmed non-zero on no prior session; `||` fallback works correctly.
 3. **tmux send-keys quoting**: Resolved by writing a temp script and sending its path, avoiding shell quoting complexity in `send-keys`.
 4. **Rate limiting**: 5-second sleep between launches mitigates simultaneous RC registration issues.

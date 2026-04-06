@@ -9,7 +9,8 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/jonathan/Claude/start-claude-sessions.sh</string>
+        <string>-c</string>
+        <string>exec "$HOME/Claude/start-claude-sessions.sh"</string>
     </array>
 
     <key>RunAtLoad</key>

@@ -44,14 +44,11 @@ tmux attach -t project-name
 
 The LaunchAgent runs the script automatically at login with a 45-second startup delay to allow system services to initialize.
 
-**Before installing**, edit `com.user.claude-sessions.plist` and replace `/Users/jonathan` with your actual home directory path — `~` does not expand in `ProgramArguments`.
-
 ```bash
 # Copy the script to ~/Claude/
 cp start-claude-sessions.sh ~/Claude/
 chmod +x ~/Claude/start-claude-sessions.sh
 
-# Edit the plist to replace /Users/jonathan with your home path, then:
 cp com.user.claude-sessions.plist ~/Library/LaunchAgents/
 
 # Load it now (or it will load automatically on next login)
