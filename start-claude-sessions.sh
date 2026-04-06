@@ -262,15 +262,35 @@ create_claude_session() {
     local working_dir="$2"
 
     if "$TMUX" has-session -t "$session_name" 2>/dev/null; then
-        log "Session '$session_name' already exists, skipping"
-        return
+        # Session exists — check if claude is still running inside it.
+        # If the pane is at a shell prompt (claude exited), relaunch.
+        local pane_pid pane_cmd
+        pane_pid=$("$TMUX" display-message -t "$session_name" -p '#{pane_pid}' 2>/dev/null)
+        if [[ -n "$pane_pid" ]]; then
+            # Check if claude is running anywhere in the pane's process tree
+            local pane_children
+            pane_children=$(pgrep -P "$pane_pid" 2>/dev/null)
+            local tree_cmds=""
+            for child in $pane_children; do
+                tree_cmds+=$(ps -o comm= -p "$child" 2>/dev/null)
+                tree_cmds+=$(pgrep -P "$child" 2>/dev/null | xargs -I{} ps -o comm= -p {} 2>/dev/null)
+            done
+            if echo "$tree_cmds" | grep -q "claude"; then
+                log "Session '$session_name' already running claude, skipping"
+                return
+            fi
+            log "Session '$session_name' exists but claude is not running — relaunching"
+        fi
     fi
-
-    log "Creating tmux session '$session_name' in $working_dir"
 
     [[ "$DRY_RUN" == "true" ]] && return
 
-    "$TMUX" new-session -d -s "$session_name" -c "$working_dir"
+    if ! "$TMUX" has-session -t "$session_name" 2>/dev/null; then
+        log "Creating tmux session '$session_name' in $working_dir"
+        "$TMUX" new-session -d -s "$session_name" -c "$working_dir"
+    else
+        log "Relaunching claude in existing session '$session_name'"
+    fi
 
     # Build system prompt; use a variable to avoid quoting complexity in send-keys
     local tmux_prompt
