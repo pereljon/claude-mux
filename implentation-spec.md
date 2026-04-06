@@ -204,6 +204,20 @@ Skip any subdirectory where the directory name:
 
 Applies at both the category level (subdirs of `BASE_DIR`) and project level (subdirs of each category).
 
+### Session Name Sanitization
+
+At the project subdir level, the directory name is sanitized to produce a valid tmux session name:
+
+```
+session_name = dir_name
+    | spaces → hyphens
+    | non-alphanumeric (except hyphens) → hyphens
+    | collapse consecutive hyphens
+    | strip leading/trailing hyphens
+```
+
+If the result is empty (e.g. a directory named `*`), the directory is skipped with a log warning. The working directory passed to tmux is always the original (unsanitized) path.
+
 ### Logging
 
 All output appended to `$BASE_DIR/claude-autorc.log` with UTC timestamps in ISO 8601 format:
@@ -267,6 +281,8 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 | BASE_DIR does not exist | Created automatically (dry-run: exit cleanly with warning) |
 | Folder name starts with `-` | Excluded at category and project level |
 | Folder name starts with `.` | Excluded at category and project level |
+| Folder name contains spaces or special chars | Session name sanitized (spaces→hyphens, specials stripped); original path used as working dir |
+| Folder name sanitizes to empty string (e.g. `*`) | Logged as warning, skipped |
 | Script re-run after adding new project | Creates session for new folder, skips existing sessions |
 | tmux or claude not installed | Dependency check at startup exits with error |
 | Stray claude process outside tmux in managed dir | SIGTERMed; new tmux session resumes via `claude -c` |

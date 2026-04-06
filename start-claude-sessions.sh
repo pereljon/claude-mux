@@ -109,9 +109,9 @@ log() {
     fi
 }
 
-# ── Startup delay (LaunchAgent only, skipped in dry-run) ──────────────────────
+# ── Startup delay (LaunchAgent only — no terminal attached) ───────────────────
 
-if [[ "$DRY_RUN" != "true" ]]; then
+if [[ ! -t 1 && "$DRY_RUN" != "true" ]]; then
     log "Waiting 45 seconds for system services to initialize..."
     sleep 45
 fi
@@ -283,7 +283,7 @@ create_claude_session() {
     # Write the launch command to a temp script to avoid quoting complexity.
     # A trap inside the script guarantees cleanup even if claude exits unexpectedly.
     local launch_script
-    launch_script=$(mktemp /tmp/claude-launch-XXXXXX.sh)
+    launch_script=$(mktemp /tmp/claude-launch-XXXXXX)
     cat > "$launch_script" << LAUNCH_EOF
 #!/bin/bash
 trap 'rm -f "${launch_script}"' EXIT
@@ -388,6 +388,7 @@ for CATEGORY in "${CATEGORIES[@]}"; do
     for SUBDIR in "$CATEGORY_DIR"/*/; do
         # Strip trailing slash and get basename
         SUBDIR="${SUBDIR%/}"
+        [[ ! -d "$SUBDIR" ]] && continue
         dir_name="$(basename "$SUBDIR")"
 
         # Skip hidden dirs and dirs starting with -
@@ -396,10 +397,21 @@ for CATEGORY in "${CATEGORIES[@]}"; do
             continue
         fi
 
+        # Sanitize session name: replace spaces and non-alphanumeric chars
+        # (except hyphens) with hyphens, then strip leading/trailing hyphens
+        session_name="$(echo "$dir_name" | tr ' ' '-' | tr -cs 'a-zA-Z0-9-' '-' | sed 's/^-*//' | sed 's/-*$//')"
+        if [[ "$session_name" != "$dir_name" ]]; then
+            log "Sanitized session name: '$dir_name' → '$session_name'"
+        fi
+        if [[ -z "$session_name" ]]; then
+            log "Skipping '$dir_name': name is empty after sanitization"
+            continue
+        fi
+
         ensure_git_repo "$SUBDIR"
         setup_gitignore "$SUBDIR"
         setup_default_mode "$SUBDIR"
-        create_claude_session "$dir_name" "$SUBDIR"
+        create_claude_session "$session_name" "$SUBDIR"
     done
 done
 

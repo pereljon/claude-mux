@@ -83,6 +83,8 @@ On first run, `~/.claude-autorc` is created automatically with all settings comm
 └── -old/              # excluded (starts with -)
 ```
 
+Session names are derived from directory names: spaces become hyphens, non-alphanumeric characters (except hyphens) are replaced, and leading/trailing hyphens are stripped. Directories whose name sanitizes to empty are skipped with a log warning.
+
 ## Logs
 
 - `~/Claude/claude-autorc.log` — all script actions with UTC timestamps
