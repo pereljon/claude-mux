@@ -99,10 +99,29 @@ if [[ ! -w "$BIN_DIR" ]]; then
     exit 1
 fi
 
-# Warn if chosen bin dir is not in current PATH
+# Add bin dir to PATH in shell profile if not already there
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    echo "WARNING: $BIN_DIR is not in your current PATH."
-    echo "Add it to your shell profile (e.g. export PATH=\"$BIN_DIR:\$PATH\")"
+    # Detect shell profile
+    if [[ -n "${ZSH_VERSION:-}" ]] || [[ "$SHELL" == */zsh ]]; then
+        SHELL_PROFILE="$HOME/.zshrc"
+    else
+        SHELL_PROFILE="$HOME/.bashrc"
+    fi
+
+    if ! grep -q "# Added by claude-mux" "$SHELL_PROFILE" 2>/dev/null; then
+        echo "Adding $BIN_DIR to PATH in $SHELL_PROFILE..."
+        cat >> "$SHELL_PROFILE" << PROFILE_EOF
+
+# Added by claude-mux
+export PATH="\$PATH:$BIN_DIR"
+# End of claude-mux section
+PROFILE_EOF
+        PATH_UPDATED="$SHELL_PROFILE"
+    else
+        PATH_UPDATED=""
+    fi
+else
+    PATH_UPDATED=""
 fi
 
 # ── Install binary ────────────────────────────────────────────────────────────
@@ -211,4 +230,17 @@ echo "  Base dir:  $BASE_DIR"
 echo "  Config:    $CONFIG_FILE"
 [[ "$INSTALL_LAUNCHAGENT" == "true" ]] && echo "  LaunchAgent: com.user.claude-mux (loaded)"
 echo ""
-echo "Run 'claude-mux --help' to get started."
+
+if [[ -n "$PATH_UPDATED" ]]; then
+    echo "  PATH:      $BIN_DIR added to $PATH_UPDATED"
+    echo ""
+    echo "┌──────────────────────────────────────────────────────────────────┐"
+    echo "│  ACTION REQUIRED: Restart your terminal or run:                 │"
+    echo "│                                                                  │"
+    echo "│    source $PATH_UPDATED"
+    echo "│                                                                  │"
+    echo "└──────────────────────────────────────────────────────────────────┘"
+else
+    echo ""
+    echo "Run 'claude-mux --help' to get started."
+fi
