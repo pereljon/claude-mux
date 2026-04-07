@@ -3,6 +3,12 @@
 
 set -euo pipefail
 
+if [[ "$(id -u)" -eq 0 ]]; then
+    echo "ERROR: Do not run this installer as root or with sudo." >&2
+    echo "claude-mux is a per-user tool — run as your normal user account." >&2
+    exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_BASE_DIR="$HOME/Claude"
 BASE_DIR=""
@@ -64,14 +70,14 @@ BASE_DIR="${BASE_DIR:-$DEFAULT_BASE_DIR}"
 
 find_bin_dir() {
     # Prefer existing writable user bin directories
-    local candidates=("$HOME/bin" "$HOME/.local/bin" "/usr/local/bin")
+    local candidates=("$HOME/bin" "$HOME/.local/bin")
     for dir in "${candidates[@]}"; do
         if [[ -d "$dir" && -w "$dir" ]]; then
             echo "$dir"; return
         fi
     done
-    # Fall back to creating ~/.local/bin (standard XDG user bin)
-    echo "$HOME/.local/bin"
+    # Fall back to creating ~/bin
+    echo "$HOME/bin"
 }
 
 if [[ -z "$BIN_DIR" ]]; then
