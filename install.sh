@@ -63,7 +63,7 @@ BASE_DIR="${BASE_DIR:-$DEFAULT_BASE_DIR}"
 # ── Find bin dir ──────────────────────────────────────────────────────────────
 
 find_bin_dir() {
-    local candidates=("$HOME/bin" "$HOME/.local/bin" "/usr/local/bin" "/opt/homebrew/bin")
+    local candidates=("$HOME/bin" "$HOME/.local/bin" "/usr/local/bin")
     for dir in "${candidates[@]}"; do
         if [[ -d "$dir" && -w "$dir" ]]; then
             echo "$dir"; return
