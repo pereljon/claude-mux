@@ -89,7 +89,7 @@ When run from the terminal, output is mirrored to stdout in real time. When run 
 | `active` | tmux session exists, Claude is running, and a local tmux client is attached |
 | `running` | tmux session exists and Claude is running (no local client attached) |
 | `stopped` | tmux session exists but Claude has exited |
-| `idle` | A `.claude/` project directory exists but no tmux session is running (shown only with `-L`) |
+| `idle` | A `.claude/` project exists under `BASE_DIR` but has no claude-mux tmux session running (shown only with `-L`) |
 
 ## Claude Prompt Examples
 
