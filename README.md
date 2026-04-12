@@ -8,6 +8,8 @@ A shell script and macOS LaunchAgent that keeps a Claude Code session running fo
 
 By default, `claude-mux` launches a Claude Code session in the current directory inside tmux with Remote Control enabled, and attaches to it. If Claude was previously running in the directory, it resumes the conversation via `claude -c`.
 
+Each Claude session is injected with its tmux session name (so it can send slash commands like `/model` and `/compact` to itself), and any GitHub SSH accounts found in `~/.ssh/config` (so it knows which accounts are available for git operations).
+
 With `claude-mux -a` (or via the LaunchAgent at login), it runs in batch mode:
 
 1. Finds all Claude projects under `~/Claude/` — any directory containing a `.claude/` subdirectory, at any depth
@@ -15,8 +17,6 @@ With `claude-mux -a` (or via the LaunchAgent at login), it runs in batch mode:
 3. Migrates any Claude Code processes already running outside tmux — SIGTERMs them so they resume cleanly inside tmux via `claude -c`
 4. Creates a persistent tmux session per project with Claude Code running, with Remote Control enabled (if you've enabled RC globally via `/config`, the flag is redundant but harmless)
 5. Attempts to resume the last conversation (`claude -c`), falling back to a fresh start
-
-Each Claude session is injected with its tmux session name (so it can send slash commands like `/model` and `/compact` to itself), and any GitHub SSH accounts found in `~/.ssh/config` (so it knows which accounts are available for git operations).
 
 You can also create a new project with `claude-mux -n DIRECTORY` (which initializes git, creates a `.gitignore`, sets permission mode, and launches Claude).
 
