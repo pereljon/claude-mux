@@ -472,8 +472,12 @@ status_claude_sessions() {
     sessions=$("$TMUX_BIN" list-sessions -F '#{session_name}' 2>/dev/null) || sessions=""
 
     # Build set of active session names
+    # Get sessions with local clients attached
+    local attached_sessions=""
+    attached_sessions=$("$TMUX_BIN" list-clients -F '#{session_name}' 2>/dev/null) || attached_sessions=""
+
     local active_sessions=""
-    local running=0 stopped=0 unmanaged=0 idle=0
+    local active=0 running=0 stopped=0 unmanaged=0 idle=0
 
     if [[ -n "$sessions" ]]; then
         while IFS= read -r session; do
@@ -482,8 +486,13 @@ status_claude_sessions() {
                 active_sessions="${active_sessions}${session}
 "
                 if claude_running_in_session "$session"; then
-                    printf "  [running] %s\n" "$session"
-                    (( running++ ))
+                    if echo "$attached_sessions" | grep -qx "$session"; then
+                        printf "  [ active] %s\n" "$session"
+                        (( active++ ))
+                    else
+                        printf "  [running] %s\n" "$session"
+                        (( running++ ))
+                    fi
                 else
                     printf "  [stopped] %s\n" "$session"
                     (( stopped++ ))
@@ -510,11 +519,11 @@ status_claude_sessions() {
     fi
 
     echo ""
-    if [[ "$show_idle" == "true" ]]; then
-        echo "$running running, $stopped stopped, $idle idle"
-    else
-        echo "$running running, $stopped stopped"
-    fi
+    local summary=""
+    [[ $active -gt 0 ]] && summary="${active} active, "
+    summary="${summary}${running} running, ${stopped} stopped"
+    [[ "$show_idle" == "true" ]] && summary="${summary}, ${idle} idle"
+    echo "$summary"
     [[ $unmanaged -gt 0 ]] && echo "($unmanaged non-managed tmux sessions hidden)"
     return 0
 }
