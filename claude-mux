@@ -479,22 +479,33 @@ status_claude_sessions() {
     local active_sessions=""
     local active=0 running=0 stopped=0 unmanaged=0 idle=0
 
+    # Collect all rows, then format as aligned columns
+    local rows=""
+
     if [[ -n "$sessions" ]]; then
         while IFS= read -r session; do
             [[ -z "$session" ]] && continue
             if is_managed_session "$session"; then
                 active_sessions="${active_sessions}${session}
 "
+                local _dir
+                _dir=$("$TMUX_BIN" display-message -t "$session" -p '#{pane_current_path}' 2>/dev/null)
+                # Shorten home prefix
+                _dir="${_dir/#$HOME/~}"
+
                 if claude_running_in_session "$session"; then
                     if echo "$attached_sessions" | grep -qx "$session"; then
-                        printf "  [ active] %s\n" "$session"
+                        rows="${rows}active|${session}|${_dir}
+"
                         (( active++ ))
                     else
-                        printf "  [running] %s\n" "$session"
+                        rows="${rows}running|${session}|${_dir}
+"
                         (( running++ ))
                     fi
                 else
-                    printf "  [stopped] %s\n" "$session"
+                    rows="${rows}stopped|${session}|${_dir}
+"
                     (( stopped++ ))
                 fi
             else
@@ -509,12 +520,21 @@ status_claude_sessions() {
             local _name
             _name="$(sanitize_session_name "$(basename "$_proj")")"
             [[ -z "$_name" ]] && continue
-            # Skip if already shown as active
             if echo "$active_sessions" | grep -qx "$_name"; then
                 continue
             fi
-            printf "  [  idle ] %s  (%s)\n" "$_name" "$_proj"
+            local _short="${_proj/#$HOME/~}"
+            rows="${rows}idle|${_name}|${_short}
+"
             (( idle++ ))
+        done
+    fi
+
+    # Print aligned columns
+    if [[ -n "$rows" ]]; then
+        echo "$rows" | while IFS='|' read -r _status _name _path; do
+            [[ -z "$_status" ]] && continue
+            printf "  %-9s %-30s %s\n" "$_status" "$_name" "$_path"
         done
     fi
 
