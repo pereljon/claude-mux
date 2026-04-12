@@ -23,6 +23,9 @@ DEFAULT_PERMISSION_MODE="auto"
 # commands to themselves — safer, prevents one session affecting others.
 ALLOW_CROSS_SESSION_CONTROL=false
 
+# When true, enable tmux extended-keys for Shift+Enter and other modified keys.
+TMUX_EXTENDED_KEYS=true
+
 # When false, the LaunchAgent (-a/--all) exits without starting sessions.
 # Set to true to enable automatic batch startup at login.
 LAUNCHAGENT_ENABLED=true
@@ -174,6 +177,10 @@ if [[ ! -f "$HOME/.claude-mux-rc" ]]; then
 # Enable for multi-agent orchestration workflows.
 # Default: false
 #ALLOW_CROSS_SESSION_CONTROL=false
+
+# Enable tmux extended-keys for Shift+Enter and other modified key support.
+# Requires tmux 3.2+. Default: true
+#TMUX_EXTENDED_KEYS=true
 
 # Seconds to wait between launching each session.
 # Increase if sessions fail to register with Remote Control.
@@ -678,6 +685,11 @@ create_claude_session() {
 
     if ! "$TMUX_BIN" has-session -t "$session_name" 2>/dev/null; then
         "$TMUX_BIN" new-session -d -s "$session_name" -c "$working_dir"
+    fi
+
+    # Enable extended keys for Shift+Enter support (tmux 3.2+)
+    if [[ "$TMUX_EXTENDED_KEYS" == "true" ]]; then
+        "$TMUX_BIN" set-option -t "$session_name" extended-keys on 2>/dev/null
     fi
 
     # Build system prompt

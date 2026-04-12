@@ -22,6 +22,10 @@
 # Default: false
 #ALLOW_CROSS_SESSION_CONTROL=false
 
+# Enable tmux extended-keys for Shift+Enter and other modified key support.
+# Requires tmux 3.2+. Default: true
+#TMUX_EXTENDED_KEYS=true
+
 # Seconds to wait between launching each session.
 # Increase if sessions fail to register with Remote Control.
 # Default: 5
