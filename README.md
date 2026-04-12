@@ -109,7 +109,7 @@ Session names are derived from directory names: spaces become hyphens, non-alpha
 
 ## Session System Prompt
 
-Each Claude session is launched with `--append-system-prompt` containing context about its environment. This is fully transparent — here is what gets injected:
+Each Claude session is launched with `--append-system-prompt` containing context about its environment:
 
 ```
 You are running inside tmux session '<session-name>'.
