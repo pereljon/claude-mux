@@ -102,20 +102,20 @@ Claude: runs `claude-mux -l` and displays the results
 You: "Show me all projects"
 Claude: runs `claude-mux -L` and displays the results
 
-You: "Start a session for my aws project"
-Claude: runs `claude-mux -d ~/Claude/work/aws`
+You: "Start a session for my api-server project"
+Claude: runs `claude-mux -d ~/Claude/work/api-server`
 
-You: "Create a new project called website-redesign"
-Claude: runs `claude-mux -n ~/Claude/work/website-redesign -p`
+You: "Create a new project called mobile-app"
+Claude: runs `claude-mux -n ~/Claude/personal/mobile-app -p`
 
 You: "Switch all sessions to Sonnet"
 Claude: runs `claude-mux -s SESSION '/model sonnet'` for each running session
 
-You: "Shut down the bitwarden-sync session"
-Claude: runs `claude-mux --shutdown bitwarden-sync`
+You: "Shut down the data-pipeline session"
+Claude: runs `claude-mux --shutdown data-pipeline`
 
-You: "Restart the stuck it-management session"
-Claude: runs `claude-mux --restart it-management`
+You: "Restart the stuck web-dashboard session"
+Claude: runs `claude-mux --restart web-dashboard`
 ```
 
 ## Configuration
