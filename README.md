@@ -82,6 +82,42 @@ tail -f ~/Library/Logs/claude-mux.log
 
 When run from the terminal, output is mirrored to stdout in real time. When run via LaunchAgent, output goes to the log file only.
 
+## Session Statuses
+
+| Status | Meaning |
+|--------|---------|
+| `active` | tmux session exists, Claude is running, and a local tmux client is attached |
+| `running` | tmux session exists and Claude is running (no local client attached) |
+| `stopped` | tmux session exists but Claude has exited |
+| `idle` | A `.claude/` project directory exists but no tmux session is running (shown only with `-L`) |
+
+## Claude Prompt Examples
+
+Because each session is injected with claude-mux commands, you can manage sessions directly from conversation prompts — in the terminal or via the mobile app:
+
+```
+You: "What sessions are running?"
+Claude: runs `claude-mux -l` and displays the results
+
+You: "Show me all projects"
+Claude: runs `claude-mux -L` and displays the results
+
+You: "Start a session for my aws project"
+Claude: runs `claude-mux -d ~/Claude/work/aws`
+
+You: "Create a new project called website-redesign"
+Claude: runs `claude-mux -n ~/Claude/work/website-redesign -p`
+
+You: "Switch all sessions to Sonnet"
+Claude: runs `claude-mux -s SESSION '/model sonnet'` for each running session
+
+You: "Shut down the bitwarden-sync session"
+Claude: runs `claude-mux --shutdown bitwarden-sync`
+
+You: "Restart the stuck it-management session"
+Claude: runs `claude-mux --restart it-management`
+```
+
 ## Configuration
 
 On first run, `~/.claude-mux-rc` is created automatically with all settings commented out. Edit it to override any defaults — the script never needs to be modified directly.
