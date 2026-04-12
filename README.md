@@ -64,7 +64,7 @@ claude-mux -n ~/projects/app     # create a new Claude project in existing dir a
 claude-mux -n ~/new/path/app -p  # same, but create the directory and parents first
 claude-mux -t my-app             # attach to an existing tmux session
 claude-mux -s my-app '/model sonnet' # send a slash command to a session
-claude-mux -l                    # list active sessions (running + stopped)
+claude-mux -l                    # list active sessions (active + running + stopped)
 claude-mux -L                    # list all projects (active + idle)
 claude-mux --shutdown            # gracefully exit all managed Claude sessions
 claude-mux --shutdown my-app     # shut down a specific session
