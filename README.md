@@ -157,6 +157,10 @@ After completing auth once, kill and relaunch all sessions — they'll pick up t
 
 Sessions must be authenticated (not showing "Not logged in"). After a clean authenticated launch they should appear in the RC list within a few seconds.
 
+### Multi-line input in tmux
+
+The `/terminal-setup` command cannot run inside tmux. Use `\` + Return to enter newlines in your prompt. If your terminal is iTerm2, WezTerm, Ghostty, Kitty, or Warp, Shift+Enter works natively without any setup.
+
 ### Slash commands not available over Remote Control
 
 Most slash commands (e.g. `/model`, `/clear`) are not currently supported in RC sessions. This is a [known open issue](https://github.com/anthropics/claude-code/issues/30674).
