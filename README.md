@@ -2,7 +2,7 @@
 
 Persistent Claude Code sessions for all your projects — accessible from anywhere via the Claude mobile app.
 
-A shell script and macOS LaunchAgent that keeps a Claude Code session running for every project directory under `~/Claude/` (configurable via `BASE_DIR`). Persistent sessions mean Remote Control is always available — giving you access to all your projects from the Claude mobile app, wherever you are.
+A shell script that launches Claude Code inside tmux with Remote Control enabled. Run `claude-mux` in any directory to get a persistent, RC-accessible session. Use `claude-mux -a` (or the optional LaunchAgent) to launch sessions for all your projects at once.
 
 ## What It Does
 
@@ -32,26 +32,28 @@ You can also create a new project with `claude-mux -n DIRECTORY` (which initiali
 ./install.sh
 ```
 
-This installs `claude-mux` to the first writable bin directory in your `PATH`, creates `~/.claude-mux-rc` with your settings, and installs the LaunchAgent so sessions start automatically at login.
+This installs `claude-mux` to the first writable bin directory in your `PATH`, creates `~/.claude-mux-rc` with your settings, and installs the LaunchAgent (disabled by default — use `--enable-launchagent` to activate batch startup at login).
 
 Options:
 
 ```bash
+./install.sh --enable-launchagent                  # enable batch startup at login
 ./install.sh --base-dir ~/work/claude              # use a different base directory
 ./install.sh --bin-dir ~/.local/bin                # specify bin directory explicitly
 ./install.sh --permission-mode acceptEdits         # set default Claude permission mode
 ./install.sh --cross-session-control               # enable multi-agent session control
-./install.sh --no-launchagent                      # skip LaunchAgent installation
+./install.sh --no-launchagent                      # skip LaunchAgent installation entirely
 ```
 
-The LaunchAgent runs the script at login with a 45-second startup delay to allow system services to initialize.
+When enabled, the LaunchAgent runs `claude-mux -a` at login with a 45-second startup delay to allow system services to initialize.
 
 ## Usage
 
 ```bash
-claude-mux                       # start all managed sessions under BASE_DIR
-claude-mux ~/projects             # use ~/projects as the base dir instead
-claude-mux -d ~/projects/my-app  # launch single session in a directory and attach
+claude-mux                       # launch Claude in current directory and attach
+claude-mux ~/projects/my-app     # launch Claude in a directory and attach
+claude-mux -d ~/projects/my-app  # same as above (explicit form)
+claude-mux -a                    # start all managed sessions under BASE_DIR
 claude-mux -n ~/projects/app     # create a new Claude project in existing dir and attach
 claude-mux -n ~/new/path/app -p  # same, but create the directory and parents first
 claude-mux -t my-app             # attach to an existing tmux session
@@ -82,7 +84,9 @@ On first run, `~/.claude-mux-rc` is created automatically with all settings comm
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set Claude's `permissions.defaultMode` in each project. Valid: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Set to `""` to disable. |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions can send slash commands to other sessions via tmux — useful for multi-agent orchestration. When `false`, sessions can only command themselves. |
-| `SLEEP_BETWEEN` | `5` | Seconds to wait between launching each session. Increase if sessions fail to register with Remote Control. |
+| `TMUX_EXTENDED_KEYS` | `true` | Enable tmux extended-keys for Shift+Enter and other modified key support (requires tmux 3.2+) |
+| `SLEEP_BETWEEN` | `5` | Seconds to wait between launching each session in batch mode. Increase if sessions fail to register with Remote Control. |
+| `LAUNCHAGENT_ENABLED` | `true` | When `false`, the LaunchAgent runs but exits without starting sessions. The installer sets this to `false` unless `--enable-launchagent` is passed. |
 
 ## Directory Structure
 
@@ -147,7 +151,7 @@ This happens on first launch if the macOS keychain is locked (common when the sc
 security unlock-keychain
 
 # Then complete auth in any one running session
-tmux attach -t <any-session>
+claude-mux -t <any-session>
 # Run /login and complete the browser flow
 ```
 
@@ -159,7 +163,7 @@ Sessions must be authenticated (not showing "Not logged in"). After a clean auth
 
 ### Multi-line input in tmux
 
-The `/terminal-setup` command cannot run inside tmux. Use `\` + Return to enter newlines in your prompt. If your terminal is iTerm2, WezTerm, Ghostty, Kitty, or Warp, Shift+Enter works natively without any setup.
+The `/terminal-setup` command cannot run inside tmux. claude-mux enables tmux `extended-keys` by default (`TMUX_EXTENDED_KEYS=true`), which supports Shift+Enter in most modern terminals. If Shift+Enter doesn't work, use `\` + Return to enter newlines in your prompt.
 
 ### Slash commands not available over Remote Control
 
