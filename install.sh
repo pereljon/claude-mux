@@ -200,7 +200,7 @@ if [[ "$INSTALL_LAUNCHAGENT" == "true" ]]; then
 
         echo "Installing LaunchAgent to $PLIST_DEST..."
         # Template the binary path into the plist so it matches --bin-dir
-        sed "s|exec \"\\\$HOME/Claude/claude-mux\"|exec \"$BIN_DIR/claude-mux\"|" "$PLIST_SRC" > "$PLIST_DEST"
+        sed "s|exec \"\\\$HOME/Claude/claude-mux\" -a|exec \"$BIN_DIR/claude-mux\" -a|" "$PLIST_SRC" > "$PLIST_DEST"
         if ! grep -q "$BIN_DIR/claude-mux" "$PLIST_DEST" 2>/dev/null; then
             echo "WARNING: Could not template binary path into plist — LaunchAgent may point to wrong location."
             echo "         Manually edit $PLIST_DEST to set the correct path to claude-mux."

@@ -26,7 +26,8 @@ ALLOW_CROSS_SESSION_CONTROL=false
 # ── Flag parsing ───────────────────────────────────────────────────────────────
 
 DRY_RUN=false
-COMMAND="start"
+COMMAND="launch"
+COMMAND_SET=false
 TARGET_SESSION=""
 SEND_SESSION=""
 SEND_COMMAND=""
@@ -35,22 +36,21 @@ NEW_PROJECT_DIR=""
 NEW_CREATE_PARENTS=false
 SHUTDOWN_SESSION=""
 RESTART_SESSION=""
-OVERRIDE_BASE_DIR=""
 
 usage() {
     cat << EOF
 claude-mux — Claude Code Multiplexer
 Persistent Claude Code sessions for all your projects.
 
-Usage: claude-mux [OPTIONS]
-       claude-mux [OPTIONS] DIRECTORY
-       claude-mux -d DIRECTORY
+Usage: claude-mux [DIRECTORY]
+       claude-mux -a
        claude-mux -t SESSION
 
 Commands:
-  (no args)             Start all managed sessions under \$BASE_DIR
-  DIRECTORY             Use DIRECTORY as the base dir (scan its subdirs for projects)
-  -d, --directory DIR   Launch a single Claude session in DIR and attach
+  (no args)             Launch a Claude session in the current directory and attach
+  DIRECTORY             Launch a Claude session in DIRECTORY and attach
+  -d, --directory DIR   Same as above (explicit form)
+  -a, --all             Start all managed sessions under \$BASE_DIR
   -n, --new DIR         Create a new Claude project in DIR and attach (DIR must exist)
   -p                    With -n, create the directory and parents if they don't exist
   -s SESSION COMMAND    Send a slash command to a running session
@@ -74,11 +74,12 @@ EOF
 }
 
 set_command() {
-    if [[ "$COMMAND" != "start" ]]; then
+    if [[ "$COMMAND_SET" == "true" ]]; then
         echo "ERROR: Conflicting options — cannot combine $1 with previous command" >&2
         exit 1
     fi
     COMMAND="$2"
+    COMMAND_SET=true
 }
 
 while [[ $# -gt 0 ]]; do
@@ -111,6 +112,7 @@ while [[ $# -gt 0 ]]; do
             [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: -t requires a session name" >&2; exit 1; }
             set_command "-t" "attach"
             TARGET_SESSION="$2"; shift 2 ;;
+        -a|--all)         set_command "-a" "start"; shift ;;
         -d|--directory)
             [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: -d requires a directory path" >&2; exit 1; }
             set_command "-d" "launch"
@@ -124,15 +126,15 @@ while [[ $# -gt 0 ]]; do
         -h|--help)        usage; exit 0 ;;
         -*)               echo "Unknown option: $1" >&2; echo >&2; usage >&2; exit 1 ;;
         *)
-            # Positional arg = override BASE_DIR (only valid with start command)
-            if [[ "$COMMAND" != "start" ]]; then
+            # Positional arg = directory to launch in
+            if [[ "$COMMAND_SET" == "true" && "$COMMAND" != "launch" ]]; then
                 echo "ERROR: Unexpected argument '$1' — cannot combine with $COMMAND command" >&2
                 exit 1
             fi
-            if [[ -n "$OVERRIDE_BASE_DIR" ]]; then
+            if [[ -n "$LAUNCH_DIR" ]]; then
                 echo "Unexpected argument: $1" >&2; echo >&2; usage >&2; exit 1
             fi
-            OVERRIDE_BASE_DIR="$1"; shift ;;
+            LAUNCH_DIR="$1"; shift ;;
     esac
 done
 
@@ -183,20 +185,9 @@ fi
 # shellcheck source=/dev/null
 source "$HOME/.claude-mux-rc"
 
-# Apply positional BASE_DIR override (takes precedence over rc file)
-if [[ -n "$OVERRIDE_BASE_DIR" ]]; then
-    # Resolve to absolute path
-    if [[ "$OVERRIDE_BASE_DIR" != /* ]]; then
-        OVERRIDE_BASE_DIR="$(cd "$OVERRIDE_BASE_DIR" 2>/dev/null && pwd)" || {
-            echo "ERROR: Cannot resolve directory: $OVERRIDE_BASE_DIR" >&2
-            exit 1
-        }
-    fi
-    if [[ ! -d "$OVERRIDE_BASE_DIR" ]]; then
-        echo "ERROR: No such directory: $OVERRIDE_BASE_DIR" >&2
-        exit 1
-    fi
-    BASE_DIR="$OVERRIDE_BASE_DIR"
+# Default LAUNCH_DIR to current directory when command is launch and no dir specified
+if [[ "$COMMAND" == "launch" && -z "$LAUNCH_DIR" ]]; then
+    LAUNCH_DIR="."
 fi
 
 # ── Constants ─────────────────────────────────────────────────────────────────
