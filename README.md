@@ -15,9 +15,9 @@ On login (or manual run), the script:
 5. Creates a persistent tmux session per project with Claude Code running, with Remote Control enabled (if you've enabled RC globally via `/config`, the flag is redundant but harmless)
 6. Attempts to resume the last conversation (`claude -c`), falling back to a fresh start
 
-You can also launch a single Claude session in any directory with `claude-mux -d DIRECTORY`. This creates a tmux session, migrates any stray Claude process already running there, applies your rc settings, and attaches — useful for ad-hoc projects outside your base directory.
-
 Each Claude session is injected with its tmux session name (so it can send slash commands like `/model` and `/compact` to itself), and any GitHub SSH accounts found in `~/.ssh/config` (so it knows which accounts are available for git operations).
+
+You can also launch a single Claude session in any directory with `claude-mux -d DIRECTORY`. This creates a tmux session, migrates any stray Claude process already running there, applies your rc settings, and attaches — useful for ad-hoc projects outside your base directory.
 
 ## Requirements
 
