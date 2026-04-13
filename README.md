@@ -28,11 +28,11 @@ That's it — you're in a persistent Claude session with Remote Control enabled.
    - b. Launch new sessions, create new projects
    - c. Send slash commands to itself or other sessions (workaround for [slash commands not working natively over RC](https://github.com/anthropics/claude-code/issues/30674))
    - d. Shut down or restart sessions
-   - e. Session name and GitHub SSH accounts from `~/.ssh/config`
-4. **Session management** — list sessions with status (`claude-mux -l`), shut down (`--shutdown`), restart (`--restart`), attach (`-t`), send commands (`-s`)
-5. **New project scaffolding** — `claude-mux -n DIRECTORY` initializes git, creates `.gitignore`, sets permission mode, and launches Claude
-6. **Stray process migration** — detects Claude processes running outside tmux and migrates them into managed tmux sessions
-7. **Shift+Enter support** — enables tmux `extended-keys` so modified key sequences work in sessions
+4. **SSH account awareness** — injects GitHub SSH host aliases from `~/.ssh/config` so Claude knows which accounts are available for git operations
+5. **Session management** — list sessions with status (`claude-mux -l`), shut down (`--shutdown`), restart (`--restart`), attach (`-t`), send commands (`-s`)
+6. **New project scaffolding** — `claude-mux -n DIRECTORY` initializes git, creates `.gitignore`, sets permission mode, and launches Claude
+7. **Stray process migration** — detects Claude processes running outside tmux and migrates them into managed tmux sessions
+8. **Shift+Enter support** — enables tmux `extended-keys` so modified key sequences work in sessions
 
 > **Note:** This is different from `claude --worktree --tmux`, which creates a tmux session for an isolated git worktree. claude-mux manages persistent sessions for your actual project directories, with Remote Control, system prompt injection, and batch orchestration.
 
