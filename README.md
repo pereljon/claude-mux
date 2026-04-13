@@ -19,6 +19,8 @@ claude-mux
 
 That's it — you're in a persistent, session-aware Claude session with Remote Control enabled.
 
+claude-mux is a single bash script with no dependencies beyond tmux and Claude Code.
+
 ## What It Does
 
 1. **Persistent tmux sessions with Remote Control** — launches Claude Code inside tmux with `--remote-control` enabled, so every session is accessible from the Claude mobile app
