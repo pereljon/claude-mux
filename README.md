@@ -30,7 +30,7 @@ That's it — you're in a persistent Claude session with Remote Control enabled.
    - d. Shut down or restart sessions
 4. **SSH account awareness** — injects GitHub SSH host aliases from `~/.ssh/config` so Claude knows which accounts are available for git operations
 5. **Session management** — list sessions with status (`claude-mux -l`), shut down (`--shutdown`), restart (`--restart`), attach (`-t`), send commands (`-s`)
-6. **New project scaffolding** — `claude-mux -n DIRECTORY` initializes git, creates `.gitignore`, sets permission mode, and launches Claude (`-p` creates the directory if it doesn't exist)
+6. **New project scaffolding** — `claude-mux -n DIRECTORY` initializes git, creates `.gitignore`, sets permission mode, and launches Claude (`-p` creates the directory if it doesn't exist). Because sessions know all claude-mux commands, you can ask any running session to create a new project — start coding on a new idea from your phone without touching a terminal
 7. **Stray process migration** — if Claude is already running in the target directory outside tmux, terminates it and relaunches inside a managed tmux session (conversation resumes via `claude -c`)
 8. **Shift+Enter support** — enables tmux `extended-keys` so modified key sequences work in sessions
 
