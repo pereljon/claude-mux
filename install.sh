@@ -14,7 +14,7 @@ DEFAULT_BASE_DIR="$HOME/Claude"
 BASE_DIR=""
 BIN_DIR=""
 INSTALL_LAUNCHAGENT=true
-ENABLE_LAUNCHAGENT=false
+LAUNCHAGENT_MODE="none"
 DEFAULT_PERMISSION_MODE="auto"
 ALLOW_CROSS_SESSION_CONTROL=false
 
@@ -31,13 +31,15 @@ Options:
                           Valid: default, acceptEdits, plan, auto, dontAsk, bypassPermissions, "" (disabled)
                           (default: auto)
   --cross-session-control Enable sessions to send slash commands to each other (multi-agent)
-  --enable-launchagent    Enable batch startup at login (disabled by default in config)
+  --launchagent-mode MODE Set LaunchAgent behavior at login
+                          Valid: none (default), home, batch
   --no-launchagent        Skip LaunchAgent installation entirely
   -h, --help              Show this help message
 
 Examples:
   ./install.sh
-  ./install.sh --enable-launchagent
+  ./install.sh --launchagent-mode home
+  ./install.sh --launchagent-mode batch
   ./install.sh --base-dir ~/work/claude
   ./install.sh --bin-dir ~/.local/bin --no-launchagent
   ./install.sh --permission-mode acceptEdits
@@ -58,7 +60,14 @@ while [[ $# -gt 0 ]]; do
             [[ $# -lt 2 ]] && { echo "ERROR: --permission-mode requires a value" >&2; exit 1; }
             DEFAULT_PERMISSION_MODE="$2"; shift 2 ;;
         --cross-session-control) ALLOW_CROSS_SESSION_CONTROL=true; shift ;;
-        --enable-launchagent)   ENABLE_LAUNCHAGENT=true; shift ;;
+        --launchagent-mode)
+            [[ $# -lt 2 ]] && { echo "ERROR: --launchagent-mode requires a value" >&2; exit 1; }
+            LAUNCHAGENT_MODE="$2"
+            case "$LAUNCHAGENT_MODE" in
+                none|home|batch) ;;
+                *) echo "ERROR: --launchagent-mode must be none, home, or batch" >&2; exit 1 ;;
+            esac
+            shift 2 ;;
         --no-launchagent)       INSTALL_LAUNCHAGENT=false; shift ;;
         -h|--help)              usage; exit 0 ;;
         *)                      echo "Unknown option: $1" >&2; echo >&2; usage >&2; exit 1 ;;
@@ -171,8 +180,8 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
     cross_line="ALLOW_CROSS_SESSION_CONTROL=${ALLOW_CROSS_SESSION_CONTROL}"
     [[ "$ALLOW_CROSS_SESSION_CONTROL" == "false" ]] && cross_line="#ALLOW_CROSS_SESSION_CONTROL=false"
 
-    launchagent_line="LAUNCHAGENT_ENABLED=${ENABLE_LAUNCHAGENT}"
-    [[ "$ENABLE_LAUNCHAGENT" == "true" ]] && launchagent_line="LAUNCHAGENT_ENABLED=true"
+    launchagent_line="LAUNCHAGENT_MODE=${LAUNCHAGENT_MODE}"
+    [[ "$LAUNCHAGENT_MODE" == "none" ]] && launchagent_line="#LAUNCHAGENT_MODE=none"
 
     cat > "$CONFIG_FILE" << CONFIG_EOF
 # ~/.claude-mux/config — claude-mux user configuration
@@ -199,9 +208,12 @@ ${cross_line}
 #TEMPLATES_DIR="\$HOME/.claude-mux/templates"
 #DEFAULT_TEMPLATE="default.md"
 
+# ── LaunchAgent ───────────────────────────────────────────────────────────────
+# LaunchAgent mode at login: none (default), home, batch
+${launchagent_line}
+
 # ── Batch mode ────────────────────────────────────────────────────────────────
 #SLEEP_BETWEEN=5
-${launchagent_line}
 CONFIG_EOF
 else
     echo "Config $CONFIG_FILE already exists — skipping."
@@ -226,7 +238,7 @@ if [[ "$INSTALL_LAUNCHAGENT" == "true" ]]; then
 
         echo "Installing LaunchAgent to $PLIST_DEST..."
         # Template the binary path into the plist so it matches --bin-dir
-        sed "s|exec \"\\\$HOME/bin/claude-mux\" -a|exec \"$BIN_DIR/claude-mux\" -a|" "$PLIST_SRC" > "$PLIST_DEST"
+        sed "s|exec \"\\\$HOME/bin/claude-mux\" --autolaunch|exec \"$BIN_DIR/claude-mux\" --autolaunch|" "$PLIST_SRC" > "$PLIST_DEST"
         if ! grep -q "$BIN_DIR/claude-mux" "$PLIST_DEST" 2>/dev/null; then
             echo "WARNING: Could not template binary path into plist — LaunchAgent may point to wrong location."
             echo "         Manually edit $PLIST_DEST to set the correct path to claude-mux."

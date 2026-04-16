@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -61,8 +61,14 @@ DEFAULT_TEMPLATE="default.md"
 
 # ── LaunchAgent ───────────────────────────────────────────────────────────────
 
-# When false, the LaunchAgent (-a/--all) exits without starting sessions.
-# Set to true to enable automatic batch startup at login.
+# LaunchAgent mode — what happens at login:
+#   none  — do nothing
+#   home  — launch a single 'home' session in $BASE_DIR (protected from shutdown)
+#   batch — launch sessions for all managed projects (heavy)
+LAUNCHAGENT_MODE=none
+
+# Legacy: LAUNCHAGENT_ENABLED=true is treated as LAUNCHAGENT_MODE=batch for
+# backward compatibility. Use LAUNCHAGENT_MODE going forward.
 LAUNCHAGENT_ENABLED=false
 
 # ── Flag parsing ───────────────────────────────────────────────────────────────
@@ -81,6 +87,7 @@ NO_TEMPLATE=false
 NO_GIT=false
 NO_ATTACH=false
 NO_PERMISSION_MODE=false
+FORCE=false
 SHUTDOWN_SESSIONS=()
 RESTART_SESSIONS=()
 
@@ -108,12 +115,14 @@ Commands:
   --list-templates      Show available CLAUDE.md templates
   --shutdown [SESSION...]  Shut down all managed sessions, or specific session(s)
   --restart [SESSION...]   Restart specific session(s), or all that were running
+  --autolaunch             Invoked by LaunchAgent; dispatches based on LAUNCHAGENT_MODE
 
 Options:
   --no-template         With -n, skip applying CLAUDE.md template
   --no-git              With -n, skip git init and .gitignore
   --no-permission-mode  With -n, skip setting permissions.defaultMode
   --no-attach           With -d or -n, launch in background without attaching
+  --force               With --shutdown, override protection on home session
   --dry-run             Print actions without executing
   -v, --version         Print version and exit
   -h, --help            Show this help message
@@ -164,6 +173,8 @@ while [[ $# -gt 0 ]]; do
             set_command "-t" "attach"
             TARGET_SESSION="$2"; shift 2 ;;
         -a|--all)         set_command "-a" "start"; shift ;;
+        --autolaunch)     set_command "--autolaunch" "autolaunch"; shift ;;
+        --force)          FORCE=true; shift ;;
         -d|--directory)
             [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: -d requires a directory path" >&2; exit 1; }
             set_command "-d" "launch"
@@ -224,6 +235,10 @@ if [[ -n "$TEMPLATE_NAME" && "$COMMAND" != "new" ]]; then
 fi
 if [[ -n "$TEMPLATE_NAME" && "$NO_TEMPLATE" == "true" ]]; then
     echo "ERROR: --template and --no-template are mutually exclusive" >&2
+    exit 1
+fi
+if [[ "$FORCE" == "true" && "$COMMAND" != "shutdown" ]]; then
+    echo "ERROR: --force can only be used with --shutdown" >&2
     exit 1
 fi
 
@@ -300,9 +315,11 @@ if [[ ! -f "$CLAUDE_MUX_CONFIG" ]]; then
 # Default: 5
 #SLEEP_BETWEEN=5
 
-# Enable batch startup via LaunchAgent (-a/--all).
-# Default: false
-#LAUNCHAGENT_ENABLED=false
+# LaunchAgent mode — what happens at login:
+#   none  — do nothing (default)
+#   home  — launch a single 'home' session in \$BASE_DIR (protected from shutdown)
+#   batch — launch sessions for all managed projects
+#LAUNCHAGENT_MODE=none
 CONFIG_EOF
     if [[ -d "$LOG_DIR" ]]; then
         echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Created config at $CLAUDE_MUX_CONFIG" >> "$LOG_DIR/claude-mux.log"
@@ -312,10 +329,26 @@ fi
 # shellcheck source=/dev/null
 source "$CLAUDE_MUX_CONFIG"
 
+# Backward compat: LAUNCHAGENT_ENABLED=true (legacy) → LAUNCHAGENT_MODE=batch
+if [[ "$LAUNCHAGENT_MODE" == "none" && "$LAUNCHAGENT_ENABLED" == "true" ]]; then
+    LAUNCHAGENT_MODE="batch"
+fi
+
+# Validate LAUNCHAGENT_MODE
+case "$LAUNCHAGENT_MODE" in
+    none|home|batch) ;;
+    *)
+        echo "ERROR: Invalid LAUNCHAGENT_MODE '$LAUNCHAGENT_MODE' — must be none, home, or batch" >&2
+        exit 1
+        ;;
+esac
+
 # Default LAUNCH_DIR to current directory when command is launch and no dir specified
 if [[ "$COMMAND" == "launch" && -z "$LAUNCH_DIR" ]]; then
     LAUNCH_DIR="."
 fi
+
+HOME_LAUNCH=false
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -400,7 +433,7 @@ build_system_prompt() {
     if [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]]; then
         mux_cmds="You can send slash commands to yourself or any other Claude session via: ${mux_bin} -s SESSION '/command args'."
     fi
-    mux_cmds="${mux_cmds} Other claude-mux commands: ${mux_bin} -l (list active sessions). ${mux_bin} -L (list all projects). ${mux_bin} -d DIRECTORY --no-attach (launch session in directory). ${mux_bin} -n DIRECTORY --no-attach (create new project). ${mux_bin} -n DIRECTORY -p --no-attach (create new project with parents). ${mux_bin} --template NAME (use specific CLAUDE.md template with -n). ${mux_bin} --list-templates (show available templates). ${mux_bin} --shutdown SESSION... (shut down sessions). ${mux_bin} --restart SESSION... (restart sessions). ${mux_bin} -a (start ALL managed sessions — use with caution). IMPORTANT: Always use --no-attach with -d and -n when running from inside a session — attach commands are interactive and should not be invoked by Claude. Always display command output to the user — do not run commands silently."
+    mux_cmds="${mux_cmds} Other claude-mux commands: ${mux_bin} -l (list active sessions). ${mux_bin} -L (list all projects). ${mux_bin} -d DIRECTORY --no-attach (launch session in directory). ${mux_bin} -n DIRECTORY --no-attach (create new project). ${mux_bin} -n DIRECTORY -p --no-attach (create new project with parents). ${mux_bin} --template NAME (use specific CLAUDE.md template with -n). ${mux_bin} --list-templates (show available templates). ${mux_bin} --shutdown SESSION... (shut down sessions). ${mux_bin} --shutdown SESSION --force (shut down a protected session). ${mux_bin} --restart SESSION... (restart sessions). ${mux_bin} -a (start ALL managed sessions — use with caution). The 'home' session is a single general-purpose session in \$BASE_DIR; it is always protected and requires --force to shut down (shown with * in -l/-L). IMPORTANT: Always use --no-attach with -d and -n when running from inside a session — attach commands are interactive and should not be invoked by Claude. Always display command output to the user — do not run commands silently."
     echo "You are running inside tmux session '${session_name}'. ${mux_cmds}${GITHUB_SSH_INFO}"
 }
 
@@ -451,10 +484,18 @@ if [[ "$COMMAND" == "launch" ]]; then
         echo "ERROR: No such directory: $LAUNCH_DIR" >&2
         exit 1
     fi
-    LAUNCH_SESSION_NAME="$(sanitize_session_name "$(basename "$LAUNCH_DIR")")"
-    if [[ -z "$LAUNCH_SESSION_NAME" ]]; then
-        echo "ERROR: Directory name sanitizes to empty: $(basename "$LAUNCH_DIR")" >&2
-        exit 1
+    # Detect home session: LAUNCH_DIR resolves to BASE_DIR
+    _resolved_launch="$(cd "$LAUNCH_DIR" 2>/dev/null && pwd -P)"
+    _resolved_base="$(cd "$BASE_DIR" 2>/dev/null && pwd -P)"
+    if [[ -n "$_resolved_launch" && "$_resolved_launch" == "$_resolved_base" ]]; then
+        HOME_LAUNCH=true
+        LAUNCH_SESSION_NAME="home"
+    else
+        LAUNCH_SESSION_NAME="$(sanitize_session_name "$(basename "$LAUNCH_DIR")")"
+        if [[ -z "$LAUNCH_SESSION_NAME" ]]; then
+            echo "ERROR: Directory name sanitizes to empty: $(basename "$LAUNCH_DIR")" >&2
+            exit 1
+        fi
     fi
 fi
 
@@ -478,7 +519,7 @@ fi
 
 # ─�� Startup delay (LaunchAgent only — no terminal attached) ───────────────────
 
-if [[ "$COMMAND" == "start" && ! -t 1 && "$DRY_RUN" != "true" ]]; then
+if [[ "$COMMAND" == "autolaunch" && ! -t 1 && "$DRY_RUN" != "true" ]]; then
     # LaunchAgent only — delay for system services to initialize
     log "Waiting 45 seconds for system services to initialize..."
     sleep 45
@@ -502,6 +543,8 @@ fi
 
 get_managed_session_names() {
     MANAGED_SESSIONS=()
+    # 'home' is always a managed session name (the BASE_DIR session)
+    MANAGED_SESSIONS+=("home")
     discover_projects
     for _proj in "${PROJECT_DIRS[@]}"; do
         local _sanitized
@@ -521,11 +564,22 @@ is_managed_session() {
 # ── Shutdown ──────────────────────────────────────────────────────────────────
 
 # Gracefully exit Claude and kill a single tmux session
+is_protected_session() {
+    local session="$1"
+    local marker
+    marker=$("$TMUX_BIN" show-options -t "$session" -v @claude-mux-protected 2>/dev/null)
+    [[ "$marker" == "1" ]]
+}
+
 shutdown_single_session() {
     local session="$1"
     if ! "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
         log "No tmux session named '$session'"
-        return
+        return 1
+    fi
+    if is_protected_session "$session" && [[ "$FORCE" != "true" ]]; then
+        echo "ERROR: Session '$session' is protected. Use --force to shut down." >&2
+        return 1
     fi
     if claude_running_in_session "$session"; then
         log "Sending /exit to session '$session'"
@@ -571,10 +625,16 @@ shutdown_claude_sessions() {
 
     # Send /exit to managed sessions where Claude is running
     local exit_count=0
+    local protected_skipped=0
     local managed_list=()
     while IFS= read -r session; do
         [[ -z "$session" ]] && continue
         is_managed_session "$session" || continue
+        if is_protected_session "$session" && [[ "$FORCE" != "true" ]]; then
+            log "Skipping protected session '$session' (use --force to override)"
+            (( protected_skipped++ ))
+            continue
+        fi
         managed_list+=("$session")
         if claude_running_in_session "$session"; then
             log "Sending /exit to session '$session'"
@@ -647,18 +707,20 @@ status_claude_sessions() {
                 # Shorten home prefix
                 _dir="${_dir/#$HOME/~}"
 
+                local _marker=""
+                is_protected_session "$session" && _marker="*"
                 if claude_running_in_session "$session"; then
                     if echo "$attached_sessions" | grep -qx "$session"; then
-                        rows="${rows}active|${session}|${_dir}
+                        rows="${rows}active${_marker}|${session}|${_dir}
 "
                         (( active++ ))
                     else
-                        rows="${rows}running|${session}|${_dir}
+                        rows="${rows}running${_marker}|${session}|${_dir}
 "
                         (( running++ ))
                     fi
                 else
-                    rows="${rows}stopped|${session}|${_dir}
+                    rows="${rows}stopped${_marker}|${session}|${_dir}
 "
                     (( stopped++ ))
                 fi
@@ -1015,10 +1077,6 @@ ensure_base_dir() {
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 start_sessions() {
-    if [[ "$LAUNCHAGENT_ENABLED" == "false" ]]; then
-        log "LaunchAgent disabled via LAUNCHAGENT_ENABLED=false — exiting"
-        return
-    fi
     log "=== claude-mux starting (dry-run=${DRY_RUN}) ==="
     _seen_sessions=""  # newline-delimited "name|dir" pairs for collision detection
 
@@ -1098,6 +1156,10 @@ launch_single_session() {
     # If session already exists with Claude running, just attach
     if "$TMUX_BIN" has-session -t "$LAUNCH_SESSION_NAME" 2>/dev/null; then
         if claude_running_in_session "$LAUNCH_SESSION_NAME"; then
+            # Ensure home session is protected even if session existed before
+            if [[ "$HOME_LAUNCH" == "true" ]]; then
+                "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-protected 1 2>/dev/null
+            fi
             if [[ "$NO_ATTACH" == "true" ]]; then
                 log "Session '$LAUNCH_SESSION_NAME' already running claude (--no-attach)"
                 return
@@ -1128,6 +1190,12 @@ launch_single_session() {
         "bash -c 'trap \"rm -f ${prompt_file}\" EXIT; _prompt=\$(cat \"${prompt_file}\"); claude -c --remote-control --permission-mode auto --name \"${LAUNCH_SESSION_NAME}\" --append-system-prompt \"\$_prompt\" 2>/dev/null || claude --remote-control --permission-mode auto --name \"${LAUNCH_SESSION_NAME}\" --append-system-prompt \"\$_prompt\"'"
 
     apply_tmux_options "$LAUNCH_SESSION_NAME"
+
+    # Home session is always protected
+    if [[ "$HOME_LAUNCH" == "true" ]]; then
+        "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-protected 1 2>/dev/null
+        log "Session '$LAUNCH_SESSION_NAME' is protected"
+    fi
 
     if [[ "$NO_ATTACH" == "true" ]]; then
         log "Session '$LAUNCH_SESSION_NAME' created (--no-attach)"
@@ -1244,7 +1312,30 @@ create_new_project() {
     fi
 }
 
+# Autolaunch dispatches to the appropriate command based on LAUNCHAGENT_MODE.
+# This is invoked by the LaunchAgent plist at login.
+autolaunch_dispatch() {
+    case "$LAUNCHAGENT_MODE" in
+        none)
+            log "LaunchAgent autolaunch: LAUNCHAGENT_MODE=none — exiting"
+            ;;
+        home)
+            log "LaunchAgent autolaunch: starting home session"
+            LAUNCH_DIR="$BASE_DIR"
+            HOME_LAUNCH=true
+            LAUNCH_SESSION_NAME="home"
+            NO_ATTACH=true
+            launch_single_session
+            ;;
+        batch)
+            log "LaunchAgent autolaunch: starting batch mode"
+            start_sessions
+            ;;
+    esac
+}
+
 case "$COMMAND" in
+    autolaunch) autolaunch_dispatch ;;
     start)    start_sessions ;;
     launch)   launch_single_session ;;
     new)      create_new_project ;;

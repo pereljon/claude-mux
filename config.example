@@ -42,12 +42,16 @@
 # Default: default.md
 #DEFAULT_TEMPLATE="default.md"
 
+# ── LaunchAgent ───────────────────────────────────────────────────────────────
+
+# LaunchAgent mode — what happens at login:
+#   none  — do nothing (default)
+#   home  — launch a single 'home' session in $BASE_DIR (protected from shutdown)
+#   batch — launch sessions for all managed projects
+#LAUNCHAGENT_MODE=none
+
 # ── Batch mode ────────────────────────────────────────────────────────────────
 
 # Seconds to wait between launching each session.
 # Default: 5
 #SLEEP_BETWEEN=5
-
-# Enable batch startup via LaunchAgent (-a/--all).
-# Default: false
-#LAUNCHAGENT_ENABLED=false

@@ -39,9 +39,15 @@ claude-mux is a single bash script with no dependencies beyond tmux and Claude C
 
 > **Note:** This is different from `claude --worktree --tmux`, which creates a tmux session for an isolated git worktree. claude-mux manages persistent sessions for your actual project directories, with Remote Control, system prompt injection, and batch orchestration.
 
+### Home Session
+
+A single general-purpose session living in `$BASE_DIR`. Launched automatically at login when `LAUNCHAGENT_MODE=home`, or manually by running `claude-mux` from `$BASE_DIR`. Gives you one always-ready Claude session accessible from your phone without launching sessions for every project.
+
+The home session is always **protected** — `--shutdown home` refuses to stop it without `--force`, regardless of how it was started. Protected sessions are marked with `*` in `-l`/`-L` output (e.g. `active*`).
+
 ### Batch Mode
 
-With `claude-mux -a` (or via the LaunchAgent at login), it launches sessions for all your projects at once:
+With `claude-mux -a` (or via the LaunchAgent at login with `LAUNCHAGENT_MODE=batch`), it launches sessions for all your projects at once:
 
 1. Finds all Claude projects under `~/Claude/` — any directory containing a `.claude/` subdirectory, at any depth
 2. Skips directories starting with `-`, hidden directories, and directories containing `.ignore-claudemux`
@@ -94,6 +100,7 @@ claude-mux -L                    # list all projects (active + idle)
 claude-mux --shutdown            # gracefully exit all managed Claude sessions
 claude-mux --shutdown my-app     # shut down a specific session
 claude-mux --shutdown a b c      # shut down multiple sessions
+claude-mux --shutdown home --force  # shut down protected home session
 claude-mux --restart             # restart sessions that were running
 claude-mux --restart my-app      # restart a specific session
 claude-mux --restart a b c       # restart multiple sessions
@@ -115,6 +122,8 @@ When run from the terminal, output is mirrored to stdout in real time. When run 
 | `running` | tmux session exists and Claude is running (no local client attached) |
 | `stopped` | tmux session exists but Claude has exited |
 | `idle` | A `.claude/` project exists under `BASE_DIR` but has no claude-mux tmux session running (shown only with `-L`) |
+
+A trailing `*` on any status indicates the session is protected and requires `--force` to shut down (e.g. `active*`, `running*`). The home session is always protected.
 
 ## Claude Prompt Examples
 
@@ -168,7 +177,7 @@ On first run, `~/.claude-mux/config` is created automatically with all settings 
 | `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing CLAUDE.md template files |
 | `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches in batch mode. Increase if RC registration fails. |
-| `LAUNCHAGENT_ENABLED` | `false` | When `true`, the LaunchAgent starts all managed sessions at login |
+| `LAUNCHAGENT_MODE` | `none` | LaunchAgent behavior at login: `none` (do nothing), `home` (launch protected home session), `batch` (launch all managed sessions). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `batch`. |
 
 **Tmux session options** (all configurable, all enabled by default):
 
@@ -227,8 +236,11 @@ Other claude-mux commands:
   /path/to/claude-mux --template NAME          (use specific CLAUDE.md template with -n)
   /path/to/claude-mux --list-templates         (show available templates)
   /path/to/claude-mux --shutdown SESSION...    (shut down sessions)
+  /path/to/claude-mux --shutdown SESSION --force (shut down a protected session)
   /path/to/claude-mux --restart SESSION...     (restart sessions)
   /path/to/claude-mux -a                       (start ALL managed sessions — use with caution)
+The 'home' session is a single general-purpose session in $BASE_DIR; it is always
+protected and requires --force to shut down (shown with * in -l/-L).
 IMPORTANT: Always use --no-attach with -d and -n when running from inside a session.
 Always display command output to the user — do not run commands silently.
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
