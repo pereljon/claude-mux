@@ -78,11 +78,13 @@ When diagnosing issues, distinguish clearly between what you know and what you'r
 
 After any code change, verify whether these also need updating:
 - `README.md` — usage, feature descriptions, configuration table, examples
-- `claude-mux-rc` — example config template
-- `~/.claude-mux-rc` — deployed user config (add new settings)
+- `claude-mux-rc` — example config template (will move to `config.example`)
+- `~/.claude-mux/config` — deployed user config (add new settings)
 - `install.sh` — installer-generated config, new flags
 - `implentation-spec.md` — startup sequence, settings table, function docs
 - `CLAUDE.md` — key behaviors, commands, config summary
+- **Injection prompt** — the system prompt injected into Claude sessions must reflect all current commands. Update both the `create_claude_session` and `launch_single_session` injection strings when commands are added, changed, or removed.
+- **Session System Prompt section in README** — must match the actual injection
 
 Do not commit until all affected files are updated.
 
