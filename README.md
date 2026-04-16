@@ -25,12 +25,12 @@ claude-mux is a single bash script with no dependencies beyond tmux and Claude C
 
 1. **Persistent tmux sessions with Remote Control** — launches Claude Code inside tmux with `--remote-control` enabled, so every session is accessible from the Claude mobile app
 2. **Conversation resume** — if Claude was previously running in the directory, resumes the last conversation (`claude -c`) inside a new tmux session with Remote Control, preserving your context
-3. **Claude self-management** — each session is injected with a system prompt so Claude can manage sessions directly from conversation prompts (terminal or mobile app):
+3. **Session management** — list sessions with status (`claude-mux -l`), shut down (`--shutdown`), restart (`--restart`), attach (`-t`), send commands (`-s`)
+4. **Claude self-management** — each session is injected with a system prompt so Claude can run all of the above commands directly from conversation prompts (terminal or mobile app):
    - a. List running sessions and all projects
    - b. Launch new sessions, create new projects
    - c. Send slash commands to itself or other sessions (workaround for [slash commands not working natively over RC](https://github.com/anthropics/claude-code/issues/30674))
    - d. Shut down or restart sessions
-4. **Session management** — list sessions with status (`claude-mux -l`), shut down (`--shutdown`), restart (`--restart`), attach (`-t`), send commands (`-s`)
 5. **SSH account awareness** — injects GitHub SSH host aliases from `~/.ssh/config` so Claude knows which accounts are available for git operations
 6. **New project creation** — `claude-mux -n DIRECTORY` creates a ready-to-code project with git, `.gitignore`, and permission mode configured (`-p` creates the directory if it doesn't exist). Any running session can create new projects — ask Claude to set up a repo on any of your GitHub accounts and start coding, from anywhere
 7. **Stray process migration** — if Claude is already running in the target directory outside tmux, terminates it and relaunches inside a managed tmux session (conversation resumes via `claude -c`)
