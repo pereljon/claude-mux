@@ -82,8 +82,10 @@ claude-mux                       # launch Claude in current directory and attach
 claude-mux ~/projects/my-app     # launch Claude in a directory and attach
 claude-mux -d ~/projects/my-app  # same as above (explicit form)
 claude-mux -a                    # start all managed sessions under BASE_DIR
-claude-mux -n ~/projects/app     # create a new Claude project in existing dir and attach
-claude-mux -n ~/new/path/app -p  # same, but create the directory and parents first
+claude-mux -n ~/projects/app     # create a new Claude project and attach
+claude-mux -n ~/new/path/app -p  # same, creating the directory and parents
+claude-mux -n ~/app --template web  # new project with a specific CLAUDE.md template
+claude-mux --list-templates      # show available CLAUDE.md templates
 claude-mux -t my-app             # attach to an existing tmux session
 claude-mux -s my-app '/model sonnet' # send a slash command to a session
 claude-mux -l                    # list active sessions (active + running + stopped)
@@ -142,7 +144,7 @@ Claude: runs `claude-mux --restart web-dashboard`
 
 ## Configuration
 
-On first run, `~/.claude-mux-rc` is created automatically with all settings commented out. Edit it to override any defaults — the script never needs to be modified directly.
+On first run, `~/.claude-mux/config` is created automatically with all settings commented out. Edit it to override any defaults — the script never needs to be modified directly.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -150,6 +152,8 @@ On first run, `~/.claude-mux-rc` is created automatically with all settings comm
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set Claude's `permissions.defaultMode` in each project. Valid: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Set to `""` to disable. |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions can send slash commands to other sessions — useful for multi-agent orchestration |
+| `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing CLAUDE.md template files |
+| `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches in batch mode. Increase if RC registration fails. |
 | `LAUNCHAGENT_ENABLED` | `false` | When `true`, the LaunchAgent starts all managed sessions at login |
 
@@ -208,8 +212,12 @@ Other claude-mux commands:
   /path/to/claude-mux -d DIRECTORY             (launch session in directory)
   /path/to/claude-mux -n DIRECTORY             (create new project)
   /path/to/claude-mux -n DIRECTORY -p          (create new project with parents)
-  /path/to/claude-mux --shutdown SESSION       (shut down a session)
-  /path/to/claude-mux --restart SESSION        (restart a session)
+  /path/to/claude-mux --template NAME          (use specific CLAUDE.md template with -n)
+  /path/to/claude-mux --list-templates         (show available templates)
+  /path/to/claude-mux --shutdown SESSION...    (shut down sessions)
+  /path/to/claude-mux --restart SESSION...     (restart sessions)
+  /path/to/claude-mux -a                       (start ALL managed sessions — use with caution)
+  /path/to/claude-mux --no-attach              (with -d or -n, launch without attaching)
 Always display command output to the user — do not run commands silently.
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
 ```

@@ -1,0 +1,53 @@
+# ~/.claude-mux/config — claude-mux user configuration
+# Reference template. The installer (install.sh) creates ~/.claude-mux/config automatically.
+# For manual setup, copy this file to ~/.claude-mux/config and uncomment settings to override defaults.
+# This file is sourced by claude-mux at startup.
+
+# Root directory to scan for Claude projects (directories containing .claude/).
+# Default: $HOME/Claude
+#BASE_DIR="$HOME/Claude"
+
+# Directory for log files.
+# Default: $HOME/Library/Logs
+#LOG_DIR="$HOME/Library/Logs"
+
+# Set Claude's permissions.defaultMode for each project via .claude/settings.local.json.
+# Valid values: "" (disabled), "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"
+# Default: "auto"
+#DEFAULT_PERMISSION_MODE="auto"
+
+# When true, Claude sessions can send slash commands to OTHER sessions via tmux.
+# When false, sessions can only send commands to themselves.
+# Default: false
+#ALLOW_CROSS_SESSION_CONTROL=false
+
+# ── tmux session options ──────────────────────────────────────────────────────
+
+#TMUX_EXTENDED_KEYS=true           # Shift+Enter support (requires tmux 3.2+)
+#TMUX_TITLE_FORMAT='#S'            # Terminal/tab title (#S = session name, "" to disable)
+#TMUX_MOUSE=true                   # Mouse support (scroll, select, resize)
+#TMUX_HISTORY_LIMIT=50000          # Scrollback buffer (tmux default is 2000)
+#TMUX_CLIPBOARD=true               # System clipboard via OSC 52
+#TMUX_DEFAULT_TERMINAL="tmux-256color"  # Terminal type for color rendering
+#TMUX_ESCAPE_TIME=10               # Escape delay in ms (tmux default is 500)
+#TMUX_MONITOR_ACTIVITY=true        # Activity notifications from other sessions
+
+# ── Templates ─────────────────────────────────────────────────────────────────
+
+# Directory containing CLAUDE.md template files.
+# Default: $HOME/.claude-mux/templates
+#TEMPLATES_DIR="$HOME/.claude-mux/templates"
+
+# Default template applied to new projects (-n). Set to "" to disable.
+# Default: default.md
+#DEFAULT_TEMPLATE="default.md"
+
+# ── Batch mode ────────────────────────────────────────────────────────────────
+
+# Seconds to wait between launching each session.
+# Default: 5
+#SLEEP_BETWEEN=5
+
+# Enable batch startup via LaunchAgent (-a/--all).
+# Default: false
+#LAUNCHAGENT_ENABLED=false

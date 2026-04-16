@@ -33,12 +33,12 @@ Exclusion rules: hidden directories (`.`-prefixed) are pruned from search, direc
 
 1. `~/Claude/claude-mux` — main script
 2. `com.user.claude-mux.plist` — LaunchAgent plist (user installs to `~/Library/LaunchAgents/`)
-3. `claude-mux-rc` — example user config file
+3. `config.example` — example user config file
 4. `install.sh` — installer script
 
-## User Configuration: ~/.claude-mux-rc
+## User Configuration: ~/.claude-mux/config
 
-On first run, the script creates `~/.claude-mux-rc` with all settings commented out. Users edit this file to override defaults without touching the script.
+On first run, the script creates `~/.claude-mux/config` with all settings commented out. Users edit this file to override defaults without touching the script.
 
 ### Settings
 
@@ -59,7 +59,7 @@ On first run, the script creates `~/.claude-mux-rc` with all settings commented 
 | `TMUX_TITLE_FORMAT` | `#S` | Terminal/tab title format |
 | `TMUX_MONITOR_ACTIVITY` | `true` | Activity notifications from other sessions |
 
-The script sources `~/.claude-mux-rc` after setting defaults, so any variable set in the config overrides the default. Tmux session options are applied via `apply_tmux_options()` after session creation.
+The script sources `~/.claude-mux/config` after setting defaults, so any variable set in the config overrides the default. Tmux session options are applied via `apply_tmux_options()` after session creation.
 
 ## Script: claude-mux
 
@@ -83,8 +83,8 @@ The script sources `~/.claude-mux-rc` after setting defaults, so any variable se
 1. Set defaults (BASE_DIR, LOG_DIR, DEFAULT_PERMISSION_MODE, ALLOW_CROSS_SESSION_CONTROL)
 2. Parse flags (-d, -n, -p, -s, -t, -l, -L, --shutdown, --restart, --dry-run, -v, -h, positional DIRECTORY)
 3. Validate mutual exclusion of commands; validate -p only with -n
-4. Create ~/.claude-mux-rc with commented defaults if it doesn't exist
-5. Source ~/.claude-mux-rc (user overrides apply from here on)
+4. Create ~/.claude-mux/config with commented defaults if it doesn't exist
+5. Source ~/.claude-mux/config (user overrides apply from here on)
 6. Apply positional BASE_DIR override if provided
 7. Validate -d directory (resolve, check exists, sanitize name)
 8. Validate -n directory (resolve, sanitize name)
@@ -224,7 +224,7 @@ When `--dry-run` is passed as the first argument:
 - Log to stdout instead of file
 - Skip `migrate_stray_sessions()` entirely
 - Exit cleanly if `BASE_DIR` doesn't exist (don't create it)
-- Still creates `~/.claude-mux-rc` if missing (one-time setup, not an operational action)
+- Still creates `~/.claude-mux/config` if missing (one-time setup, not an operational action)
 
 ### Exclusion Rules
 
@@ -319,7 +319,7 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 | Stray claude process outside tmux in managed dir | SIGTERMed; new tmux session resumes via `claude -c` |
 | Stray claude process in unmanaged dir | Left untouched |
 | Claude Desktop or IDE extension processes | Not matched — filter uses full path `/opt/homebrew/bin/claude` |
-| `~/.claude-mux-rc` does not exist | Created with commented defaults on first run |
+| `~/.claude-mux/config` does not exist | Created with commented defaults on first run |
 | `.claude` exists as a file (not dir) | `mkdir -p` fails; `setup_default_mode` logs warning and skips |
 | `settings.local.json` contains invalid JSON | Python merge fails; logs warning and skips |
 | No GitHub SSH accounts in `~/.ssh/config` | `GITHUB_SSH_INFO` is empty; prompt omits the SSH section |
@@ -342,7 +342,7 @@ Test with one project directory:
 
 - Verify tmux session is created with correct name
 - Verify Claude starts with Remote Control enabled
-- Verify `~/.claude-mux-rc` was created on first run
+- Verify `~/.claude-mux/config` was created on first run
 - Verify re-running the script skips the existing session
 
 ### Phase 3: Full Run

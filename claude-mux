@@ -5,7 +5,7 @@
 VERSION="1.0.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
-# Override any of these in ~/.claude-mux-rc
+# Override any of these in ~/.claude-mux/config
 
 # Root directory to scan for Claude projects (directories containing .claude/).
 BASE_DIR="$HOME/Claude"
@@ -50,6 +50,17 @@ TMUX_ESCAPE_TIME=10
 # Monitor for activity in other sessions.
 TMUX_MONITOR_ACTIVITY=true
 
+# ── Templates ─────────────────────────────────────────────────────────────────
+
+# Directory containing CLAUDE.md template files.
+TEMPLATES_DIR="$HOME/.claude-mux/templates"
+
+# Default template applied to new projects (-n). Set to "" to disable.
+# "none" is reserved and cannot be used as a template name.
+DEFAULT_TEMPLATE="default.md"
+
+# ── LaunchAgent ───────────────────────────────────────────────────────────────
+
 # When false, the LaunchAgent (-a/--all) exits without starting sessions.
 # Set to true to enable automatic batch startup at login.
 LAUNCHAGENT_ENABLED=false
@@ -65,6 +76,11 @@ SEND_COMMAND=""
 LAUNCH_DIR=""
 NEW_PROJECT_DIR=""
 NEW_CREATE_PARENTS=false
+TEMPLATE_NAME=""
+NO_TEMPLATE=false
+NO_GIT=false
+NO_ATTACH=false
+NO_PERMISSION_MODE=false
 SHUTDOWN_SESSIONS=()
 RESTART_SESSIONS=()
 
@@ -82,22 +98,28 @@ Commands:
   DIRECTORY             Launch a Claude session in DIRECTORY and attach
   -d, --directory DIR   Same as above (explicit form)
   -a, --all             Start all managed sessions under \$BASE_DIR
-  -n, --new DIR         Create a new Claude project in DIR and attach (DIR must exist)
+  -n, --new DIR         Create a new Claude project in DIR and attach
   -p                    With -n, create the directory and parents if they don't exist
+  --template NAME       With -n, use a specific CLAUDE.md template
   -s SESSION COMMAND    Send a slash command to a running session
   -t, --target SESSION  Attach to an existing tmux session by name
-  -l, --list            Show active sessions (running and stopped)
+  -l, --list            Show active sessions (active + running + stopped)
   -L                    Show all projects (active sessions + idle projects)
+  --list-templates      Show available CLAUDE.md templates
   --shutdown [SESSION...]  Shut down all managed sessions, or specific session(s)
   --restart [SESSION...]   Restart specific session(s), or all that were running
 
 Options:
+  --no-template         With -n, skip applying CLAUDE.md template
+  --no-git              With -n, skip git init and .gitignore
+  --no-permission-mode  With -n, skip setting permissions.defaultMode
+  --no-attach           With -d or -n, launch in background without attaching
   --dry-run             Print actions without executing
   -v, --version         Print version and exit
   -h, --help            Show this help message
 
 Configuration:
-  ~/.claude-mux-rc      User config file (created automatically on first run)
+  ~/.claude-mux/config  User config file (created automatically on first run)
 
 Logs:
   \$LOG_DIR/claude-mux.log  (default: ~/Library/Logs/claude-mux.log)
@@ -151,6 +173,14 @@ while [[ $# -gt 0 ]]; do
             set_command "-n" "new"
             NEW_PROJECT_DIR="$2"; shift 2 ;;
         -p)               NEW_CREATE_PARENTS=true; shift ;;
+        --template)
+            [[ $# -lt 2 ]] && { echo "ERROR: --template requires a name" >&2; exit 1; }
+            TEMPLATE_NAME="$2"; shift 2 ;;
+        --list-templates) set_command "--list-templates" "list-templates"; shift ;;
+        --no-template)       NO_TEMPLATE=true; shift ;;
+        --no-git)            NO_GIT=true; shift ;;
+        --no-attach)         NO_ATTACH=true; shift ;;
+        --no-permission-mode) NO_PERMISSION_MODE=true; shift ;;
         -v|--version)     echo "claude-mux $VERSION"; exit 0 ;;
         -h|--help)        usage; exit 0 ;;
         -*)               echo "Unknown option: $1" >&2; echo >&2; usage >&2; exit 1 ;;
@@ -167,17 +197,61 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Validate -p only with -n
+# Validate flag combinations
 if [[ "$NEW_CREATE_PARENTS" == "true" && "$COMMAND" != "new" ]]; then
     echo "ERROR: -p can only be used with -n" >&2
+    exit 1
+fi
+if [[ "$NO_TEMPLATE" == "true" && "$COMMAND" != "new" ]]; then
+    echo "ERROR: --no-template can only be used with -n" >&2
+    exit 1
+fi
+if [[ "$NO_GIT" == "true" && "$COMMAND" != "new" ]]; then
+    echo "ERROR: --no-git can only be used with -n" >&2
+    exit 1
+fi
+if [[ "$NO_PERMISSION_MODE" == "true" && "$COMMAND" != "new" ]]; then
+    echo "ERROR: --no-permission-mode can only be used with -n" >&2
+    exit 1
+fi
+if [[ "$NO_ATTACH" == "true" && "$COMMAND" != "launch" && "$COMMAND" != "new" ]]; then
+    echo "ERROR: --no-attach can only be used with -d or -n" >&2
+    exit 1
+fi
+if [[ -n "$TEMPLATE_NAME" && "$COMMAND" != "new" ]]; then
+    echo "ERROR: --template can only be used with -n" >&2
+    exit 1
+fi
+if [[ -n "$TEMPLATE_NAME" && "$NO_TEMPLATE" == "true" ]]; then
+    echo "ERROR: --template and --no-template are mutually exclusive" >&2
     exit 1
 fi
 
 # ── User config (overrides defaults above) ────────────────────────────────────
 
-if [[ ! -f "$HOME/.claude-mux-rc" ]]; then
-    cat > "$HOME/.claude-mux-rc" << 'CONFIG_EOF'
-# ~/.claude-mux-rc — claude-mux user configuration
+CLAUDE_MUX_DIR="$HOME/.claude-mux"
+CLAUDE_MUX_CONFIG="$CLAUDE_MUX_DIR/config"
+
+# Auto-migrate from old ~/.claude-mux-rc to new location
+if [[ -f "$HOME/.claude-mux-rc" && ! -f "$CLAUDE_MUX_CONFIG" ]]; then
+    mkdir -p "$CLAUDE_MUX_DIR"
+    mv "$HOME/.claude-mux-rc" "$CLAUDE_MUX_CONFIG"
+    if [[ -d "$LOG_DIR" ]]; then
+        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Migrated config from ~/.claude-mux-rc to ~/.claude-mux/config" >> "$LOG_DIR/claude-mux.log"
+    fi
+fi
+
+# Ensure config directory and templates exist
+mkdir -p "$CLAUDE_MUX_DIR/templates"
+
+# Create empty default template if it doesn't exist
+if [[ ! -f "$CLAUDE_MUX_DIR/templates/default.md" ]]; then
+    touch "$CLAUDE_MUX_DIR/templates/default.md"
+fi
+
+if [[ ! -f "$CLAUDE_MUX_CONFIG" ]]; then
+    cat > "$CLAUDE_MUX_CONFIG" << 'CONFIG_EOF'
+# ~/.claude-mux/config — claude-mux user configuration
 # Generated on first run. Uncomment and edit settings to override defaults.
 # This file is sourced by claude-mux at startup.
 
@@ -196,54 +270,47 @@ if [[ ! -f "$HOME/.claude-mux-rc" ]]; then
 
 # When true, Claude sessions can send slash commands to OTHER sessions via tmux.
 # When false, sessions can only send commands to themselves.
-# Enable for multi-agent orchestration workflows.
 # Default: false
 #ALLOW_CROSS_SESSION_CONTROL=false
 
-# Enable tmux extended-keys for Shift+Enter and other modified key support.
-# Requires tmux 3.2+. Default: true
-#TMUX_EXTENDED_KEYS=true
+# ── tmux session options ──────────────────────────────────────────────────────
 
-# Set the terminal/tab title to the session name. Uses tmux format variables.
-# '#S' = session name. Set to "" to disable. Default: '#S'
-#TMUX_TITLE_FORMAT='#S'
+#TMUX_EXTENDED_KEYS=true           # Shift+Enter support (requires tmux 3.2+)
+#TMUX_TITLE_FORMAT='#S'            # Terminal/tab title (#S = session name, "" to disable)
+#TMUX_MOUSE=true                   # Mouse support (scroll, select, resize)
+#TMUX_HISTORY_LIMIT=50000          # Scrollback buffer (tmux default is 2000)
+#TMUX_CLIPBOARD=true               # System clipboard via OSC 52
+#TMUX_DEFAULT_TERMINAL="tmux-256color"  # Terminal type for color rendering
+#TMUX_ESCAPE_TIME=10               # Escape delay in ms (tmux default is 500)
+#TMUX_MONITOR_ACTIVITY=true        # Activity notifications from other sessions
 
-# Enable mouse support (scroll, select, resize panes). Default: true
-#TMUX_MOUSE=true
+# ── Templates ─────────────────────────────────────────────────────────────────
 
-# Scrollback buffer size (lines). Default: 50000
-#TMUX_HISTORY_LIMIT=50000
+# Directory containing CLAUDE.md template files.
+# Default: $HOME/.claude-mux/templates
+#TEMPLATES_DIR="$HOME/.claude-mux/templates"
 
-# Enable system clipboard integration (OSC 52). Default: true
-#TMUX_CLIPBOARD=true
+# Default template applied to new projects (-n). Set to "" to disable.
+# Default: default.md
+#DEFAULT_TEMPLATE="default.md"
 
-# Terminal type for proper color rendering. Default: tmux-256color
-#TMUX_DEFAULT_TERMINAL="tmux-256color"
-
-# Escape key delay in milliseconds (tmux default is 500). Default: 10
-#TMUX_ESCAPE_TIME=10
-
-# Monitor for activity in other sessions. Default: true
-#TMUX_MONITOR_ACTIVITY=true
+# ── Batch mode ────────────────────────────────────────────────────────────────
 
 # Seconds to wait between launching each session.
-# Increase if sessions fail to register with Remote Control.
 # Default: 5
 #SLEEP_BETWEEN=5
 
-# Enable/disable batch startup via LaunchAgent (-a/--all).
-# When false, the LaunchAgent runs but exits without starting sessions.
+# Enable batch startup via LaunchAgent (-a/--all).
 # Default: false
 #LAUNCHAGENT_ENABLED=false
 CONFIG_EOF
-    # Log to file if LOG_DIR exists (~/Library/Logs should always exist on macOS)
     if [[ -d "$LOG_DIR" ]]; then
-        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Created default config at $HOME/.claude-mux-rc" >> "$LOG_DIR/claude-mux.log"
+        echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Created config at $CLAUDE_MUX_CONFIG" >> "$LOG_DIR/claude-mux.log"
     fi
 fi
 
 # shellcheck source=/dev/null
-source "$HOME/.claude-mux-rc"
+source "$CLAUDE_MUX_CONFIG"
 
 # Default LAUNCH_DIR to current directory when command is launch and no dir specified
 if [[ "$COMMAND" == "launch" && -z "$LAUNCH_DIR" ]]; then
@@ -323,6 +390,18 @@ apply_tmux_options() {
         "$TMUX_BIN" set-option -t "$session" escape-time "$TMUX_ESCAPE_TIME" 2>/dev/null
     [[ "$TMUX_MONITOR_ACTIVITY" == "true" ]] && \
         "$TMUX_BIN" set-option -t "$session" monitor-activity on 2>/dev/null
+}
+
+# Build the system prompt injected into each Claude session
+build_system_prompt() {
+    local session_name="$1"
+    local mux_bin="${CLAUDE_MUX_BIN}"
+    local mux_cmds="You can send slash commands to yourself via: ${mux_bin} -s '${session_name}' '/command args'."
+    if [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]]; then
+        mux_cmds="You can send slash commands to yourself or any other Claude session via: ${mux_bin} -s SESSION '/command args'."
+    fi
+    mux_cmds="${mux_cmds} Other claude-mux commands: ${mux_bin} -l (list active sessions). ${mux_bin} -L (list all projects). ${mux_bin} -t SESSION (attach to session). ${mux_bin} -d DIRECTORY (launch session in directory). ${mux_bin} -n DIRECTORY (create new project). ${mux_bin} -n DIRECTORY -p (create new project with parents). ${mux_bin} --template NAME (use specific CLAUDE.md template with -n). ${mux_bin} --list-templates (show available templates). ${mux_bin} --shutdown SESSION... (shut down sessions). ${mux_bin} --restart SESSION... (restart sessions). ${mux_bin} -a (start ALL managed sessions — use with caution). ${mux_bin} --no-attach (with -d or -n, launch without attaching). Always display command output to the user — do not run commands silently."
+    echo "You are running inside tmux session '${session_name}'. ${mux_cmds}${GITHUB_SSH_INFO}"
 }
 
 # ── Attach helper ─────────────────────────────────────────────────────────────
@@ -794,13 +873,8 @@ create_claude_session() {
     apply_tmux_options "$session_name"
 
     # Build system prompt
-    local tmux_prompt mux_bin="${CLAUDE_MUX_BIN}"
-    local mux_cmds="You can send slash commands to yourself via: ${mux_bin} -s '${session_name}' '/command args'."
-    if [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]]; then
-        mux_cmds="You can send slash commands to yourself or any other Claude session via: ${mux_bin} -s SESSION '/command args'."
-    fi
-    mux_cmds="${mux_cmds} Other claude-mux commands: ${mux_bin} -l (list active sessions). ${mux_bin} -L (list all projects). ${mux_bin} -t SESSION (attach to session). ${mux_bin} -d DIRECTORY (launch session in directory). ${mux_bin} -n DIRECTORY (create new project). ${mux_bin} -n DIRECTORY -p (create new project with parents). ${mux_bin} --shutdown SESSION (shut down a session). ${mux_bin} --restart SESSION (restart a session). Always display command output to the user — do not run commands silently."
-    tmux_prompt="You are running inside tmux session '${session_name}'. ${mux_cmds}${GITHUB_SSH_INFO}"
+    local tmux_prompt
+    tmux_prompt="$(build_system_prompt "$session_name")"
 
     # Write the launch command to a temp script to avoid quoting complexity.
     # A trap inside the script guarantees cleanup even if claude exits unexpectedly.
@@ -1024,6 +1098,10 @@ launch_single_session() {
     # If session already exists with Claude running, just attach
     if "$TMUX_BIN" has-session -t "$LAUNCH_SESSION_NAME" 2>/dev/null; then
         if claude_running_in_session "$LAUNCH_SESSION_NAME"; then
+            if [[ "$NO_ATTACH" == "true" ]]; then
+                log "Session '$LAUNCH_SESSION_NAME' already running claude (--no-attach)"
+                return
+            fi
             log "Session '$LAUNCH_SESSION_NAME' already running claude — attaching"
             attach_to_session "$LAUNCH_SESSION_NAME"
             return
@@ -1034,13 +1112,8 @@ launch_single_session() {
     fi
 
     # Build system prompt
-    local mux_bin="${CLAUDE_MUX_BIN}"
-    local mux_cmds="You can send slash commands to yourself via: ${mux_bin} -s '${LAUNCH_SESSION_NAME}' '/command args'."
-    if [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]]; then
-        mux_cmds="You can send slash commands to yourself or any other Claude session via: ${mux_bin} -s SESSION '/command args'."
-    fi
-    mux_cmds="${mux_cmds} Other claude-mux commands: ${mux_bin} -l (list active sessions). ${mux_bin} -L (list all projects). ${mux_bin} -t SESSION (attach to session). ${mux_bin} -d DIRECTORY (launch session in directory). ${mux_bin} -n DIRECTORY (create new project). ${mux_bin} -n DIRECTORY -p (create new project with parents). ${mux_bin} --shutdown SESSION (shut down a session). ${mux_bin} --restart SESSION (restart a session). Always display command output to the user — do not run commands silently."
-    local tmux_prompt="You are running inside tmux session '${LAUNCH_SESSION_NAME}'. ${mux_cmds}${GITHUB_SSH_INFO}"
+    local tmux_prompt
+    tmux_prompt="$(build_system_prompt "$LAUNCH_SESSION_NAME")"
 
     # Create tmux session that runs Claude directly (no send-keys)
     log "Creating tmux session '$LAUNCH_SESSION_NAME' in $LAUNCH_DIR"
@@ -1056,7 +1129,70 @@ launch_single_session() {
 
     apply_tmux_options "$LAUNCH_SESSION_NAME"
 
-    attach_to_session "$LAUNCH_SESSION_NAME"
+    if [[ "$NO_ATTACH" == "true" ]]; then
+        log "Session '$LAUNCH_SESSION_NAME' created (--no-attach)"
+    else
+        attach_to_session "$LAUNCH_SESSION_NAME"
+    fi
+}
+
+list_templates() {
+    if [[ ! -d "$TEMPLATES_DIR" ]]; then
+        echo "No templates directory at $TEMPLATES_DIR"
+        return
+    fi
+    local found=false
+    for tpl in "$TEMPLATES_DIR"/*.md; do
+        [[ ! -f "$tpl" ]] && continue
+        local name
+        name="$(basename "$tpl")"
+        [[ "$name" == "none.md" ]] && continue
+        found=true
+        if [[ "$name" == "$DEFAULT_TEMPLATE" ]]; then
+            printf "  * %s  (default)\n" "$name"
+        else
+            printf "    %s\n" "$name"
+        fi
+    done
+    if [[ "$found" != "true" ]]; then
+        echo "No templates found in $TEMPLATES_DIR"
+    fi
+}
+
+apply_template() {
+    local dir="$1"
+
+    # Skip if --no-template
+    [[ "$NO_TEMPLATE" == "true" ]] && return
+
+    # Skip if CLAUDE.md already exists
+    if [[ -f "$dir/CLAUDE.md" ]]; then
+        log "CLAUDE.md already exists in $dir, skipping template"
+        return
+    fi
+
+    # Determine which template to use
+    local tpl_name="${TEMPLATE_NAME:-$DEFAULT_TEMPLATE}"
+    [[ -z "$tpl_name" ]] && return
+
+    local tpl_path="$TEMPLATES_DIR/$tpl_name"
+
+    # Ensure .md extension
+    [[ "$tpl_name" != *.md ]] && tpl_path="${tpl_path}.md"
+    [[ "$tpl_name" != *.md ]] && tpl_name="${tpl_name}.md"
+
+    if [[ ! -f "$tpl_path" ]]; then
+        log "WARN: Template '$tpl_name' not found at $tpl_path — skipping"
+        return
+    fi
+
+    # Skip empty templates
+    if [[ ! -s "$tpl_path" ]]; then
+        return
+    fi
+
+    log "Applying template '$tpl_name' to $dir/CLAUDE.md"
+    [[ "$DRY_RUN" != "true" ]] && cp "$tpl_path" "$dir/CLAUDE.md"
 }
 
 create_new_project() {
@@ -1075,10 +1211,23 @@ create_new_project() {
         fi
     fi
 
-    # Initialize git repo and gitignore
-    ensure_git_repo "$NEW_PROJECT_DIR"
-    setup_gitignore "$NEW_PROJECT_DIR"
-    setup_default_mode "$NEW_PROJECT_DIR"
+    # Initialize git repo and gitignore (unless --no-git)
+    if [[ "$NO_GIT" != "true" ]]; then
+        ensure_git_repo "$NEW_PROJECT_DIR"
+        setup_gitignore "$NEW_PROJECT_DIR"
+    else
+        log "Skipping git init (--no-git)"
+    fi
+
+    # Apply CLAUDE.md template
+    apply_template "$NEW_PROJECT_DIR"
+
+    # Set permission mode (unless --no-permission-mode)
+    if [[ "$NO_PERMISSION_MODE" != "true" ]]; then
+        setup_default_mode "$NEW_PROJECT_DIR"
+    else
+        log "Skipping permission mode (--no-permission-mode)"
+    fi
 
     if [[ "$DRY_RUN" == "true" ]]; then
         log "Dry run — skipping session creation and attach for '$NEW_SESSION_NAME'"
@@ -1087,7 +1236,12 @@ create_new_project() {
 
     detect_github_ssh_accounts
     create_claude_session "$NEW_SESSION_NAME" "$NEW_PROJECT_DIR"
-    attach_to_session "$NEW_SESSION_NAME"
+
+    if [[ "$NO_ATTACH" == "true" ]]; then
+        log "Session '$NEW_SESSION_NAME' created (--no-attach)"
+    else
+        attach_to_session "$NEW_SESSION_NAME"
+    fi
 }
 
 case "$COMMAND" in
@@ -1096,6 +1250,7 @@ case "$COMMAND" in
     new)      create_new_project ;;
     list)     status_claude_sessions ;;
     list-all) status_claude_sessions true ;;
+    list-templates) list_templates ;;
     shutdown) shutdown_claude_sessions ;;
     restart)
         if [[ ${#RESTART_SESSIONS[@]} -gt 0 ]]; then

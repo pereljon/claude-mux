@@ -10,7 +10,7 @@
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>exec "$HOME/Claude/claude-mux" -a</string>
+        <string>exec "$HOME/bin/claude-mux" -a</string>
     </array>
 
     <key>RunAtLoad</key>

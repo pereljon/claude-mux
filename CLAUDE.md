@@ -91,26 +91,26 @@ Do not commit until all affected files are updated.
 ## Development workflow
 
 The script has two locations:
-- **Repo**: `~/Claude/development/claude-code-sessions/claude-mux` (version-controlled)
-- **Active**: `~/Claude/claude-mux` (what actually runs)
+- **Repo**: `~/Claude/development/claude-mux/claude-mux` (version-controlled)
+- **Installed**: `~/bin/claude-mux` (what actually runs, created by `install.sh`)
 
-Always edit the repo copy first, then **ask before committing** — do not run `git commit` or `git push` without explicit approval. After committing, deploy to the active location:
+Always edit the repo copy first, then **ask before committing** — do not run `git commit` or `git push` without explicit approval. After committing, deploy to the installed location:
 
 ```bash
 # After editing and committing in the repo:
-cp ~/Claude/development/claude-code-sessions/claude-mux ~/Claude/
+cp ~/Claude/development/claude-mux/claude-mux ~/bin/
 ```
 
-The plist and `claude-mux-rc` follow the same pattern — edit in repo, copy to deploy.
+## Configuration
 
-## Configuration file
-
-`~/.claude-mux-rc` is the user config (not in this repo). A documented template is at `claude-mux-rc`. Key variables:
+`~/.claude-mux/config` is the user config (not in this repo). A documented template is at `config.example`. Key variables:
 
 - `BASE_DIR` — root directory (default: `~/Claude`)
 - `LOG_DIR` — directory for `claude-mux.log` (default: `~/Library/Logs`)
 - `DEFAULT_PERMISSION_MODE` — Claude permission mode per project (default: `auto`)
 - `ALLOW_CROSS_SESSION_CONTROL` — allow sessions to send commands to each other (default: `false`)
+- `TEMPLATES_DIR` — CLAUDE.md template directory (default: `~/.claude-mux/templates`)
+- `DEFAULT_TEMPLATE` — default template for new projects (default: `default.md`)
 
 ## Implementation spec
 
