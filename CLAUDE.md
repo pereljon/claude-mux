@@ -74,6 +74,17 @@ log show --predicate 'process == "launchd"' --last 5m | grep claude
 
 When diagnosing issues, distinguish clearly between what you know and what you're guessing. Don't state theories as conclusions. Use language like "this could be", "one possibility is", or "I'm not sure, but" when you lack evidence. If you can't verify something, say so rather than presenting speculation as fact.
 
+## Interactive commands
+
+Commands that attach to a tmux session (`-t`, and `-d`/`-n` without `--no-attach`) are interactive and should only be invoked by the user directly in a terminal — never by Claude from inside a session. From inside a session, attach would trigger `switch-client` on the user's terminal (unpredictable) or fail silently over Remote Control.
+
+When listing or documenting commands that Claude can run from within sessions:
+- `-l`, `-L`, `-s`, `--shutdown`, `--restart`, `--list-templates`, `-a` are safe — no attach
+- `-d`, `-n` must always include `--no-attach`
+- `-t` should be excluded entirely from Claude-callable examples
+
+The injection prompt enforces this with an IMPORTANT note.
+
 ## Change checklist
 
 After any code change, verify whether these also need updating:

@@ -127,16 +127,16 @@ You: "Show me all projects"
 Claude: runs `claude-mux -L` and displays the results
 
 You: "Start a session for my api-server work project"
-Claude: runs `claude-mux -d ~/Claude/work/api-server`
+Claude: runs `claude-mux -d ~/Claude/work/api-server --no-attach`
 
 You: "Create a new personal project called mobile-app"
-Claude: runs `claude-mux -n ~/Claude/personal/mobile-app -p`
+Claude: runs `claude-mux -n ~/Claude/personal/mobile-app -p --no-attach`
 
 You: "What templates do I have?"
 Claude: runs `claude-mux --list-templates` and displays the results
 
 You: "Create a new work project called api-server using the web template"
-Claude: runs `claude-mux -n ~/Claude/work/api-server -p --template web`
+Claude: runs `claude-mux -n ~/Claude/work/api-server -p --template web --no-attach`
 
 You: "Switch all sessions to Sonnet"
 Claude: runs `claude-mux -s SESSION '/model sonnet'` for each running session
@@ -146,9 +146,6 @@ Claude: runs `claude-mux --shutdown data-pipeline`
 
 You: "Restart the stuck web-dashboard session"
 Claude: runs `claude-mux --restart web-dashboard`
-
-You: "Attach to the api-server session"
-Claude: runs `claude-mux -t api-server`
 
 You: "Launch the data-pipeline session in the background"
 Claude: runs `claude-mux -d ~/Claude/work/data-pipeline --no-attach`
@@ -223,16 +220,15 @@ You can send slash commands to yourself via: /path/to/claude-mux -s '<session-na
 Other claude-mux commands:
   /path/to/claude-mux -l                       (list active sessions)
   /path/to/claude-mux -L                       (list all projects)
-  /path/to/claude-mux -t SESSION               (attach to session)
-  /path/to/claude-mux -d DIRECTORY             (launch session in directory)
-  /path/to/claude-mux -n DIRECTORY             (create new project)
-  /path/to/claude-mux -n DIRECTORY -p          (create new project with parents)
+  /path/to/claude-mux -d DIRECTORY --no-attach (launch session in directory)
+  /path/to/claude-mux -n DIRECTORY --no-attach (create new project)
+  /path/to/claude-mux -n DIRECTORY -p --no-attach (create new project with parents)
   /path/to/claude-mux --template NAME          (use specific CLAUDE.md template with -n)
   /path/to/claude-mux --list-templates         (show available templates)
   /path/to/claude-mux --shutdown SESSION...    (shut down sessions)
   /path/to/claude-mux --restart SESSION...     (restart sessions)
   /path/to/claude-mux -a                       (start ALL managed sessions — use with caution)
-  /path/to/claude-mux --no-attach              (with -d or -n, launch without attaching)
+IMPORTANT: Always use --no-attach with -d and -n when running from inside a session.
 Always display command output to the user — do not run commands silently.
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
 ```
