@@ -85,6 +85,18 @@ When listing or documenting commands that Claude can run from within sessions:
 
 The injection prompt enforces this with an IMPORTANT note.
 
+## Testing plan
+
+Before beginning any coding session for a new feature or change, review or produce a testing plan with the user. Cover:
+- Happy path cases
+- Edge cases and error conditions
+- Flag conflicts and validation
+- Config migration / backward compatibility
+- Injection prompt updates
+- Display / output changes
+
+Get the user's confirmation on the plan before writing code.
+
 ## Change checklist
 
 After any code change, verify whether these also need updating:
