@@ -132,6 +132,12 @@ Claude: runs `claude-mux -d ~/Claude/work/api-server`
 You: "Create a new personal project called mobile-app"
 Claude: runs `claude-mux -n ~/Claude/personal/mobile-app -p`
 
+You: "What templates do I have?"
+Claude: runs `claude-mux --list-templates` and displays the results
+
+You: "Create a new work project called api-server using the web template"
+Claude: runs `claude-mux -n ~/Claude/work/api-server -p --template web`
+
 You: "Switch all sessions to Sonnet"
 Claude: runs `claude-mux -s SESSION '/model sonnet'` for each running session
 
