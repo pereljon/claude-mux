@@ -142,6 +142,10 @@ cp ~/Claude/development/claude-mux/claude-mux ~/bin/
 - `DEFAULT_TEMPLATE` - default template for new projects (default: `default.md`)
 - `LAUNCHAGENT_MODE` - LaunchAgent behavior at login: `none` (default), `home`, or `batch`
 
+## TODO
+
+- `templates/` in repo root: add example CLAUDE.md templates (web, python, etc.) and optionally copy them to `~/.claude-mux/templates/` during install
+
 ## Implementation spec
 
 See `implentation-spec.md` for the full specification including pseudocode, edge cases, plist configuration, and open items for the implementer.
