@@ -436,8 +436,9 @@ build_system_prompt() {
 
 Rules:
 - Always use --no-attach with -d and -n — attach is interactive only
+- --shutdown and --restart never attach — safe to run from inside a session
 - Always display command output to the user
-- The 'home' session is a general-purpose session in the base directory, always available for managing other sessions. It is protected (* in status) and requires --force to shut down.
+- The 'home' session is a general-purpose session in the base directory, always available for managing other sessions. It is protected (* in status): --shutdown requires --force, but --restart bypasses protection (it relaunches, not permanently kills).
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
 
 Commands:
@@ -449,9 +450,9 @@ Commands:
   -n DIR -p --no-attach       New project (create parents)
   --template NAME             CLAUDE.md template (with -n)
   --list-templates            Show available templates
-  --shutdown SESSION...       Shut down sessions
+  --shutdown SESSION...       Shut down sessions (omit SESSION to shut down all)
   --shutdown SESSION --force  Shut down protected session
-  --restart SESSION...        Restart sessions
+  --restart SESSION...        Restart sessions (omit SESSION to restart all running)
   -a                          Start ALL sessions (use with caution)
 ${GITHUB_SSH_INFO}"
 
@@ -596,10 +597,12 @@ shutdown_single_session() {
     local session="$1"
     if ! "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
         log "No tmux session named '$session'"
+        echo "See $LOG_FILE for details" >&2
         return 1
     fi
     if is_protected_session "$session" && [[ "$FORCE" != "true" ]]; then
         echo "ERROR: Session '$session' is protected. Use --force to shut down." >&2
+        echo "See $LOG_FILE for details" >&2
         return 1
     fi
     if claude_running_in_session "$session"; then
@@ -1427,8 +1430,11 @@ case "$COMMAND" in
     list)     status_claude_sessions ;;
     list-all) status_claude_sessions true ;;
     list-templates) list_templates ;;
-    shutdown) shutdown_claude_sessions ;;
+    shutdown) shutdown_claude_sessions; exit 0 ;;
     restart)
+        # --restart bypasses protection (it relaunches, not permanently kills)
+        FORCE=true
+
         if [[ ${#RESTART_SESSIONS[@]} -gt 0 ]]; then
             # Named session(s) restart
             log "=== claude-mux restart: ${RESTART_SESSIONS[*]} ==="
@@ -1438,10 +1444,15 @@ case "$COMMAND" in
                 if [[ -z "$_restart_dir" ]]; then
                     echo "ERROR: Session '$_rs' not found or cannot determine working directory" >&2
                     echo "Run 'claude-mux -l' to see available sessions." >&2
+                    echo "See $LOG_FILE for details" >&2
                     continue
                 fi
-                shutdown_single_session "$_rs"
-                create_claude_session "$_rs" "$_restart_dir"
+                if [[ "$DRY_RUN" == "true" ]]; then
+                    log "Would restart session '$_rs' in $_restart_dir"
+                else
+                    shutdown_single_session "$_rs"
+                    create_claude_session "$_rs" "$_restart_dir"
+                fi
             done
             log "=== claude-mux restart complete ==="
         else
@@ -1466,23 +1477,27 @@ case "$COMMAND" in
                 log "No running Claude sessions to restart"
                 log "=== claude-mux restart complete ==="
             else
-                # Count for logging
                 _count=$(echo "$_restart_list" | grep -c '|')
                 log "Remembering $_count running session(s) for restart"
 
-                # Shutdown all managed sessions
-                shutdown_claude_sessions
-
-                # Relaunch only the previously running sessions
-                detect_github_ssh_accounts
-                while IFS='|' read -r _name _dir; do
-                    [[ -z "$_name" ]] && continue
-                    log "Restarting session '$_name' in $_dir"
-                    create_claude_session "$_name" "$_dir"
-                done <<< "$_restart_list"
+                if [[ "$DRY_RUN" == "true" ]]; then
+                    while IFS='|' read -r _name _dir; do
+                        [[ -z "$_name" ]] && continue
+                        log "Would restart session '$_name' in $_dir"
+                    done <<< "$_restart_list"
+                else
+                    shutdown_claude_sessions
+                    detect_github_ssh_accounts
+                    while IFS='|' read -r _name _dir; do
+                        [[ -z "$_name" ]] && continue
+                        log "Restarting session '$_name' in $_dir"
+                        create_claude_session "$_name" "$_dir"
+                    done <<< "$_restart_list"
+                fi
 
                 log "=== claude-mux restart complete ==="
             fi
         fi
+        exit 0
         ;;
 esac

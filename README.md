@@ -231,10 +231,12 @@ claude-mux path: /path/to/claude-mux
 
 Rules:
 - Always use --no-attach with -d and -n — attach is interactive only
+- --shutdown and --restart never attach — safe to run from inside a session
 - Always display command output to the user
 - The 'home' session is a general-purpose session in the base directory, always
-  available for managing other sessions. It is protected (* in status) and
-  requires --force to shut down.
+  available for managing other sessions. It is protected (* in status):
+  --shutdown requires --force, but --restart bypasses protection (it relaunches,
+  not permanently kills).
 - When asked to shut down sessions, run the command directly — protected sessions
   are skipped automatically, do not ask for confirmation
 
@@ -247,9 +249,9 @@ Commands:
   -n DIR -p --no-attach       New project (create parents)
   --template NAME             CLAUDE.md template (with -n)
   --list-templates            Show available templates
-  --shutdown SESSION...       Shut down sessions
+  --shutdown SESSION...       Shut down sessions (omit SESSION to shut down all)
   --shutdown SESSION --force  Shut down protected session
-  --restart SESSION...        Restart sessions
+  --restart SESSION...        Restart sessions (omit SESSION to restart all running)
   -a                          Start ALL sessions (use with caution)
 
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
