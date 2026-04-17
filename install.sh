@@ -84,11 +84,33 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# ── Find default bin dir ──────────────────────────────────────────────────────
+
+find_bin_dir() {
+    local candidates=("$HOME/bin" "$HOME/.local/bin")
+    for dir in "${candidates[@]}"; do
+        if [[ -d "$dir" && -w "$dir" ]]; then
+            echo "$dir"; return
+        fi
+    done
+    echo "$HOME/bin"
+}
+
+DEFAULT_BIN_DIR="$(find_bin_dir)"
+
 # ── Interactive prompts ───────────────────────────────────────────────────────
 
 if [[ "$INTERACTIVE" == "true" && -t 0 ]]; then
     echo "claude-mux installer"
     echo ""
+
+    # BIN_DIR
+    if [[ -z "$BIN_DIR" ]]; then
+        printf "Install location? [%s]: " "$DEFAULT_BIN_DIR"
+        read -r _input
+        BIN_DIR="${_input:-$DEFAULT_BIN_DIR}"
+        BIN_DIR="${BIN_DIR/#\~/$HOME}"
+    fi
 
     # BASE_DIR
     if [[ -z "$BASE_DIR" ]]; then
@@ -156,20 +178,8 @@ fi
 
 BASE_DIR="${BASE_DIR:-$DEFAULT_BASE_DIR}"
 
-# ── Find bin dir ──────────────────────────────────────────────────────────────
-
-find_bin_dir() {
-    local candidates=("$HOME/bin" "$HOME/.local/bin")
-    for dir in "${candidates[@]}"; do
-        if [[ -d "$dir" && -w "$dir" ]]; then
-            echo "$dir"; return
-        fi
-    done
-    echo "$HOME/bin"
-}
-
 if [[ -z "$BIN_DIR" ]]; then
-    BIN_DIR="$(find_bin_dir)"
+    BIN_DIR="$DEFAULT_BIN_DIR"
 fi
 
 if [[ ! -d "$BIN_DIR" ]]; then
