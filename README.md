@@ -226,29 +226,35 @@ Each Claude session is launched with `--append-system-prompt` containing context
 
 ```
 You are running inside tmux session '<session-name>'.
-You can send slash commands to yourself via: /path/to/claude-mux -s '<session-name>' '/command args'.
-Other claude-mux commands:
-  /path/to/claude-mux -l                       (list active sessions)
-  /path/to/claude-mux -L                       (list all projects)
-  /path/to/claude-mux -d DIRECTORY --no-attach (launch session in directory)
-  /path/to/claude-mux -n DIRECTORY --no-attach (create new project)
-  /path/to/claude-mux -n DIRECTORY -p --no-attach (create new project with parents)
-  /path/to/claude-mux --template NAME          (use specific CLAUDE.md template with -n)
-  /path/to/claude-mux --list-templates         (show available templates)
-  /path/to/claude-mux --shutdown SESSION...    (shut down sessions)
-  /path/to/claude-mux --shutdown SESSION --force (shut down a protected session)
-  /path/to/claude-mux --restart SESSION...     (restart sessions)
-  /path/to/claude-mux -a                       (start ALL managed sessions — use with caution)
-The 'home' session is a single general-purpose session in $BASE_DIR; it is always
-protected and requires --force to shut down (shown with * in -l/-L).
-IMPORTANT: Always use --no-attach with -d and -n when running from inside a session.
-Always display command output to the user — do not run commands silently.
+claude-mux path: /path/to/claude-mux
+
+Rules:
+- Always use --no-attach with -d and -n — attach is interactive only
+- Always display command output to the user
+- The 'home' session is a general-purpose session in the base directory, always
+  available for managing other sessions. It is protected (* in status) and
+  requires --force to shut down.
+- When asked to shut down sessions, run the command directly — protected sessions
+  are skipped automatically, do not ask for confirmation
+
+Commands:
+  -s '<session-name>' '/command'  Send slash command to yourself
+  -l                          List active sessions
+  -L                          List all projects
+  -d DIR --no-attach          Launch session in directory
+  -n DIR --no-attach          New project
+  -n DIR -p --no-attach       New project (create parents)
+  --template NAME             CLAUDE.md template (with -n)
+  --list-templates            Show available templates
+  --shutdown SESSION...       Shut down sessions
+  --shutdown SESSION --force  Shut down protected session
+  --restart SESSION...        Restart sessions
+  -a                          Start ALL sessions (use with caution)
+
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
 ```
 
-When `ALLOW_CROSS_SESSION_CONTROL=true`, the send command description changes to allow targeting any session, not just itself.
-
-The `/path/to/claude-mux` is the absolute path to the script at launch time, so sessions don't depend on `PATH` being set correctly.
+When `ALLOW_CROSS_SESSION_CONTROL=true`, the send command changes to allow targeting any session, not just itself. The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.
 
 ## Troubleshooting
 
