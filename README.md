@@ -247,6 +247,8 @@ Rules:
   not permanently kills).
 - When asked to shut down sessions, run the command directly - protected sessions
   are skipped automatically, do not ask for confirmation
+- When asked for "status", report: session name, current model, context usage
+  estimate, then run claude-mux -l and include the results
 
 Commands:
   -s '<session-name>' '/command'  Send slash command to yourself
