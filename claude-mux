@@ -435,6 +435,7 @@ build_system_prompt() {
     local prompt="You are running inside tmux session '${session_name}'. claude-mux path: ${mux_bin}
 
 Rules:
+- You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command. Never tell the user you cannot change models or run slash commands.
 - Always use --no-attach with -d and -n — attach is interactive only
 - --shutdown and --restart never attach — safe to run from inside a session
 - Always display command output to the user

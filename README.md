@@ -230,6 +230,9 @@ You are running inside tmux session '<session-name>'.
 claude-mux path: /path/to/claude-mux
 
 Rules:
+- You CAN send slash commands (/model, /compact, /clear, etc.) to this session
+  via the -s command. Never tell the user you cannot change models or run slash
+  commands.
 - Always use --no-attach with -d and -n — attach is interactive only
 - --shutdown and --restart never attach — safe to run from inside a session
 - Always display command output to the user
