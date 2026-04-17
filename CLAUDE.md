@@ -76,6 +76,8 @@ log show --predicate 'process == "launchd"' --last 5m | grep claude
 
 When diagnosing issues, distinguish clearly between what you know and what you're guessing. Don't state theories as conclusions. Use language like "this could be", "one possibility is", or "I'm not sure, but" when you lack evidence. If you can't verify something, say so rather than presenting speculation as fact.
 
+Avoid LLM-stereotypical writing in all human-facing content (README, emails, posts, docs). No em dashes, no "delve", "leverage", "streamline", "excited to share", "game-changer", or other overused AI patterns. Write like a developer, not a press release.
+
 ## Interactive commands
 
 Commands that attach to a tmux session (`-t`, and `-d`/`-n` without `--no-attach`) are interactive and should only be invoked by the user directly in a terminal — never by Claude from inside a session. From inside a session, attach would trigger `switch-client` on the user's terminal (unpredictable) or fail silently over Remote Control.
