@@ -72,6 +72,10 @@ tail -f ~/Library/Logs/claude-mux.log
 log show --predicate 'process == "launchd"' --last 5m | grep claude
 ```
 
+## Questions vs. implementation
+
+When the user asks a question, answer the question. Do not begin coding or making changes unless explicitly asked to. A question is a request for information or a decision — not a trigger to start implementing.
+
 ## Communication standards
 
 When diagnosing issues, distinguish clearly between what you know and what you're guessing. Don't state theories as conclusions. Use language like "this could be", "one possibility is", or "I'm not sure, but" when you lack evidence. If you can't verify something, say so rather than presenting speculation as fact.
