@@ -1105,6 +1105,12 @@ create_claude_session() {
     # Write the launch command to a temp script to avoid quoting complexity.
     # A trap inside the script guarantees cleanup even if claude exits unexpectedly.
     # The prompt is written to a separate file to avoid any quoting issues in the heredoc.
+    #
+    # NOTE: perm_flags, session_name, and model_flag are interpolated as text into this
+    # generated script. They are safe because perm_flags comes from a whitelist, session_name
+    # is stripped to [a-zA-Z0-9-] by sanitize_session_name, and model_flag is whitelisted.
+    # Any future caller of create_claude_session must ensure mode_override is validated
+    # before passing it in — the heredoc provides no further protection.
     local launch_script prompt_file
     launch_script=$(mktemp "${TMPDIR:-/tmp}/claude-launch-XXXXXX")
     prompt_file=$(mktemp "${TMPDIR:-/tmp}/claude-prompt-XXXXXX")
@@ -1121,7 +1127,7 @@ LAUNCH_EOF
 
     if ! "$TMUX_BIN" send-keys -t "$session_name" "bash '${launch_script}'" Enter 2>/dev/null; then
         log "WARN: send-keys failed for '$session_name', cleaning up temp script"
-        rm -f "$launch_script"
+        rm -f "$launch_script" "$prompt_file"
         return
     fi
 
@@ -1359,6 +1365,10 @@ launch_single_session() {
     fi
 
     # Write prompt and launch script to per-user temp dir (not world-readable /tmp)
+    # NOTE: model_flag and LAUNCH_SESSION_NAME are interpolated as text into this generated
+    # script. They are safe because model_flag is assembled from a whitelisted HOME_SESSION_MODEL
+    # and LAUNCH_SESSION_NAME is sanitized to [a-zA-Z0-9-]. Any future use of additional
+    # variables here must apply the same validation — the heredoc provides no further protection.
     local prompt_file launch_script
     prompt_file=$(mktemp "${TMPDIR:-/tmp}/claude-prompt-XXXXXX")
     launch_script=$(mktemp "${TMPDIR:-/tmp}/claude-launch-XXXXXX")
@@ -1435,6 +1445,15 @@ apply_template() {
     # Ensure .md extension
     [[ "$tpl_name" != *.md ]] && tpl_path="${tpl_path}.md"
     [[ "$tpl_name" != *.md ]] && tpl_name="${tpl_name}.md"
+
+    # Guard against path traversal (e.g. --template ../../sensitive-file)
+    local _real_tpl _real_tmpldir
+    _real_tmpldir="$(cd "$TEMPLATES_DIR" 2>/dev/null && pwd -P)"
+    _real_tpl="$(cd "$(dirname "$tpl_path")" 2>/dev/null && pwd -P)/$(basename "$tpl_path")"
+    if [[ -z "$_real_tmpldir" || "$_real_tpl" != "$_real_tmpldir/"* ]]; then
+        log "WARN: Template '$tpl_name' resolves outside TEMPLATES_DIR — skipping"
+        return
+    fi
 
     if [[ ! -f "$tpl_path" ]]; then
         log "WARN: Template '$tpl_name' not found at $tpl_path — skipping"

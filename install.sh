@@ -322,7 +322,13 @@ if [[ "$INSTALL_LAUNCHAGENT" == "true" ]]; then
         fi
 
         echo "Installing LaunchAgent to $PLIST_DEST..."
-        sed "s|exec \"\\\$HOME/bin/claude-mux\" --autolaunch|exec \"$BIN_DIR/claude-mux\" --autolaunch|" "$PLIST_SRC" > "$PLIST_DEST"
+        # Use Python for the substitution — avoids sed delimiter conflicts if BIN_DIR contains |
+        python3 -c "
+import sys
+src = open(sys.argv[1]).read()
+dst = src.replace('exec \"\$HOME/bin/claude-mux\" --autolaunch', 'exec \"${BIN_DIR}/claude-mux\" --autolaunch')
+open(sys.argv[2], 'w').write(dst)
+" "$PLIST_SRC" "$PLIST_DEST"
         if ! grep -q "$BIN_DIR/claude-mux" "$PLIST_DEST" 2>/dev/null; then
             echo "WARNING: Could not template binary path into plist — LaunchAgent may point to wrong location."
             echo "         Manually edit $PLIST_DEST to set the correct path to claude-mux."
