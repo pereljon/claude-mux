@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 1. `claude-mux` - main script (Bash), installed to a bin directory in `$PATH`
 2. `com.user.claude-mux.plist` - LaunchAgent plist, installed to `~/Library/LaunchAgents/`
 3. `install.sh` - installer script
-4. `claude-mux-rc` - example config file template
+4. `config.example` - example config file template
 
 ## Architecture
 
@@ -47,9 +47,10 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 ./install.sh
 
 # Usage
-claude-mux                       # start all sessions
-claude-mux DIRECTORY             # use DIRECTORY as base dir (scan for .claude projects)
-claude-mux -d DIRECTORY          # launch single session in directory and attach
+claude-mux                       # launch Claude in current directory and attach
+claude-mux DIRECTORY             # launch Claude in DIRECTORY and attach
+claude-mux -d DIRECTORY          # same as above (explicit form)
+claude-mux -a                    # start all managed sessions under BASE_DIR
 claude-mux -n DIRECTORY          # create new project (git init, .gitignore) and attach
 claude-mux -n DIRECTORY -p       # same, creating directory and parents if needed
 claude-mux -s SESSION '/command'  # send a slash command to a session
@@ -60,6 +61,7 @@ claude-mux --shutdown            # gracefully exit all Claude sessions
 claude-mux --shutdown SESSION...  # shut down specific session(s)
 claude-mux --restart             # restart sessions that were running
 claude-mux --restart SESSION...  # restart specific session(s)
+claude-mux --permission-mode MODE SESSION  # restart session with a different permission mode
 claude-mux --dry-run             # preview actions without executing
 
 # Verify LaunchAgent
@@ -71,6 +73,10 @@ tail -f ~/Library/Logs/claude-mux.log
 # LaunchAgent debug (stdout/stderr go to macOS unified log, not a file)
 log show --predicate 'process == "launchd"' --last 5m | grep claude
 ```
+
+## Security context
+
+claude-mux is a single-user tool installed and run by the user on their own account. All managed directories, config files, SSH keys, and templates are owned by that user. Security reviews should account for this trust model — the relevant threat is accidental footguns (e.g. path traversal in user-supplied arguments), not multi-user or adversarial scenarios. Hardening that assumes an untrusted operator or attacker-controlled config is out of scope.
 
 ## Questions vs. implementation
 
@@ -87,7 +93,7 @@ Avoid LLM-stereotypical writing in all human-facing content (README, emails, pos
 Commands that attach to a tmux session (`-t`, and `-d`/`-n` without `--no-attach`) are interactive and should only be invoked by the user directly in a terminal - never by Claude from inside a session. From inside a session, attach would trigger `switch-client` on the user's terminal (unpredictable) or fail silently over Remote Control.
 
 When listing or documenting commands that Claude can run from within sessions:
-- `-l`, `-L`, `-s`, `--shutdown`, `--restart`, `--list-templates`, `-a` are safe - no attach
+- `-l`, `-L`, `-s`, `--shutdown`, `--restart`, `--permission-mode`, `--list-templates`, `-a` are safe - no attach
 - `-d`, `-n` must always include `--no-attach`
 - `-t` should be excluded entirely from Claude-callable examples
 
@@ -109,14 +115,13 @@ Get the user's confirmation on the plan before writing code.
 
 After any code change, verify whether these also need updating:
 - `README.md` - usage, feature descriptions, configuration table, examples
-- `claude-mux-rc` - example config template (will move to `config.example`)
+- `config.example` - example config template
 - `~/.claude-mux/config` - deployed user config (add new settings)
 - `install.sh` - installer-generated config, new flags
 - `implentation-spec.md` - startup sequence, settings table, function docs
 - `CLAUDE.md` - key behaviors, commands, config summary
 - **Injection prompt** - the system prompt injected into Claude sessions must reflect all current commands. Update both the `create_claude_session` and `launch_single_session` injection strings when commands are added, changed, or removed.
 - **Session System Prompt section in README** - must match the actual injection
-
 - `ISSUES.md` - log new bugs and known issues; update resolved entries when fixed
 
 Before committing, also check whether the version number needs a bump (`VERSION=` near the top of `claude-mux`). Use semantic versioning: patch for bug fixes, minor for new features, major for breaking changes.
@@ -147,12 +152,14 @@ cp ~/Claude/development/claude-mux/claude-mux ~/bin/
 - `TEMPLATES_DIR` - CLAUDE.md template directory (default: `~/.claude-mux/templates`)
 - `DEFAULT_TEMPLATE` - default template for new projects (default: `default.md`)
 - `LAUNCHAGENT_MODE` - LaunchAgent behavior at login: `none` (default), `home`, or `batch`
+- `HOME_SESSION_MODEL` - model for the home session (default: `""`, inherits Claude default; valid: `sonnet`, `haiku`, `opus`)
+- `SLEEP_BETWEEN` - seconds between session launches in batch mode (default: `5`)
+- `TMUX_MOUSE`, `TMUX_HISTORY_LIMIT`, `TMUX_CLIPBOARD`, `TMUX_DEFAULT_TERMINAL`, `TMUX_EXTENDED_KEYS`, `TMUX_ESCAPE_TIME`, `TMUX_TITLE_FORMAT`, `TMUX_MONITOR_ACTIVITY` - tmux session options, all configurable
 
 ## TODO
 
 - `templates/` in repo root: add example CLAUDE.md templates (web, python, etc.) and optionally copy them to `~/.claude-mux/templates/` during install
 - `CHANGELOG.md`: create from git history, maintain per tagged version
-- Permission mode switching: **done** — `claude-mux --permission-mode MODE SESSION` restarts a session with the given mode (`default`, `acceptEdits`, `plan`, `auto`, `bypassPermissions`, `dontAsk`, `dangerously-skip-permissions`). Injection prompt documents "yolo" as an alias for `dangerously-skip-permissions`.
 
 ## Implementation spec
 
