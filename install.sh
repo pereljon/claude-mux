@@ -128,7 +128,6 @@ if [[ "$INTERACTIVE" == "true" && -t 0 ]]; then
     fi
 
     # Check if path is writable (parent must exist for mkdir)
-    local _parent
     _parent="$(dirname "$BASE_DIR")"
     if [[ ! -d "$_parent" && ! -w "$(dirname "$_parent")" ]]; then
         echo "ERROR: Cannot create $BASE_DIR — parent directory is not writable." >&2
@@ -300,6 +299,7 @@ ${model_line}
 # ── Batch mode ────────────────────────────────────────────────────────────────
 #SLEEP_BETWEEN=5
 CONFIG_EOF
+    chmod 600 "$CONFIG_FILE"
 else
     echo "Config $CONFIG_FILE already exists — skipping."
 fi

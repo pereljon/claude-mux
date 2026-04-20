@@ -146,6 +146,7 @@ cp ~/Claude/development/claude-mux/claude-mux ~/bin/
 
 - `templates/` in repo root: add example CLAUDE.md templates (web, python, etc.) and optionally copy them to `~/.claude-mux/templates/` during install
 - `CHANGELOG.md`: create from git history, maintain per tagged version
+- Permission mode switching: **done** — `claude-mux --permission-mode MODE SESSION` restarts a session with the given mode (`default`, `acceptEdits`, `plan`, `auto`, `bypassPermissions`, `dontAsk`, `dangerously-skip-permissions`). Injection prompt documents "yolo" as an alias for `dangerously-skip-permissions`.
 
 ## Implementation spec
 

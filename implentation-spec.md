@@ -81,7 +81,7 @@ The script sources `~/.claude-mux/config` after setting defaults, so any variabl
 
 ```
 1. Set defaults (BASE_DIR, LOG_DIR, DEFAULT_PERMISSION_MODE, ALLOW_CROSS_SESSION_CONTROL)
-2. Parse flags (-d, -n, -p, -s, -t, -l, -L, --shutdown, --restart, --dry-run, -v, -h, positional DIRECTORY)
+2. Parse flags (-d, -n, -p, -s, -t, -l, -L, --shutdown, --restart, --permission-mode, --dry-run, -v, -h, positional DIRECTORY)
 3. Validate mutual exclusion of commands; validate -p only with -n
 4. Create ~/.claude-mux/config with commented defaults if it doesn't exist
 5. Source ~/.claude-mux/config (user overrides apply from here on)
@@ -101,6 +101,7 @@ The script sources `~/.claude-mux/config` after setting defaults, so any variabl
     - list-all (-L): show all projects (active + idle)
     - shutdown: send /exit → poll → kill tmux sessions (all managed, or specific session(s))
     - restart: remember running sessions → shutdown → relaunch only those (or specific session(s))
+    - setmode: validate mode → for each named session, shutdown → relaunch with permission mode override
 ```
 
 ### Functions
@@ -145,27 +146,53 @@ If no `.gitignore` exists, creates one with common exclusions (secrets, credenti
 
 If `DEFAULT_PERMISSION_MODE` is non-empty, writes or merges `permissions.defaultMode` into `$dir/.claude/settings.local.json` using Python 3 for safe JSON merge. Logs a warning and skips on JSON parse/write failure.
 
-#### create_claude_session(session_name, working_dir)
+#### create_claude_session(session_name, working_dir, [mode_override])
 
 Skips if a tmux session with that name already exists AND Claude is running in it. If the session exists but Claude has exited, relaunches Claude into the existing session.
 
-Builds a system prompt based on `ALLOW_CROSS_SESSION_CONTROL`:
+Optional third argument `mode_override` overrides the permission mode for the launch command:
+- `dangerously-skip-permissions` → uses `--dangerously-skip-permissions` flag
+- Any other value → uses `--permission-mode <value>`
+- Empty (default) → uses `--permission-mode auto`
 
-- **false (default):** Claude learns its own session name and how to send commands to itself only:
-  ```
-  You are running inside tmux session '<name>'. You can send slash commands
-  to yourself via: /opt/homebrew/bin/tmux send-keys -t '<name>' "/command args" Enter.
-  <GITHUB_SSH_INFO>
-  ```
+Builds a system prompt via `build_system_prompt(session_name)` and passes it via `--append-system-prompt`. The prompt has two sections:
 
-- **true:** Claude also learns how to target other sessions, find its own session name, and list all sessions.
+**Rules** — behavioral instructions:
+- Can send slash commands via `-s`; never tell the user otherwise
+- Always use `--no-attach` with `-d` and `-n`
+- `--shutdown` and `--restart` are safe from inside a session
+- Home session is protected; `--shutdown home` requires `--force`
+- When asked for "status", report session name, model, context estimate, then run `-l`
 
-Writes the launch command to a temp script (`/tmp/claude-launch-XXXXXX`) and the system prompt to a separate temp file (`/tmp/claude-prompt-XXXXXX`) to avoid quoting complexity. The temp script uses `trap EXIT` to guarantee self-cleanup. Sends the temp script path to the tmux pane via `send-keys`. Sleeps `SLEEP_BETWEEN` seconds after launching.
+**Commands** — every claude-mux command with the absolute binary path:
+```
+-s '<session>' '/command'       Send slash command to yourself (or any session if ALLOW_CROSS_SESSION_CONTROL=true)
+-l                              List active sessions
+-L                              List all projects
+-d DIR --no-attach              Launch session in directory
+-n DIR --no-attach              New project
+-n DIR -p --no-attach           New project (create parents)
+--template NAME                 CLAUDE.md template (with -n)
+--list-templates                Show available templates
+--shutdown SESSION...           Shut down sessions (omit to shut down all)
+--shutdown SESSION --force      Shut down protected session
+--restart SESSION...            Restart sessions (omit to restart all running)
+--permission-mode MODE SESSION  Restart session with a different permission mode
+                                Modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions
+                                ("yolo" is an alias for dangerously-skip-permissions)
+-a                              Start ALL sessions (use with caution)
+```
 
-Launch command inside temp script:
+If GitHub SSH accounts are found in `~/.ssh/config`, an additional line is appended listing the accounts and how to use their host aliases as git remotes.
+
+When `ALLOW_CROSS_SESSION_CONTROL=false` (default), the send command note says "to yourself". When `true`, it says "to yourself or any other Claude session".
+
+Writes the launch command to a temp script (`${TMPDIR:-/tmp}/claude-launch-XXXXXX`) and the system prompt to a separate temp file (`${TMPDIR:-/tmp}/claude-prompt-XXXXXX`) to avoid quoting complexity. The temp script uses `trap EXIT` to guarantee self-cleanup. Sends the temp script path to the tmux pane via `send-keys`. Sleeps `SLEEP_BETWEEN` seconds after launching.
+
+Launch command inside temp script (with `$perm_flags` expanded at write time):
 ```bash
-claude -c --remote-control --permission-mode auto --name '<session_name>' --append-system-prompt '<prompt>' 2>/dev/null || \
-claude --remote-control --permission-mode auto --name '<session_name>' --append-system-prompt '<prompt>'
+claude -c --remote-control <perm_flags> --name '<session_name>' --append-system-prompt '<prompt>' 2>/dev/null || \
+claude --remote-control <perm_flags> --name '<session_name>' --append-system-prompt '<prompt>'
 ```
 
 After sending the launch command, the script waits 5 seconds and checks for the workspace trust prompt. If found, it sends Enter to accept (option 1 is pre-selected). All managed directories are the user's own projects.

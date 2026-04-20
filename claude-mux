@@ -93,6 +93,8 @@ NO_PERMISSION_MODE=false
 FORCE=false
 SHUTDOWN_SESSIONS=()
 RESTART_SESSIONS=()
+SETMODE_VALUE=""
+SETMODE_SESSIONS=()
 
 usage() {
     cat << EOF
@@ -118,6 +120,7 @@ Commands:
   --list-templates      Show available CLAUDE.md templates
   --shutdown [SESSION...]  Shut down all managed sessions, or specific session(s)
   --restart [SESSION...]   Restart specific session(s), or all that were running
+  --permission-mode MODE [SESSION...]  Restart session(s) with the given permission mode
   --autolaunch             Invoked by LaunchAgent; dispatches based on LAUNCHAGENT_MODE
 
 Options:
@@ -165,6 +168,14 @@ while [[ $# -gt 0 ]]; do
             shift
             while [[ $# -gt 0 && "$1" != -* ]]; do
                 RESTART_SESSIONS+=("$1"); shift
+            done
+            ;;
+        --permission-mode)
+            [[ $# -lt 2 ]] && { echo "ERROR: --permission-mode requires a MODE argument" >&2; exit 1; }
+            set_command "--permission-mode" "setmode"
+            SETMODE_VALUE="$2"; shift 2
+            while [[ $# -gt 0 && "$1" != -* ]]; do
+                SETMODE_SESSIONS+=("$1"); shift
             done
             ;;
         -s|--send)
@@ -254,6 +265,7 @@ CLAUDE_MUX_CONFIG="$CLAUDE_MUX_DIR/config"
 if [[ -f "$HOME/.claude-mux-rc" && ! -f "$CLAUDE_MUX_CONFIG" ]]; then
     mkdir -p "$CLAUDE_MUX_DIR"
     mv "$HOME/.claude-mux-rc" "$CLAUDE_MUX_CONFIG"
+    chmod 600 "$CLAUDE_MUX_CONFIG"
     if [[ -d "$LOG_DIR" ]]; then
         echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Migrated config from ~/.claude-mux-rc to ~/.claude-mux/config" >> "$LOG_DIR/claude-mux.log"
     fi
@@ -334,6 +346,10 @@ CONFIG_EOF
 fi
 
 # shellcheck source=/dev/null
+_cfg_perms=$(stat -f '%A' "$CLAUDE_MUX_CONFIG" 2>/dev/null)
+if [[ -n "$_cfg_perms" && "$_cfg_perms" != "600" && "$_cfg_perms" != "400" ]]; then
+    echo "WARN: $CLAUDE_MUX_CONFIG has unsafe permissions ($_cfg_perms) — expected 600" >&2
+fi
 source "$CLAUDE_MUX_CONFIG"
 
 # Backward compat: LAUNCHAGENT_ENABLED=true (legacy) → LAUNCHAGENT_MODE=batch
@@ -350,6 +366,34 @@ case "$LAUNCHAGENT_MODE" in
         ;;
 esac
 
+# Validate DEFAULT_PERMISSION_MODE
+case "$DEFAULT_PERMISSION_MODE" in
+    ""|default|acceptEdits|plan|auto|dontAsk|bypassPermissions) ;;
+    *)
+        echo "ERROR: Invalid DEFAULT_PERMISSION_MODE '$DEFAULT_PERMISSION_MODE'" >&2
+        echo "       Valid values: default, acceptEdits, plan, auto, dontAsk, bypassPermissions" >&2
+        exit 1
+        ;;
+esac
+
+# Validate HOME_SESSION_MODEL
+case "$HOME_SESSION_MODEL" in
+    ""|sonnet|haiku|opus) ;;
+    *)
+        echo "ERROR: Invalid HOME_SESSION_MODEL '$HOME_SESSION_MODEL' — must be sonnet, haiku, opus, or empty" >&2
+        exit 1
+        ;;
+esac
+
+# Validate numeric tmux config values
+for _var_name in SLEEP_BETWEEN TMUX_HISTORY_LIMIT TMUX_ESCAPE_TIME; do
+    _var_val="${!_var_name}"
+    if [[ -n "$_var_val" && ! "$_var_val" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: $CLAUDE_MUX_CONFIG: $_var_name must be a non-negative integer (got: '$_var_val')" >&2
+        exit 1
+    fi
+done
+
 # Default LAUNCH_DIR to current directory when command is launch and no dir specified
 if [[ "$COMMAND" == "launch" && -z "$LAUNCH_DIR" ]]; then
     LAUNCH_DIR="."
@@ -360,15 +404,30 @@ HOME_LAUNCH=false
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 # Seconds to wait between launching each session (mitigates RC registration issues).
-# Override in ~/.claude-mux-rc if needed.
+# Override in ~/.claude-mux/config if needed.
 SLEEP_BETWEEN="${SLEEP_BETWEEN:-5}"
 LOG_FILE="$LOG_DIR/claude-mux.log"
 
 TMUX_BIN="/opt/homebrew/bin/tmux"
 CLAUDE_BIN="/opt/homebrew/bin/claude"
-CLAUDE_MUX_BIN="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+
+# Validate TMPDIR is safe for use in single-quoted shell strings
+if [[ "${TMPDIR:-}" == *"'"* ]]; then
+    echo "ERROR: TMPDIR contains a single quote — cannot safely create temp files" >&2
+    exit 1
+fi
+CLAUDE_MUX_BIN="$(command -v "$0" 2>/dev/null)"
+if [[ -z "$CLAUDE_MUX_BIN" ]]; then
+    CLAUDE_MUX_BIN="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+fi
+GITHUB_SSH_INFO=""
 
 export PATH="/opt/homebrew/bin:$PATH"
+
+# Warn when cross-session control is enabled — elevated privilege surface
+if [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]]; then
+    echo "WARN: ALLOW_CROSS_SESSION_CONTROL=true — any session can send keystrokes to any other managed session" >&2
+fi
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -377,6 +436,10 @@ log() {
     if [[ "$DRY_RUN" == "true" ]]; then
         echo "$msg"
     else
+        # Enforce 600 on log file if it is newly created
+        if [[ ! -f "$LOG_FILE" ]]; then
+            touch "$LOG_FILE" && chmod 600 "$LOG_FILE"
+        fi
         echo "$msg" >> "$LOG_FILE"
         # Mirror to stdout when running interactively in a terminal
         [[ -t 1 ]] && echo "$msg"
@@ -462,6 +525,9 @@ Commands:
   --shutdown SESSION...       Shut down sessions (omit SESSION to shut down all)
   --shutdown SESSION --force  Shut down protected session
   --restart SESSION...        Restart sessions (omit SESSION to restart all running)
+  --permission-mode MODE SESSION  Restart session with a different permission mode
+                              Modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions
+                              (\"yolo\" is an alias for dangerously-skip-permissions)
   -a                          Start ALL sessions (use with caution)
 ${GITHUB_SSH_INFO}"
 
@@ -487,18 +553,6 @@ attach_to_session() {
 
 if [[ "$COMMAND" == "attach" ]]; then
     attach_to_session "$TARGET_SESSION"
-fi
-
-# ── Send command to session ───────────────────────────────────────────────────
-
-if [[ "$COMMAND" == "send" ]]; then
-    if ! "$TMUX_BIN" has-session -t "$SEND_SESSION" 2>/dev/null; then
-        echo "No tmux session named '$SEND_SESSION'" >&2
-        echo "Run 'claude-mux -l' to see available sessions." >&2
-        exit 1
-    fi
-    "$TMUX_BIN" send-keys -t "$SEND_SESSION" "$SEND_COMMAND" Enter
-    exit 0
 fi
 
 # ── Validate -d / positional directory early ──────────────────────────────────
@@ -639,11 +693,19 @@ shutdown_claude_sessions() {
 
     # Named session(s) shutdown
     if [[ ${#SHUTDOWN_SESSIONS[@]} -gt 0 ]]; then
+        get_managed_session_names
+        local _shutdown_errors=0
         for _sess in "${SHUTDOWN_SESSIONS[@]}"; do
-            shutdown_single_session "$_sess"
+            if ! is_managed_session "$_sess"; then
+                echo "ERROR: '$_sess' is not a claude-mux managed session" >&2
+                echo "Run 'claude-mux -l' to see managed sessions." >&2
+                (( _shutdown_errors++ ))
+                continue
+            fi
+            shutdown_single_session "$_sess" || (( _shutdown_errors++ ))
         done
         log "=== claude-mux shutdown complete ==="
-        return
+        return $(( _shutdown_errors > 0 ? 1 : 0 ))
     fi
 
     # All managed sessions
@@ -712,8 +774,7 @@ shutdown_claude_sessions() {
 
 status_claude_sessions() {
     local show_idle="${1:-false}"
-    get_managed_session_names
-    discover_projects
+    get_managed_session_names   # also calls discover_projects internally
 
     local sessions
     sessions=$("$TMUX_BIN" list-sessions -F '#{session_name}' 2>/dev/null) || sessions=""
@@ -1005,6 +1066,7 @@ detect_github_ssh_accounts() {
 create_claude_session() {
     local session_name="$1"
     local working_dir="$2"
+    local mode_override="${3:-}"   # optional: permission mode override (or "dangerously-skip-permissions")
 
     if "$TMUX_BIN" has-session -t "$session_name" 2>/dev/null; then
         # Session exists — check if claude is still running inside it.
@@ -1030,20 +1092,30 @@ create_claude_session() {
     local tmux_prompt
     tmux_prompt="$(build_system_prompt "$session_name")"
 
+    # Build permission mode flags for the launch command
+    local perm_flags
+    if [[ "$mode_override" == "dangerously-skip-permissions" ]]; then
+        perm_flags="--dangerously-skip-permissions"
+    elif [[ -n "$mode_override" ]]; then
+        perm_flags="--permission-mode ${mode_override}"
+    else
+        perm_flags="--permission-mode auto"
+    fi
+
     # Write the launch command to a temp script to avoid quoting complexity.
     # A trap inside the script guarantees cleanup even if claude exits unexpectedly.
     # The prompt is written to a separate file to avoid any quoting issues in the heredoc.
     local launch_script prompt_file
-    launch_script=$(mktemp /tmp/claude-launch-XXXXXX)
-    prompt_file=$(mktemp /tmp/claude-prompt-XXXXXX)
+    launch_script=$(mktemp "${TMPDIR:-/tmp}/claude-launch-XXXXXX")
+    prompt_file=$(mktemp "${TMPDIR:-/tmp}/claude-prompt-XXXXXX")
     printf '%s' "$tmux_prompt" > "$prompt_file"
     cat > "$launch_script" << LAUNCH_EOF
 #!/bin/bash
 trap 'rm -f "${launch_script}" "${prompt_file}"' EXIT
 export PATH="/opt/homebrew/bin:\$PATH"
 _prompt=\$(cat '${prompt_file}')
-claude -c --remote-control --permission-mode auto --name '${session_name}' --append-system-prompt "\$_prompt" 2>/dev/null || \
-claude --remote-control --permission-mode auto --name '${session_name}' --append-system-prompt "\$_prompt"
+claude -c --remote-control ${perm_flags} --name '${session_name}' --append-system-prompt "\$_prompt" 2>/dev/null || \
+claude --remote-control ${perm_flags} --name '${session_name}' --append-system-prompt "\$_prompt"
 LAUNCH_EOF
     chmod +x "$launch_script"
 
@@ -1206,6 +1278,7 @@ start_sessions() {
         _existing=$(echo "$_seen_sessions" | grep "^${session_name}|" | head -1)
         if [[ -n "$_existing" ]]; then
             log "WARN: Session name '$session_name' collision — '$PROJECT_DIR' conflicts with '${_existing#*|}', skipping"
+            echo "WARN: Session name collision '$session_name' — skipping '$PROJECT_DIR' (conflicts with '${_existing#*|}')" >&2
             continue
         fi
         _seen_sessions="${_seen_sessions}${session_name}|${PROJECT_DIR}
@@ -1279,20 +1352,29 @@ launch_single_session() {
     # Create tmux session that runs Claude directly (no send-keys)
     log "Creating tmux session '$LAUNCH_SESSION_NAME' in $LAUNCH_DIR"
 
-    # Write prompt to file for clean argument passing
-    local prompt_file
-    prompt_file=$(mktemp /tmp/claude-prompt-XXXXXX)
-    printf '%s' "$tmux_prompt" > "$prompt_file"
-
     # Build model flag for home sessions
     local model_flag=""
     if [[ "$HOME_LAUNCH" == "true" && -n "$HOME_SESSION_MODEL" ]]; then
         model_flag="--model ${HOME_SESSION_MODEL}"
     fi
 
-    # Create session with Claude as the initial command
-    "$TMUX_BIN" new-session -d -s "$LAUNCH_SESSION_NAME" -c "$LAUNCH_DIR" \
-        "bash -c 'trap \"rm -f ${prompt_file}\" EXIT; _prompt=\$(cat \"${prompt_file}\"); claude -c --remote-control --permission-mode auto ${model_flag} --name \"${LAUNCH_SESSION_NAME}\" --append-system-prompt \"\$_prompt\" 2>/dev/null || claude --remote-control --permission-mode auto ${model_flag} --name \"${LAUNCH_SESSION_NAME}\" --append-system-prompt \"\$_prompt\"'"
+    # Write prompt and launch script to per-user temp dir (not world-readable /tmp)
+    local prompt_file launch_script
+    prompt_file=$(mktemp "${TMPDIR:-/tmp}/claude-prompt-XXXXXX")
+    launch_script=$(mktemp "${TMPDIR:-/tmp}/claude-launch-XXXXXX")
+    printf '%s' "$tmux_prompt" > "$prompt_file"
+    cat > "$launch_script" << LAUNCH_EOF
+#!/bin/bash
+trap 'rm -f "${launch_script}" "${prompt_file}"' EXIT
+export PATH="/opt/homebrew/bin:\$PATH"
+_prompt=\$(cat '${prompt_file}')
+claude -c --remote-control --permission-mode auto ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt "\$_prompt" 2>/dev/null || \
+claude --remote-control --permission-mode auto ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt "\$_prompt"
+LAUNCH_EOF
+    chmod +x "$launch_script"
+
+    # Create session using the script file — avoids shell injection via model_flag or session name
+    "$TMUX_BIN" new-session -d -s "$LAUNCH_SESSION_NAME" -c "$LAUNCH_DIR" "bash '${launch_script}'"
 
     apply_tmux_options "$LAUNCH_SESSION_NAME"
 
@@ -1450,21 +1532,48 @@ case "$COMMAND" in
     list)     status_claude_sessions; exit 0 ;;
     list-all) status_claude_sessions true; exit 0 ;;
     list-templates) list_templates; exit 0 ;;
-    shutdown) shutdown_claude_sessions; exit 0 ;;
+    send)
+        get_managed_session_names
+        if ! is_managed_session "$SEND_SESSION"; then
+            echo "ERROR: '$SEND_SESSION' is not a claude-mux managed session" >&2
+            echo "Run 'claude-mux -l' to see managed sessions." >&2
+            exit 1
+        fi
+        if ! "$TMUX_BIN" has-session -t "$SEND_SESSION" 2>/dev/null; then
+            echo "No active tmux session named '$SEND_SESSION'" >&2
+            echo "Run 'claude-mux -l' to see available sessions." >&2
+            exit 1
+        fi
+        "$TMUX_BIN" send-keys -t "$SEND_SESSION" "$SEND_COMMAND" Enter
+        exit 0
+        ;;
+    shutdown) shutdown_claude_sessions; exit $? ;;
     restart)
-        # --restart bypasses protection (it relaunches, not permanently kills)
+        # --restart bypasses home session protection by design: it relaunches rather
+        # than permanently kills, so the session comes back. Use --shutdown --force
+        # if you want to permanently stop a protected session.
         FORCE=true
+        _restart_errors=0
 
         if [[ ${#RESTART_SESSIONS[@]} -gt 0 ]]; then
             # Named session(s) restart
             log "=== claude-mux restart: ${RESTART_SESSIONS[*]} ==="
             detect_github_ssh_accounts
+            get_managed_session_names
+            _restart_errors=0
             for _rs in "${RESTART_SESSIONS[@]}"; do
+                if ! is_managed_session "$_rs"; then
+                    echo "ERROR: '$_rs' is not a claude-mux managed session" >&2
+                    echo "Run 'claude-mux -l' to see managed sessions." >&2
+                    (( _restart_errors++ ))
+                    continue
+                fi
                 _restart_dir=$("$TMUX_BIN" display-message -t "$_rs" -p '#{pane_current_path}' 2>/dev/null)
                 if [[ -z "$_restart_dir" ]]; then
                     echo "ERROR: Session '$_rs' not found or cannot determine working directory" >&2
                     echo "Run 'claude-mux -l' to see available sessions." >&2
                     echo "See $LOG_FILE for details" >&2
+                    (( _restart_errors++ ))
                     continue
                 fi
                 if [[ "$DRY_RUN" == "true" ]]; then
@@ -1474,7 +1583,11 @@ case "$COMMAND" in
                     create_claude_session "$_rs" "$_restart_dir"
                 fi
             done
-            log "=== claude-mux restart complete ==="
+            if [[ $_restart_errors -gt 0 ]]; then
+                log "=== claude-mux restart complete ($_restart_errors error(s)) ==="
+            else
+                log "=== claude-mux restart complete ==="
+            fi
         else
             # Full restart — remember which sessions had Claude running
             log "=== claude-mux restart starting ==="
@@ -1518,6 +1631,53 @@ case "$COMMAND" in
                 log "=== claude-mux restart complete ==="
             fi
         fi
-        exit 0
+        exit $(( _restart_errors > 0 ? 1 : 0 ))
+        ;;
+    setmode)
+        case "$SETMODE_VALUE" in
+            default|acceptEdits|plan|auto|bypassPermissions|dontAsk|dangerously-skip-permissions) ;;
+            *)
+                echo "ERROR: Invalid permission mode '$SETMODE_VALUE'" >&2
+                echo "Valid modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions" >&2
+                exit 1
+                ;;
+        esac
+        if [[ ${#SETMODE_SESSIONS[@]} -eq 0 ]]; then
+            echo "ERROR: --permission-mode requires at least one SESSION argument" >&2
+            echo "Usage: claude-mux --permission-mode MODE SESSION [SESSION...]" >&2
+            exit 1
+        fi
+        log "=== claude-mux setmode: $SETMODE_VALUE for ${SETMODE_SESSIONS[*]} ==="
+        detect_github_ssh_accounts
+        get_managed_session_names
+        FORCE=true
+        _setmode_errors=0
+        for _sm in "${SETMODE_SESSIONS[@]}"; do
+            if ! is_managed_session "$_sm"; then
+                echo "ERROR: '$_sm' is not a claude-mux managed session" >&2
+                echo "Run 'claude-mux -l' to see managed sessions." >&2
+                (( _setmode_errors++ ))
+                continue
+            fi
+            _sm_dir=$("$TMUX_BIN" display-message -t "$_sm" -p '#{pane_current_path}' 2>/dev/null)
+            if [[ -z "$_sm_dir" ]]; then
+                echo "ERROR: Session '$_sm' not found or cannot determine working directory" >&2
+                (( _setmode_errors++ ))
+                continue
+            fi
+            if [[ "$DRY_RUN" == "true" ]]; then
+                log "Would restart session '$_sm' in $_sm_dir with mode '$SETMODE_VALUE'"
+            else
+                log "Restarting session '$_sm' in $_sm_dir with mode '$SETMODE_VALUE'"
+                shutdown_single_session "$_sm"
+                create_claude_session "$_sm" "$_sm_dir" "$SETMODE_VALUE"
+            fi
+        done
+        if [[ $_setmode_errors -gt 0 ]]; then
+            log "=== claude-mux setmode complete ($_setmode_errors error(s)) ==="
+        else
+            log "=== claude-mux setmode complete ==="
+        fi
+        exit $(( _setmode_errors > 0 ? 1 : 0 ))
         ;;
 esac

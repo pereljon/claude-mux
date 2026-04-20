@@ -25,7 +25,7 @@ claude-mux is a single bash script with no dependencies beyond tmux and Claude C
 
 1. **Persistent tmux sessions with Remote Control** - launches Claude Code inside tmux with `--remote-control` enabled, so every session is accessible from the Claude mobile app
 2. **Conversation resume** - if Claude was previously running in the directory, resumes the last conversation (`claude -c`) inside a new tmux session with Remote Control, preserving your context
-3. **Session management** - list sessions with status (`claude-mux -l`), shut down (`--shutdown`), restart (`--restart`), attach (`-t`), send commands (`-s`)
+3. **Session management** - list sessions with status (`claude-mux -l`), shut down (`--shutdown`), restart (`--restart`), switch permission modes (`--permission-mode`), attach (`-t`), send commands (`-s`)
 4. **Claude self-management** - each session is injected with a system prompt so Claude can run all of the above commands directly from conversation prompts (terminal or mobile app):
    - a. List running sessions and all projects
    - b. Launch new sessions, create new projects
@@ -108,6 +108,8 @@ claude-mux --shutdown home --force  # shut down protected home session
 claude-mux --restart             # restart sessions that were running
 claude-mux --restart my-app      # restart a specific session
 claude-mux --restart a b c       # restart multiple sessions
+claude-mux --permission-mode plan my-app    # restart session with plan mode
+claude-mux --permission-mode dangerously-skip-permissions my-app  # yolo mode
 claude-mux --dry-run             # preview actions without executing
 claude-mux --version             # print version
 claude-mux --help                # show all options
@@ -162,6 +164,12 @@ Claude: runs `claude-mux --shutdown data-pipeline`
 
 You: "Restart the stuck web-dashboard session"
 Claude: runs `claude-mux --restart web-dashboard`
+
+You: "Switch the api-server session to plan mode"
+Claude: runs `claude-mux --permission-mode plan api-server`
+
+You: "Yolo the data-pipeline session"
+Claude: runs `claude-mux --permission-mode dangerously-skip-permissions data-pipeline`
 
 You: "Launch the data-pipeline session in the background"
 Claude: runs `claude-mux -d ~/Claude/work/data-pipeline --no-attach`
@@ -262,6 +270,9 @@ Commands:
   --shutdown SESSION...       Shut down sessions (omit SESSION to shut down all)
   --shutdown SESSION --force  Shut down protected session
   --restart SESSION...        Restart sessions (omit SESSION to restart all running)
+  --permission-mode MODE SESSION  Restart session with a different permission mode
+                              Modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions
+                              ("yolo" is an alias for dangerously-skip-permissions)
   -a                          Start ALL sessions (use with caution)
 
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
