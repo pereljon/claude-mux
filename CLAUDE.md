@@ -115,6 +115,8 @@ After any code change, verify whether these also need updating:
 
 - `ISSUES.md` - log new bugs and known issues; update resolved entries when fixed
 
+Before committing, also check whether the version number needs a bump (`VERSION=` near the top of `claude-mux`). Use semantic versioning: patch for bug fixes, minor for new features, major for breaking changes.
+
 Do not commit until all affected files are updated.
 
 ## Development workflow
