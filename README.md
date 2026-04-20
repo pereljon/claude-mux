@@ -25,7 +25,7 @@ claude-mux is a single bash script with no dependencies beyond tmux and Claude C
 
 1. **Persistent tmux sessions with Remote Control** - launches Claude Code inside tmux with `--remote-control` enabled, so every session is accessible from the Claude mobile app
 2. **Conversation resume** - if Claude was previously running in the directory, resumes the last conversation (`claude -c`) inside a new tmux session with Remote Control, preserving your context
-3. **Session management** - list active sessions (`-l`) or all projects including idle ones not yet running (`-L`), shut down (`--shutdown`), restart (`--restart`), switch permission modes (`--permission-mode`), attach (`-t`), send commands (`-s`)
+3. **Session management** - list active sessions (`-l`) or all projects including idle ones not yet running (`-L`), shut down (`--shutdown`), restart (`--restart`), switch permission modes (`--permission-mode`), attach (`-t`), send slash commands to sessions (`-s`)
 4. **Claude self-management** - each session is injected with a system prompt so Claude can run all of the above commands directly from conversation prompts (terminal or mobile app):
    - a. List running sessions and all projects
    - b. Launch new sessions, create new projects
