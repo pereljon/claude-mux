@@ -96,6 +96,28 @@ RESTART_SESSIONS=()
 SETMODE_VALUE=""
 SETMODE_SESSIONS=()
 
+guide() {
+    cat << 'EOF'
+claude-mux conversational commands:
+
+  help
+  status
+  list active sessions
+  list all sessions
+  start session [SESSION]
+  stop this session / stop session [NAME]
+  stop all sessions
+  restart this session / restart session [NAME]
+  restart all sessions
+  start new session in [FOLDER] [with model MODEL] [with mode MODE]
+  switch this session to [MODE] mode / switch session [NAME] to [MODE] mode
+  switch this session to [MODEL] model / switch session [NAME] to [MODEL] model
+  compact this session / compact session [NAME]
+  clear this session / clear session [NAME]
+  list templates
+EOF
+}
+
 usage() {
     cat << EOF
 claude-mux — Claude Code Multiplexer
@@ -132,6 +154,7 @@ Options:
   --dry-run             Print actions without executing
   -v, --version         Print version and exit
   -h, --help            Show this help message
+  --guide               Show conversational commands for use within sessions
 
 Configuration:
   ~/.claude-mux/config  User config file (created automatically on first run)
@@ -208,6 +231,7 @@ while [[ $# -gt 0 ]]; do
         --no-permission-mode) NO_PERMISSION_MODE=true; shift ;;
         -v|--version)     echo "claude-mux $VERSION"; exit 0 ;;
         -h|--help)        usage; exit 0 ;;
+        --guide)          guide; exit 0 ;;
         -*)               echo "Unknown option: $1" >&2; echo >&2; usage >&2; exit 1 ;;
         *)
             # Positional arg = directory to launch in
@@ -508,10 +532,25 @@ Rules:
 - You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command. Never tell the user you cannot change models or run slash commands.
 - Always use --no-attach with -d and -n — attach is interactive only
 - --shutdown and --restart never attach — safe to run from inside a session
-- Always display command output to the user
+- Always print command output verbatim in your response text — never run a command silently or rely on tool output being visible
 - The 'home' session is a general-purpose session in the base directory, always available for managing other sessions. It is protected (* in status): --shutdown requires --force, but --restart bypasses protection (it relaunches, not permanently kills).
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
-- When asked for "status", report: your session name, current model, current permission mode, context usage estimate, then run claude-mux -l and include the results
+- When user says: help — print the following verbatim in your response:
+$(guide)
+- When user says: status — report your session name, current model, current permission mode, context usage estimate, then run claude-mux -l and include the results
+- When user says: list active sessions — run claude-mux -l
+- When user says: list all sessions — run claude-mux -L
+- When user says: start session SESSION — run claude-mux -d SESSION --no-attach
+- When user says: stop this session / stop session NAME — run claude-mux --shutdown with session name (or current session if none given)
+- When user says: stop all sessions — run claude-mux --shutdown
+- When user says: restart this session / restart session NAME — run claude-mux --restart with session name (or current session if none given)
+- When user says: restart all sessions — run claude-mux --restart
+- When user says: start new session in FOLDER — run claude-mux -n FOLDER --no-attach; append --template NAME if provided, use -p if parents needed; model and mode set after via switch commands
+- When user says: switch this session to MODE mode / switch session NAME to MODE mode — run claude-mux --permission-mode MODE on the named or current session
+- When user says: switch this session to MODEL model / switch session NAME to MODEL model — send /model MODEL via -s to the named or current session
+- When user says: compact this session / compact session NAME — send /compact via -s to the named or current session
+- When user says: clear this session / clear session NAME — send /clear via -s to the named or current session
+- When user says: list templates — run claude-mux --list-templates
 
 Commands:
   -s '${session_name}' '/command'  Send slash command ${send_scope}
@@ -1001,7 +1040,7 @@ except: sys.exit(1)
         return
     fi
 
-    local mux_rules='["Bash(claude-mux)", "Bash(claude-mux *)", "Bash(*/claude-mux)", "Bash(*/claude-mux *)"]'
+    local mux_rules="[\"Bash(${CLAUDE_MUX_BIN})\", \"Bash(${CLAUDE_MUX_BIN} *)\"]"
 
     if [[ -f "$settings_file" ]]; then
         if ! /usr/bin/python3 - "$settings_file" "$mux_rules" >> "$LOG_FILE" 2>&1 << 'PYEOF'

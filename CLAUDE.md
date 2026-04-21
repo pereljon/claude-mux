@@ -63,6 +63,7 @@ claude-mux --restart             # restart sessions that were running
 claude-mux --restart SESSION...  # restart specific session(s)
 claude-mux --permission-mode MODE SESSION  # restart session with a different permission mode
 claude-mux --dry-run             # preview actions without executing
+claude-mux --guide               # show conversational commands for use within sessions
 
 # Verify LaunchAgent
 launchctl list | grep claude-mux
@@ -93,7 +94,7 @@ Avoid LLM-stereotypical writing in all human-facing content (README, emails, pos
 Commands that attach to a tmux session (`-t`, and `-d`/`-n` without `--no-attach`) are interactive and should only be invoked by the user directly in a terminal - never by Claude from inside a session. From inside a session, attach would trigger `switch-client` on the user's terminal (unpredictable) or fail silently over Remote Control.
 
 When listing or documenting commands that Claude can run from within sessions:
-- `-l`, `-L`, `-s`, `--shutdown`, `--restart`, `--permission-mode`, `--list-templates`, `-a` are safe - no attach
+- `-l`, `-L`, `-s`, `--shutdown`, `--restart`, `--permission-mode`, `--list-templates`, `--guide`, `-a` are safe - no attach
 - `-d`, `-n` must always include `--no-attach`
 - `-t` should be excluded entirely from Claude-callable examples
 

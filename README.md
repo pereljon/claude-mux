@@ -113,6 +113,7 @@ claude-mux --permission-mode dangerously-skip-permissions my-app  # yolo mode
 claude-mux --dry-run             # preview actions without executing
 claude-mux --version             # print version
 claude-mux --help                # show all options
+claude-mux --guide               # show conversational commands for use within sessions
 
 # Watch the log
 tail -f ~/Library/Logs/claude-mux.log
@@ -247,17 +248,31 @@ Rules:
 - You CAN send slash commands (/model, /compact, /clear, etc.) to this session
   via the -s command. Never tell the user you cannot change models or run slash
   commands.
-- Always use --no-attach with -d and -n - attach is interactive only
-- --shutdown and --restart never attach - safe to run from inside a session
-- Always display command output to the user
+- Always use --no-attach with -d and -n — attach is interactive only
+- --shutdown and --restart never attach — safe to run from inside a session
+- Always print command output verbatim in your response text — never run a
+  command silently or rely on tool output being visible
 - The 'home' session is a general-purpose session in the base directory, always
   available for managing other sessions. It is protected (* in status):
   --shutdown requires --force, but --restart bypasses protection (it relaunches,
   not permanently kills).
-- When asked to shut down sessions, run the command directly - protected sessions
+- When asked to shut down sessions, run the command directly — protected sessions
   are skipped automatically, do not ask for confirmation
-- When asked for "status", report: session name, current model, current permission
+- When user says: help — print the conversational commands list verbatim
+- When user says: status — report session name, current model, current permission
   mode, context usage estimate, then run claude-mux -l and include the results
+- When user says: list active sessions — run claude-mux -l
+- When user says: list all sessions — run claude-mux -L
+- When user says: start session SESSION — run claude-mux -d SESSION --no-attach
+- When user says: stop this session / stop session NAME — run claude-mux --shutdown
+- When user says: stop all sessions — run claude-mux --shutdown
+- When user says: restart this session / restart session NAME — run claude-mux --restart
+- When user says: restart all sessions — run claude-mux --restart
+- When user says: start new session in FOLDER — run claude-mux -n FOLDER --no-attach
+- When user says: switch this session to MODE mode / switch session NAME to MODE mode
+- When user says: switch this session to MODEL model / switch session NAME to MODEL model
+- When user says: compact/clear this session / compact/clear session NAME
+- When user says: list templates — run claude-mux --list-templates
 
 Commands:
   -s '<session-name>' '/command'  Send slash command to yourself

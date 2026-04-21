@@ -82,7 +82,7 @@ The script sources `~/.claude-mux/config` after setting defaults, so any variabl
 
 ```
 1. Set defaults (BASE_DIR, LOG_DIR, DEFAULT_PERMISSION_MODE, ALLOW_CROSS_SESSION_CONTROL)
-2. Parse flags (-d, -n, -p, -s, -t, -l, -L, --shutdown, --restart, --permission-mode, --dry-run, -v, -h, positional DIRECTORY)
+2. Parse flags (-d, -n, -p, -s, -t, -l, -L, --shutdown, --restart, --permission-mode, --guide, --dry-run, -v, -h, positional DIRECTORY)
 3. Validate mutual exclusion of commands; validate -p only with -n
 4. Create ~/.claude-mux/config with commented defaults if it doesn't exist
 5. Source ~/.claude-mux/config (user overrides apply from here on)
@@ -163,7 +163,9 @@ Builds a system prompt via `build_system_prompt(session_name)` and passes it via
 - Always use `--no-attach` with `-d` and `-n`
 - `--shutdown` and `--restart` are safe from inside a session
 - Home session is protected; `--shutdown home` requires `--force`
-- When asked for "status", report session name, current model, current permission mode, context estimate, then run `-l`
+- When user says "help", print the conversational commands list verbatim (text is inlined in the prompt via `$(guide)` expansion — no subprocess call)
+- When user says "status", report session name, current model, current permission mode, context estimate, then run `-l`
+- Trigger rules for each conversational phrase (list/start/stop/restart/switch/compact/clear/list templates) map to their corresponding claude-mux commands
 
 **Commands** — every claude-mux command with the absolute binary path:
 ```
@@ -182,6 +184,7 @@ Builds a system prompt via `build_system_prompt(session_name)` and passes it via
                                 Modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions
                                 ("yolo" is an alias for dangerously-skip-permissions)
 -a                              Start ALL sessions (use with caution)
+--guide                         Show conversational commands for use within sessions
 ```
 
 If GitHub SSH accounts are found in `~/.ssh/config`, an additional line is appended listing the accounts and how to use their host aliases as git remotes.
