@@ -8,6 +8,9 @@ A shell script that launches Claude Code inside tmux with Remote Control enabled
 
 ```bash
 ./install.sh
+```
+
+```bash
 claude-mux ~/path/to/your/project
 ```
 
