@@ -4,7 +4,16 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
-## [1.6.0] — TBD
+## [1.6.1] — 2026-04-25
+
+### Added
+- **`ready` trigger on session start**: claude-mux sends `ready` after Claude finishes loading; Claude responds with "Ready." confirming the session is alive and the injection is working. Replaces the old "No response requested." behavior.
+
+### Changed
+- **Faster session restarts**: reduced typical restart time from ~12s to ~2s by replacing fixed `sleep` waits with 0.5s polling loops that detect Claude's input prompt and send `ready` immediately.
+- **Faster shutdown polling**: reduced max shutdown wait from 30s to 10s, polling every 0.5s instead of 1s.
+
+## [1.6.0] — 2026-04-24
 
 ### Added
 - **Multi-CLI-coder integration**: claude-mux now creates `AGENTS.md` and `GEMINI.md` as symlinks of `CLAUDE.md` so Codex CLI, Gemini CLI, and other AI coders pick up the same project instructions. Auto-applies on every session start (new or existing project), idempotent. Configurable via `MULTI_CODER_FILES`; opt-out per-project with `--no-multi-coder` (with `-n`).
