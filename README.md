@@ -266,6 +266,8 @@ Rules:
   not permanently kills).
 - When asked to shut down sessions, run the command directly — protected sessions
   are skipped automatically, do not ask for confirmation
+- When user says: ready — respond with "Ready." on one line. Nothing else.
+  Sent automatically when a session starts or restarts.
 - When user says: help — print the conversational commands list verbatim
 - When user says: status — report session name, current model, current permission
   mode, context usage estimate, then run claude-mux -l and include the results
@@ -329,9 +331,9 @@ Sessions must be authenticated (not showing "Not logged in"). After a clean auth
 
 The `/terminal-setup` command cannot run inside tmux. claude-mux enables tmux `extended-keys` by default (`TMUX_EXTENDED_KEYS=true`), which supports Shift+Enter in most modern terminals. If Shift+Enter doesn't work, use `\` + Return to enter newlines in your prompt.
 
-### "No response requested." after restart
+### "Ready." on session start
 
-When a session is restarted via `claude-mux --restart`, Claude resumes with the system prompt injected but no user message. Claude recognizes there's nothing to respond to and prints "No response requested." This is normal - the session is ready and waiting for input.
+When a session starts or restarts, claude-mux automatically sends a `ready` message after Claude finishes loading. The injection tells Claude to respond with "Ready." and nothing else. This confirms the session is alive and the injection is working.
 
 ### Slash commands over Remote Control
 
