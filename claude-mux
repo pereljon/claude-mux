@@ -1802,13 +1802,37 @@ case "$COMMAND" in
                         log "Would restart session '$_name' in $_dir"
                     done <<< "$_restart_list"
                 else
+                    # If running inside a session that's in the restart list,
+                    # move it to the end so it restarts last (otherwise it can't
+                    # restart the remaining sessions).
+                    _caller_session=""
+                    if [[ -n "${TMUX:-}" ]]; then
+                        _caller_session=$("$TMUX_BIN" display-message -p '#{session_name}' 2>/dev/null) || _caller_session=""
+                    fi
+                    _reordered_list=""
+                    _caller_entry=""
+                    while IFS='|' read -r _name _dir; do
+                        [[ -z "$_name" ]] && continue
+                        if [[ "$_name" == "$_caller_session" ]]; then
+                            _caller_entry="${_name}|${_dir}"
+                        else
+                            _reordered_list="${_reordered_list}${_name}|${_dir}
+"
+                        fi
+                    done <<< "$_restart_list"
+                    if [[ -n "$_caller_entry" ]]; then
+                        _reordered_list="${_reordered_list}${_caller_entry}
+"
+                        log "Caller session '$_caller_session' moved to end of restart order"
+                    fi
+
                     shutdown_claude_sessions
                     detect_github_ssh_accounts
                     while IFS='|' read -r _name _dir; do
                         [[ -z "$_name" ]] && continue
                         log "Restarting session '$_name' in $_dir"
                         create_claude_session "$_name" "$_dir"
-                    done <<< "$_restart_list"
+                    done <<< "$_reordered_list"
                 fi
 
                 log "=== claude-mux restart complete ==="
