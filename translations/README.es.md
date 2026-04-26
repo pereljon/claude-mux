@@ -2,11 +2,18 @@
 
 [English](../README.md) · **Español** · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Italiano](README.it.md) · [Русский](README.ru.md) · [中文](README.zh-CN.md) · [עברית](README.he.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
-> Nota: Esta traducción puede estar desactualizada respecto al README en inglés. Consulta [README.md](../README.md) para la versión canónica.
-
 Sesiones persistentes de Claude Code para todos tus proyectos, accesibles desde cualquier lugar a través de la app móvil de Claude.
 
-Un script de shell que ejecuta Claude Code dentro de tmux con Remote Control habilitado, reanudación de conversaciones y autogestión de sesiones: listar sesiones, enviar slash commands, iniciar nuevos proyectos, apagar o reiniciar. Ejecuta `claude-mux` en cualquier directorio para obtener una sesión persistente accesible desde tu teléfono.
+## Por qué
+
+Trabajar con Claude Code en múltiples proyectos tiene fricciones:
+
+- Las sesiones mueren cuando cierras la terminal
+- Las sesiones de Remote Control no pueden ejecutar slash commands como `/model` o `/compact`
+- No puedes iniciar fácilmente una sesión para un proyecto que no está en ejecución
+- Cambiar modelos, modos de permisos o compactar el contexto desde tu teléfono no es posible
+
+claude-mux soluciona todo esto. Envuelve Claude Code en tmux para que las sesiones persistan, inyecta un system prompt para que Claude pueda gestionar sus propias sesiones, y enruta los slash commands a través de tmux para que funcionen sobre Remote Control. Una vez que una sesión está en ejecución, gestionas todo hablando con Claude, en la terminal o la app móvil.
 
 ## Inicio rápido
 
@@ -18,41 +25,68 @@ Un script de shell que ejecuta Claude Code dentro de tmux con Remote Control hab
 claude-mux ~/ruta/a/tu/proyecto
 ```
 
-O bien haz `cd` al directorio de tu proyecto y ejecuta:
+Listo. Estás en una sesión de Claude persistente y consciente del contexto, con Remote Control habilitado. A partir de aquí, todo es conversacional.
 
-```bash
-claude-mux
+## Hablando con Claude
+
+Así es como usas claude-mux en el día a día. Cada sesión recibe comandos inyectados para que Claude pueda gestionar sesiones, cambiar modelos, enviar slash commands y crear nuevos proyectos, todo desde dentro de la conversación. No necesitas recordar flags del CLI.
+
+```
+Tú: "status"
+Claude: reporta el nombre de sesión, modelo, modo de permisos, uso de contexto y lista todas las sesiones
+
+Tú: "listar sesiones activas"
+Claude: muestra todas las sesiones en ejecución con su estado
+
+Tú: "inicia una sesión para mi proyecto api-server"
+Claude: lanza una sesión en ~/Claude/work/api-server
+
+Tú: "crea un nuevo proyecto llamado mobile-app usando la plantilla web"
+Claude: crea el directorio del proyecto, inicializa git, aplica la plantilla, lanza una sesión
+
+Tú: "cambia esta sesión a Haiku"
+Claude: envía /model haiku a sí mismo vía tmux
+
+Tú: "compacta la sesión api-server"
+Claude: envía /compact a la sesión api-server
+
+Tú: "reinicia la sesión web-dashboard"
+Claude: apaga y relanza la sesión, preservando el contexto de conversación
+
+Tú: "cambia la sesión api-server a modo plan"
+Claude: reinicia la sesión con el modo de permisos plan
+
+Tú: "detén todas las sesiones"
+Claude: cierra de forma ordenada todas las sesiones gestionadas
+
+Tú: "help"
+Claude: muestra la lista completa de comandos conversacionales
 ```
 
-Listo: estás en una sesión de Claude persistente y consciente del contexto de sesión, con Remote Control habilitado.
+Estos comandos funcionan en cualquier idioma. Si escribes el equivalente en español, japonés, hebreo o cualquier otro idioma, Claude infiere la intención y ejecuta el comando correspondiente.
 
-claude-mux es un único script bash sin más dependencias que tmux y Claude Code.
-
-## Qué hace
-
-1. **Sesiones tmux persistentes con Remote Control**: ejecuta Claude Code dentro de tmux con `--remote-control` habilitado, de modo que cada sesión es accesible desde la app móvil de Claude
-2. **Reanudación de conversaciones**: si Claude estaba ejecutándose previamente en el directorio, reanuda la última conversación (`claude -c`) dentro de una nueva sesión tmux con Remote Control, preservando tu contexto
-3. **Gestión de sesiones**: lista las sesiones activas (`-l`) o todos los proyectos incluyendo los inactivos que aún no se están ejecutando (`-L`), apaga (`--shutdown`), reinicia (`--restart`), cambia los modos de permisos (`--permission-mode`), conecta (`-t`), envía slash commands a las sesiones (`-s`)
-4. **Autogestión de Claude**: cada sesión recibe un system prompt inyectado para que Claude pueda ejecutar todos los comandos anteriores directamente desde los prompts de conversación (terminal o app móvil):
-   - a. Listar sesiones en ejecución y todos los proyectos
-   - b. Lanzar nuevas sesiones, crear nuevos proyectos
-   - c. Enviar slash commands a sí mismo o a otras sesiones (alternativa a [los slash commands que no funcionan de forma nativa sobre RC](https://github.com/anthropics/claude-code/issues/30674))
-   - d. Apagar, reiniciar o cambiar los modos de permisos de las sesiones
-5. **Sesión principal**: una sesión liviana siempre activa en tu directorio base que se inicia al hacer login (configurable mediante `LAUNCHAGENT_MODE`). Mantiene Remote Control siempre disponible desde la app móvil de Claude y puede gestionar todas tus otras sesiones. Está protegida contra el apagado accidental.
-6. **Creación de nuevos proyectos**: `claude-mux -n DIRECTORY` crea un proyecto listo para programar con git, `.gitignore` y modo de permisos configurado (`-p` crea el directorio si no existe). Cualquier sesión en ejecución puede crear nuevos proyectos: pídele a Claude que configure un repo en cualquiera de tus cuentas de GitHub y empieza a programar desde donde sea
-7. **Plantillas CLAUDE.md**: mantén una librería de archivos de instrucciones CLAUDE.md en `~/.claude-mux/templates/` (por ejemplo `web.md`, `python.md`, `default.md`) y aplícalos automáticamente a nuevos proyectos. Usa `--template NAME` para elegir una plantilla específica o deja que se aplique la predeterminada
-8. **Reconocimiento de cuentas SSH**: inyecta los alias de host SSH de GitHub desde `~/.ssh/config` para que Claude sepa qué cuentas están disponibles para operaciones de git
-9. **Permisos auto-aprobados**: claude-mux se agrega a la lista de permisos en `.claude/settings.local.json` de cada proyecto para que Claude pueda ejecutar comandos de claude-mux sin pedir permiso
-10. **Migración de procesos sueltos**: si Claude ya está ejecutándose en el directorio de destino fuera de tmux, lo termina y lo relanza dentro de una sesión tmux gestionada (la conversación se reanuda con `claude -c`)
-11. **Mejoras de calidad de vida en tmux**: las sesiones se configuran con soporte de mouse, buffer de scrollback de 50k, integración con el portapapeles, 256 colores, retraso de escape reducido, teclas extendidas (Shift+Enter), monitoreo de actividad y títulos de pestaña en la terminal, todo configurable en `~/.claude-mux/config`
-
-> **Nota:** Esto es distinto de `claude --worktree --tmux`, que crea una sesión tmux para un git worktree aislado. claude-mux gestiona sesiones persistentes para los directorios reales de tus proyectos, con Remote Control e inyección de system prompt.
+Escribe `help` dentro de cualquier sesión para ver la lista completa de comandos.
 
 ### Sesión principal
 
-Una única sesión de propósito general que vive en `$BASE_DIR`. Se lanza automáticamente al hacer login cuando `LAUNCHAGENT_MODE=home`, o manualmente al ejecutar `claude-mux` desde `$BASE_DIR`. Te da una sesión de Claude siempre lista, accesible desde tu teléfono, sin necesidad de lanzar sesiones para cada proyecto.
+La sesión principal es una sesión de propósito general que vive en tu directorio base (`~/Claude` por defecto). Se lanza automáticamente al hacer login cuando `LAUNCHAGENT_MODE=home`, dándote una sesión de Claude siempre lista y accesible desde tu teléfono. Úsala para gestionar todas tus otras sesiones sin necesidad de lanzar sesiones específicas por proyecto.
 
-La sesión principal siempre está **protegida**: `--shutdown home` se niega a detenerla sin `--force`, sin importar cómo se haya iniciado. Las sesiones protegidas están marcadas con `*` en la salida de `-l`/`-L` (por ejemplo `active*`).
+La sesión principal siempre está **protegida**: `--shutdown home` se niega a detenerla sin `--force`. Las sesiones protegidas están marcadas con `*` en la salida de estado (por ejemplo `active*`).
+
+## Qué hace
+
+Bajo el capó, claude-mux se encarga de:
+
+- **Sesiones tmux persistentes** con Remote Control habilitado, de modo que cada sesión es accesible desde la app móvil de Claude
+- **Reanudación de conversaciones**: reanuda la última conversación (`claude -c`) al relanzar, preservando el contexto
+- **Inyección de system prompt**: cada sesión recibe comandos para autogestión, enrutamiento de slash commands y reconocimiento de cuentas SSH
+- **Plantillas CLAUDE.md**: mantén archivos de plantilla (por ejemplo `web.md`, `python.md`) en `~/.claude-mux/templates/` y aplícalos a nuevos proyectos
+- **Soporte multi-CLI-coder**: crea `AGENTS.md` y `GEMINI.md` como enlaces simbólicos a `CLAUDE.md` para que Codex CLI, Gemini CLI y otras herramientas compartan las mismas instrucciones
+- **Permisos auto-aprobados**: agrega claude-mux a la lista de permisos de cada proyecto para que Claude pueda ejecutar comandos de sesión sin pedir confirmación
+- **Migración de procesos sueltos**: si Claude ya está ejecutándose fuera de tmux, lo migra a una sesión gestionada
+- **Mejoras de calidad de vida en tmux**: soporte de mouse, scrollback de 50k, portapapeles, 256 colores, teclas extendidas, monitoreo de actividad, títulos de pestaña
+
+> **Nota:** Esto es distinto de `claude --worktree --tmux`, que crea una sesión tmux para un git worktree aislado. claude-mux gestiona sesiones persistentes para los directorios reales de tus proyectos, con Remote Control e inyección de system prompt.
 
 ## Requisitos
 
@@ -82,34 +116,41 @@ Opciones:
 
 El LaunchAgent ejecuta `claude-mux --autolaunch` al hacer login con un retraso de inicio de 45 segundos para permitir que los servicios del sistema se inicialicen.
 
-## Uso
+## Referencia CLI
+
+Rara vez necesitas estos directamente: Claude los ejecuta por ti desde dentro de las sesiones. Están disponibles para scripting, automatización o cuando no estás dentro de una sesión.
 
 ```bash
+# Lanzar y conectarse
 claude-mux                       # ejecutar Claude en el directorio actual y conectarse
 claude-mux ~/projects/my-app     # ejecutar Claude en un directorio y conectarse
 claude-mux -d ~/projects/my-app  # igual que arriba (forma explícita)
-claude-mux -a                    # iniciar todas las sesiones gestionadas bajo BASE_DIR
+claude-mux -t my-app             # conectarse a una sesión tmux existente
+
+# Crear nuevos proyectos
 claude-mux -n ~/projects/app     # crear un nuevo proyecto de Claude y conectarse
 claude-mux -n ~/new/path/app -p  # igual, creando el directorio y los padres
-claude-mux -n ~/app --template web  # nuevo proyecto con una plantilla CLAUDE.md específica
-claude-mux --list-templates      # mostrar plantillas CLAUDE.md disponibles
-claude-mux -t my-app             # conectarse a una sesión tmux existente
-claude-mux -s my-app '/model sonnet' # enviar un slash command a una sesión
+claude-mux -n ~/app --template web        # nuevo proyecto con una plantilla CLAUDE.md específica
+claude-mux -n ~/app --no-multi-coder      # nuevo proyecto sin enlaces simbólicos AGENTS.md/GEMINI.md
+
+# Gestión de sesiones
 claude-mux -l                    # listar sesiones por estado (active, running, stopped)
 claude-mux -L                    # listar todos los proyectos (activos + inactivos)
-claude-mux --shutdown            # cerrar de forma ordenada todas las sesiones de Claude gestionadas
-claude-mux --shutdown my-app     # apagar una sesión específica
-claude-mux --shutdown a b c      # apagar múltiples sesiones
-claude-mux --shutdown home --force  # apagar la sesión principal protegida
-claude-mux --restart             # reiniciar las sesiones que estaban en ejecución
-claude-mux --restart my-app      # reiniciar una sesión específica
-claude-mux --restart a b c       # reiniciar múltiples sesiones
-claude-mux --permission-mode plan my-app    # reiniciar la sesión en modo plan
-claude-mux --permission-mode dangerously-skip-permissions my-app  # modo yolo
+claude-mux -s my-app '/model sonnet'      # enviar un slash command a una sesión
+claude-mux --shutdown my-app              # apagar una sesión específica
+claude-mux --shutdown                     # apagar todas las sesiones gestionadas
+claude-mux --shutdown home --force        # apagar la sesión principal protegida
+claude-mux --restart my-app              # reiniciar una sesión específica
+claude-mux --restart                     # reiniciar todas las sesiones en ejecución
+claude-mux --permission-mode plan my-app  # reiniciar la sesión en modo plan
+claude-mux -a                    # iniciar todas las sesiones gestionadas bajo BASE_DIR
+
+# Otros
+claude-mux --list-templates      # mostrar plantillas CLAUDE.md disponibles
+claude-mux --guide               # mostrar comandos conversacionales para usar dentro de sesiones
 claude-mux --dry-run             # previsualizar acciones sin ejecutarlas
 claude-mux --version             # mostrar la versión
 claude-mux --help                # mostrar todas las opciones
-claude-mux --guide               # mostrar comandos conversacionales para usar dentro de las sesiones
 
 # Ver el log
 tail -f ~/Library/Logs/claude-mux.log
@@ -120,67 +161,22 @@ Cuando se ejecuta desde la terminal, la salida se replica en stdout en tiempo re
 ## Estados de sesión
 
 | Estado | Significado |
-|--------|---------|
+|--------|-------------|
 | `active` | la sesión tmux existe, Claude está ejecutándose y un cliente tmux local está conectado |
 | `running` | la sesión tmux existe y Claude está ejecutándose (sin cliente local conectado) |
 | `stopped` | la sesión tmux existe pero Claude ha terminado |
-| `idle` | existe un proyecto `.claude/` bajo `BASE_DIR` pero no tiene una sesión tmux de claude-mux en ejecución (se muestra solo con `-L`) |
+| `idle` | existe un proyecto `.claude/` bajo `BASE_DIR` pero no tiene sesión tmux de claude-mux en ejecución (se muestra solo con `-L`) |
 
 Un `*` al final de cualquier estado indica que la sesión está protegida y requiere `--force` para apagarse (por ejemplo `active*`, `running*`). La sesión principal siempre está protegida.
 
 Ejecutar `claude-mux` en un directorio que ya tiene una sesión en ejecución se conecta a ella. Múltiples terminales pueden conectarse a la misma sesión (comportamiento estándar de tmux).
-
-## Ejemplos de prompts a Claude
-
-Como cada sesión recibe los comandos de claude-mux inyectados, puedes gestionar sesiones directamente desde los prompts de conversación, en la terminal o vía la app móvil:
-
-```
-Tú: "¿Qué sesiones están en ejecución?"
-Claude: ejecuta `claude-mux -l` y muestra los resultados
-
-Tú: "Muéstrame todos los proyectos"
-Claude: ejecuta `claude-mux -L` y muestra los resultados
-
-Tú: "Inicia una sesión para mi proyecto de trabajo api-server"
-Claude: ejecuta `claude-mux -d ~/Claude/work/api-server --no-attach`
-
-Tú: "Crea un nuevo proyecto personal llamado mobile-app"
-Claude: ejecuta `claude-mux -n ~/Claude/personal/mobile-app -p --no-attach`
-
-Tú: "¿Qué plantillas tengo?"
-Claude: ejecuta `claude-mux --list-templates` y muestra los resultados
-
-Tú: "Crea un nuevo proyecto de trabajo llamado api-server usando la plantilla web"
-Claude: ejecuta `claude-mux -n ~/Claude/work/api-server -p --template web --no-attach`
-
-Tú: "Cambia todas las sesiones a Sonnet"
-Claude: ejecuta `claude-mux -s SESSION '/model sonnet'` para cada sesión en ejecución
-
-Tú: "Apaga la sesión data-pipeline"
-Claude: ejecuta `claude-mux --shutdown data-pipeline`
-
-Tú: "Reinicia la sesión web-dashboard que está atorada"
-Claude: ejecuta `claude-mux --restart web-dashboard`
-
-Tú: "Cambia la sesión api-server a modo plan"
-Claude: ejecuta `claude-mux --permission-mode plan api-server`
-
-Tú: "Pon en yolo la sesión data-pipeline"
-Claude: ejecuta `claude-mux --permission-mode dangerously-skip-permissions data-pipeline`
-
-Tú: "Lanza la sesión data-pipeline en segundo plano"
-Claude: ejecuta `claude-mux -d ~/Claude/work/data-pipeline --no-attach`
-
-Tú: "Inicia todos mis proyectos"
-Claude: ejecuta `claude-mux -a` (después de confirmar: esto inicia cada proyecto gestionado)
-```
 
 ## Configuración
 
 En la primera ejecución, `~/.claude-mux/config` se crea automáticamente con todos los ajustes comentados. Edítalo para sobrescribir cualquier valor predeterminado: nunca es necesario modificar el script directamente.
 
 | Variable | Predeterminado | Descripción |
-|----------|---------|-------------|
+|----------|----------------|-------------|
 | `BASE_DIR` | `$HOME/Claude` | Directorio raíz para escanear proyectos de Claude (directorios que contienen `.claude/`) |
 | `LOG_DIR` | `$HOME/Library/Logs` | Directorio para el archivo `claude-mux.log` |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Define `permissions.defaultMode` de Claude en cada proyecto. Válidos: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Establece `""` para deshabilitarlo. |
@@ -189,12 +185,13 @@ En la primera ejecución, `~/.claude-mux/config` se crea automáticamente con to
 | `DEFAULT_TEMPLATE` | `default.md` | Plantilla predeterminada aplicada a nuevos proyectos (`-n`). Establece `""` para deshabilitarla. |
 | `SLEEP_BETWEEN` | `5` | Segundos entre lanzamientos de sesiones cuando se usa `-a`. Aumenta este valor si falla el registro de RC. |
 | `HOME_SESSION_MODEL` | `""` | Modelo para la sesión principal. Válidos: `sonnet`, `haiku`, `opus`. Vacío hereda el valor predeterminado de Claude. |
+| `MULTI_CODER_FILES` | `"AGENTS.md GEMINI.md"` | Lista de archivos separados por espacios que se crean como enlaces simbólicos a `CLAUDE.md` para otras herramientas de IA CLI. Establece `""` para deshabilitarlo. |
 | `LAUNCHAGENT_MODE` | `home` | Comportamiento del LaunchAgent al hacer login: `none` (no hacer nada) o `home` (lanzar la sesión principal protegida). El legado `LAUNCHAGENT_ENABLED=true` se trata como `home`. |
 
 **Opciones de la sesión tmux** (todas configurables, todas habilitadas por defecto):
 
 | Variable | Predeterminado | Descripción |
-|----------|---------|-------------|
+|----------|----------------|-------------|
 | `TMUX_MOUSE` | `true` | Soporte de mouse: scroll, selección, redimensionar paneles |
 | `TMUX_HISTORY_LIMIT` | `50000` | Tamaño del buffer de scrollback en líneas (el predeterminado de tmux es 2000) |
 | `TMUX_CLIPBOARD` | `true` | Integración con el portapapeles del sistema vía OSC 52 |
@@ -248,12 +245,16 @@ Rules:
 - --shutdown and --restart never attach — safe to run from inside a session
 - Always print command output verbatim in your response text — never run a
   command silently or rely on tool output being visible
+- When command output contains <assistant-must-display> tags, you MUST include
+  the COMPLETE content between those tags verbatim in your response.
 - The 'home' session is a general-purpose session in the base directory, always
   available for managing other sessions. It is protected (* in status):
   --shutdown requires --force, but --restart bypasses protection (it relaunches,
   not permanently kills).
 - When asked to shut down sessions, run the command directly — protected sessions
   are skipped automatically, do not ask for confirmation
+- When user says: ready — respond with "Ready." on one line. Nothing else.
+  Sent automatically when a session starts or restarts.
 - When user says: help — print the conversational commands list verbatim
 - When user says: status — report session name, current model, current permission
   mode, context usage estimate, then run claude-mux -l and include the results
@@ -316,6 +317,10 @@ Las sesiones deben estar autenticadas (no mostrar "Not logged in"). Tras un lanz
 ### Entrada multilínea en tmux
 
 El comando `/terminal-setup` no puede ejecutarse dentro de tmux. claude-mux habilita las `extended-keys` de tmux por defecto (`TMUX_EXTENDED_KEYS=true`), lo que permite Shift+Enter en la mayoría de las terminales modernas. Si Shift+Enter no funciona, usa `\` + Return para ingresar saltos de línea en tu prompt.
+
+### "Ready." al iniciar la sesión
+
+Cuando una sesión se inicia o reinicia, claude-mux envía automáticamente un mensaje `ready` después de que Claude termina de cargar. La inyección le indica a Claude que responda con "Ready." y nada más. Esto confirma que la sesión está activa y que la inyección funciona correctamente.
 
 ### Slash commands sobre Remote Control
 

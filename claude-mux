@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.6.1"
+VERSION="1.6.2"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -560,6 +560,7 @@ Rules:
 - Always use --no-attach with -d and -n — attach is interactive only
 - --shutdown and --restart never attach — safe to run from inside a session
 - Always print command output verbatim in your response text — never run a command silently or rely on tool output being visible
+- When command output contains <assistant-must-display> tags, you MUST include the COMPLETE content between those tags verbatim in your response. Never summarize, truncate, or omit any lines. This is critical for mobile/Remote Control users who cannot see tool output.
 - The 'home' session is a general-purpose session in the base directory, always available for managing other sessions. It is protected (* in status): --shutdown requires --force, but --restart bypasses protection (it relaunches, not permanently kills).
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
 - When user says: ready — respond with exactly \"Ready.\" on one line. Nothing else. This is sent automatically when a session starts or restarts.
@@ -840,8 +841,23 @@ shutdown_claude_sessions() {
     log "=== claude-mux shutdown complete ==="
 }
 
+# When stdout is not a TTY (e.g. captured by Claude's Bash tool), print an
+# instruction telling the model to display the output in its response.
+echo_hint() {
+    if [[ ! -t 1 ]]; then
+        echo "<assistant-must-display>"
+    fi
+}
+
+echo_hint_end() {
+    if [[ ! -t 1 ]]; then
+        echo "</assistant-must-display>"
+    fi
+}
+
 status_claude_sessions() {
     local show_idle="${1:-false}"
+    echo_hint
     get_managed_session_names   # also calls discover_projects internally
 
     local sessions
@@ -908,8 +924,10 @@ status_claude_sessions() {
         done
     fi
 
-    # Print aligned columns
+    # Print aligned columns with header
     if [[ -n "$rows" ]]; then
+        printf "  %-9s %-30s %s\n" "STATUS" "SESSION" "DIRECTORY"
+        printf "  %-9s %-30s %s\n" "------" "-------" "---------"
         echo "$rows" | while IFS='|' read -r _status _name _path; do
             [[ -z "$_status" ]] && continue
             printf "  %-9s %-30s %s\n" "$_status" "$_name" "$_path"
@@ -923,6 +941,7 @@ status_claude_sessions() {
     [[ "$show_idle" == "true" ]] && summary="${summary}, ${idle} idle"
     echo "$summary"
     [[ $unmanaged -gt 0 ]] && echo "($unmanaged non-managed tmux sessions hidden)"
+    echo_hint_end
     return 0
 }
 
@@ -1570,6 +1589,7 @@ LAUNCH_EOF
 }
 
 list_templates() {
+    echo_hint
     if [[ ! -d "$TEMPLATES_DIR" ]]; then
         echo "No templates directory at $TEMPLATES_DIR"
         return
@@ -1590,6 +1610,7 @@ list_templates() {
     if [[ "$found" != "true" ]]; then
         echo "No templates found in $TEMPLATES_DIR"
     fi
+    echo_hint_end
 }
 
 apply_template() {

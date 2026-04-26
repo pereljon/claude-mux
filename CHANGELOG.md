@@ -4,6 +4,19 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.6.2] — 2026-04-26
+
+### Added
+- **`<assistant-must-display>` output tags**: listing commands (`-l`, `-L`, `--list-templates`) wrap output in XML tags when stdout is not a TTY, instructing Claude to display the full output verbatim. Fixes Sonnet summarizing session listings instead of showing them.
+- **Table headers on session listings**: `-l` and `-L` output now includes STATUS, SESSION, DIRECTORY column headers.
+
+### Changed
+- **README restructured**: "Talking to Claude" section now leads after Quick Start, emphasizing conversational usage as the primary interface. CLI flags moved to "CLI Reference" section. "What It Does" simplified from 12 numbered items to 8 concise bullets.
+- **Caller-last restart ordering**: when `--restart` (all) is invoked from inside a session, the calling session restarts last so it can finish restarting the others first.
+
+### Fixed
+- **Spanish translation fully regenerated** to match restructured English README.
+
 ## [1.6.1] — 2026-04-25
 
 ### Added
