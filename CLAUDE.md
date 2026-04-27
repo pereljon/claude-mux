@@ -54,7 +54,17 @@ Commands that attach (`-t`, `-d`/`-n` without `--no-attach`) are user-only -- ne
 
 ## Development Workflow
 
-Edit the repo copy (`claude-mux`), not the installed copy (`~/bin/claude-mux`). Ask before committing -- do not run `git commit` or `git push` without explicit approval. Deploy after commit: `cp claude-mux ~/bin/`
+Edit the repo copy (`claude-mux`), not the installed copy (`~/bin/claude-mux`). Deploy after commit: `cp claude-mux ~/bin/`
+
+## Git Approvals
+
+Each step requires explicit user approval. Approval for one step does not imply approval for the next.
+
+1. **Commit**: propose the commit message and changed files, wait for approval before running `git commit`
+2. **Push**: wait for explicit approval before running `git push`
+3. **Release**: only the user can authorize a release (tag + push tag). "Commit" or "push" do not imply release.
+
+After completing work, proactively ask which steps the user wants: "Want to commit, push, or release?"
 
 ## Testing Plan
 
@@ -77,5 +87,3 @@ After any code change, check whether these need updating:
 - Deprecation: warn for 1-2 minor versions before removing (details in `implentation-spec.md`)
 
 When proposing or making multiple changes, consider logical ordering -- some changes should be performed before others (e.g. move code to a new location before updating references to it, validate inputs before using them).
-
-Do not commit until all affected files are updated.
