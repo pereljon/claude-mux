@@ -4,6 +4,8 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.7.1] — 2026-04-27
+
 ### Fixed
 - **`--update` mv not checked**: installing the downloaded binary now fails loudly if `$install_path` is not writable, instead of printing a false success message.
 - **`--update` VERSION validation**: downloaded script must contain `VERSION="<expected>"` exactly, not just any `VERSION=` string.
@@ -156,7 +158,8 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - User config at `~/.claude-autorc` (later `~/.claude-mux/config`).
 - Logging to `~/Library/Logs/claude-autorc.log` (later `claude-mux.log`).
 
-[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.7.1...HEAD
+[1.7.1]: https://github.com/pereljon/claude-mux/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/pereljon/claude-mux/compare/v1.6.2...v1.7.0
 [1.6.2]: https://github.com/pereljon/claude-mux/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/pereljon/claude-mux/compare/v1.6.0...v1.6.1
