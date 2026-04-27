@@ -2,7 +2,7 @@
 
 ## Overview
 
-A shell script and macOS LaunchAgent that automatically creates and maintains persistent Claude Code sessions in tmux for every project directory under `~/Claude/` (configurable).
+A shell script and macOS LaunchAgent that automatically creates and maintains persistent Claude Code sessions in tmux for every project directory under `BASE_DIR` (default `~/Claude`).
 
 ## Directory Structure (Expected)
 
@@ -50,6 +50,9 @@ On first run, the script creates `~/.claude-mux/config` with all settings commen
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set `permissions.defaultMode` in `.claude/settings.local.json` per project. Valid: `""` (disabled), `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions are told they can send slash commands to other sessions via tmux. When `false`, sessions can only send commands to themselves. |
+| `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing CLAUDE.md template files |
+| `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
+| `MULTI_CODER_FILES` | `"AGENTS.md GEMINI.md"` | Space-separated list of files to create as symlinks to CLAUDE.md for other AI CLI tools. Set to `""` to disable. |
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches when `-a` is used |
 | `LAUNCHAGENT_MODE` | `home` | LaunchAgent at-login behavior: `none` or `home` (single protected session in `$BASE_DIR`). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `home` (previously `batch`, removed). |
 | `HOME_SESSION_MODEL` | `""` | Model for the home session (`sonnet`, `haiku`, `opus`). Empty string inherits Claude's default. |
@@ -69,16 +72,16 @@ The script sources `~/.claude-mux/config` after setting defaults, so any variabl
 ### Requirements
 
 - Bash (`/bin/bash`)
-- `tmux` at `/opt/homebrew/bin/tmux`
-- `claude` at `/opt/homebrew/bin/claude`
+- `tmux` (resolved via `command -v tmux`, or `TMUX_BIN` config override)
+- `claude` (resolved via `command -v claude`, or `CLAUDE_BIN` config override)
 - Idempotent: safe to re-run; only creates sessions that don't already exist
 - `--dry-run` flag: prints actions without executing (skips session migration)
 
 ### Environment
 
-- PATH must include `/opt/homebrew/bin`
+- PATH must include the directory containing tmux and claude (e.g. `/opt/homebrew/bin` on ARM Mac, `/usr/local/bin` on Intel Mac)
 - HOME is inherited from the login session via LaunchAgent
-- Apple Silicon Mac (arm64)
+- macOS (Apple Silicon or Intel)
 
 ### Startup Sequence
 
@@ -113,13 +116,13 @@ The script sources `~/.claude-mux/config` after setting defaults, so any variabl
 
 Skipped entirely in `--dry-run` mode.
 
-Finds `claude` CLI processes (matched by full path `/opt/homebrew/bin/claude`) not running under a tmux ancestor, whose working directory matches a discovered project directory. SIGTERMs them so the main loop can resume them via `claude -c`. Waits 2 seconds after termination only if any processes were killed.
+Finds `claude` CLI processes (matched by the resolved `$CLAUDE_BIN` path) not running under a tmux ancestor, whose working directory matches a discovered project directory. SIGTERMs them so the main loop can resume them via `claude -c`. Waits 2 seconds after termination only if any processes were killed.
 
 ```
 migrate_stray_sessions():
     if DRY_RUN: return
 
-    for each PID matching /opt/homebrew/bin/claude:
+    for each PID matching $CLAUDE_BIN:
         walk ancestor chain via ps -o ppid=
         if any ancestor comm starts with "tmux": skip (already in tmux)
 
@@ -201,7 +204,7 @@ claude -c --remote-control <perm_flags> --name '<session_name>' --append-system-
 claude --remote-control <perm_flags> --name '<session_name>' --append-system-prompt '<prompt>'
 ```
 
-After sending the launch command, the script waits 5 seconds and checks for the workspace trust prompt. If found, it sends Enter to accept (option 1 is pre-selected). All managed directories are the user's own projects.
+After sending the launch command, the script polls (0.5s intervals, up to 10s) for Claude's input prompt or the workspace trust prompt. If the trust prompt is detected, it sends Enter to accept (option 1 is pre-selected). Once the prompt is detected (or timeout expires), it sends `ready` and expects Claude to respond with "Ready." confirming the injection is working. All managed directories are the user's own projects.
 
 ### Gitignore template (used by -n)
 
@@ -308,7 +311,7 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
     <array>
         <string>/bin/bash</string>
         <string>-c</string>
-        <string>exec "$HOME/Claude/claude-mux"</string>
+        <string>exec "$HOME/bin/claude-mux" --autolaunch</string>
     </array>
 
     <key>RunAtLoad</key>

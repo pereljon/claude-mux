@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**claude-mux** (Claude Code Multiplexer) - a shell script and macOS LaunchAgent that automatically creates and maintains persistent Claude Code sessions in tmux for every project directory under `~/Claude/`. Persistent sessions enable Claude Code Remote Control, giving full mobile app access to all projects via the Claude iOS/Android app.
+**claude-mux** (Claude Code Multiplexer) - a shell script and macOS LaunchAgent that automatically creates and maintains persistent Claude Code sessions in tmux for every project directory under `BASE_DIR` (default `~/Claude`). Persistent sessions enable Claude Code Remote Control, giving full mobile app access to all projects via the Claude iOS/Android app.
 
 ### Deliverables
 
@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-The startup script discovers Claude projects under `~/Claude/` by finding directories that contain a `.claude/` subdirectory (at any depth). It migrates stray Claude processes into tmux and creates one tmux session per project with Claude running in RC mode. It attempts `claude -c` to resume a prior session, falling back to a fresh `claude --remote-control` on failure.
+The startup script discovers Claude projects under `BASE_DIR` by finding directories that contain a `.claude/` subdirectory (at any depth). It migrates stray Claude processes into tmux and creates one tmux session per project with Claude running in RC mode. It attempts `claude -c` to resume a prior session, falling back to a fresh `claude --remote-control` on failure.
 
 The LaunchAgent runs the script at login with a 45-second startup delay for system services to initialize.
 
@@ -29,50 +29,27 @@ The LaunchAgent runs the script at login with a 45-second startup delay for syst
 - **Logging**: all actions appended to `~/Library/Logs/claude-mux.log` (UTC ISO 8601, configurable via `LOG_DIR`)
 - **Default permission mode**: optionally sets Claude's `permissions.defaultMode` per project via `.claude/settings.local.json`
 - **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name, so Claude knows how to send slash commands (e.g. `/model`, `/compact`) to itself via `tmux send-keys` (cross-session control available when `ALLOW_CROSS_SESSION_CONTROL=true`)
-- **Tmux quality-of-life**: sessions configured with mouse, 50k scrollback, clipboard, 256-color, reduced escape delay, extended keys, activity monitoring, and tab titles - all configurable via rc file
+- **Tmux quality-of-life**: sessions configured with mouse, 50k scrollback, clipboard, 256-color, reduced escape delay, extended keys, activity monitoring, and tab titles - all configurable via config file
+- **Multi-coder symlinks**: creates `AGENTS.md` and `GEMINI.md` as symlinks to `CLAUDE.md` so other AI CLI tools share the same instructions. Configurable via `MULTI_CODER_FILES`; opt-out per-project with `--no-multi-coder`.
+- **Ready trigger**: after Claude finishes loading, sends `ready` and expects "Ready." response to confirm the session is alive and the injection is working
+- **Output display tags**: listing commands wrap output in `<assistant-must-display>` XML tags when stdout is not a TTY, instructing Claude to display the full output verbatim (fixes Sonnet summarizing instead of showing)
+- **Caller-last restart ordering**: when `--restart` (all) is invoked from inside a session, the calling session restarts last
 - **Home session**: running `claude-mux` in `$BASE_DIR` (or LaunchAgent with `LAUNCHAGENT_MODE=home`) creates a session named `home`; always protected, requires `--force` to shut down; marked with `*` in status output
 - **LaunchAgent modes**: `LAUNCHAGENT_MODE=none` / `home` (default); plist invokes `claude-mux --autolaunch` which dispatches based on mode. Legacy `LAUNCHAGENT_ENABLED=true` treated as `home` (previously `batch`, which has been removed).
 
 ## Dependencies
 
-- macOS (Apple Silicon / arm64)
-- `/opt/homebrew/bin/tmux`
-- `/opt/homebrew/bin/claude`
+- macOS (Apple Silicon or Intel)
+- tmux (`brew install tmux`)
+- Claude Code CLI (`brew install claude`)
 - System `/bin/bash`
 
-## Commands
+See `implentation-spec.md` for the full command reference. Quick usage:
 
 ```bash
-# Install
-./install.sh
-
-# Usage
-claude-mux                       # launch Claude in current directory and attach
-claude-mux DIRECTORY             # launch Claude in DIRECTORY and attach
-claude-mux -d DIRECTORY          # same as above (explicit form)
-claude-mux -a                    # start all managed sessions under BASE_DIR
-claude-mux -n DIRECTORY          # create new project (git init, .gitignore) and attach
-claude-mux -n DIRECTORY -p       # same, creating directory and parents if needed
-claude-mux -s SESSION '/command'  # send a slash command to a session
-claude-mux -t SESSION            # attach to a session
-claude-mux -l                    # list active sessions (running + stopped)
-claude-mux -L                    # list all projects (active + idle)
-claude-mux --shutdown            # gracefully exit all Claude sessions
-claude-mux --shutdown SESSION...  # shut down specific session(s)
-claude-mux --restart             # restart sessions that were running
-claude-mux --restart SESSION...  # restart specific session(s)
-claude-mux --permission-mode MODE SESSION  # restart session with a different permission mode
-claude-mux --dry-run             # preview actions without executing
-claude-mux --guide               # show conversational commands for use within sessions
-
-# Verify LaunchAgent
-launchctl list | grep claude-mux
-
-# Check logs
-tail -f ~/Library/Logs/claude-mux.log
-
-# LaunchAgent debug (stdout/stderr go to macOS unified log, not a file)
-log show --predicate 'process == "launchd"' --last 5m | grep claude
+./install.sh                     # install
+claude-mux ~/path/to/project     # launch and attach
+claude-mux --help                # all options
 ```
 
 ## Security context
@@ -147,6 +124,10 @@ When creating or updating translated READMEs in `translations/`, follow these ru
 - No em dashes, no marketing fluff
 - No LLM-stereotype phrases: "leverage", "delve", "streamline", etc.
 - Use the formal/technical register appropriate to the target language
+
+## Change checklist (continued)
+
+These files also need checking after code changes:
 - `config.example` - example config template
 - `~/.claude-mux/config` - deployed user config (add new settings)
 - `install.sh` - installer-generated config, new flags
@@ -175,14 +156,14 @@ Don't remove features without warning users first. Don't break someone's working
 ## Development workflow
 
 The script has two locations:
-- **Repo**: `~/Claude/development/claude-mux/claude-mux` (version-controlled)
+- **Repo**: version-controlled copy in this directory (`claude-mux`)
 - **Installed**: `~/bin/claude-mux` (what actually runs, created by `install.sh`)
 
 Always edit the repo copy first, then **ask before committing** - do not run `git commit` or `git push` without explicit approval. After committing, deploy to the installed location:
 
 ```bash
 # After editing and committing in the repo:
-cp ~/Claude/development/claude-mux/claude-mux ~/bin/
+cp claude-mux ~/bin/
 ```
 
 ## Configuration
@@ -197,13 +178,13 @@ cp ~/Claude/development/claude-mux/claude-mux ~/bin/
 - `DEFAULT_TEMPLATE` - default template for new projects (default: `default.md`)
 - `LAUNCHAGENT_MODE` - LaunchAgent behavior at login: `none` or `home` (default)
 - `HOME_SESSION_MODEL` - model for the home session (default: `""`, inherits Claude default; valid: `sonnet`, `haiku`, `opus`)
+- `MULTI_CODER_FILES` - space-separated list of symlinks to create pointing to CLAUDE.md (default: `"AGENTS.md GEMINI.md"`)
 - `SLEEP_BETWEEN` - seconds between session launches when `-a` is used (default: `5`)
 - `TMUX_MOUSE`, `TMUX_HISTORY_LIMIT`, `TMUX_CLIPBOARD`, `TMUX_DEFAULT_TERMINAL`, `TMUX_EXTENDED_KEYS`, `TMUX_ESCAPE_TIME`, `TMUX_TITLE_FORMAT`, `TMUX_MONITOR_ACTIVITY` - tmux session options, all configurable
 
 ## TODO
 
 - `templates/` in repo root: add example CLAUDE.md templates (web, python, etc.) and optionally copy them to `~/.claude-mux/templates/` during install
-- `CHANGELOG.md`: create from git history, maintain per tagged version
 
 ## Implementation spec
 
