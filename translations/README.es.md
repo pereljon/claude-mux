@@ -116,48 +116,6 @@ Opciones:
 
 El LaunchAgent ejecuta `claude-mux --autolaunch` al hacer login con un retraso de inicio de 45 segundos para permitir que los servicios del sistema se inicialicen.
 
-## Referencia CLI
-
-Rara vez necesitas estos directamente: Claude los ejecuta por ti desde dentro de las sesiones. Están disponibles para scripting, automatización o cuando no estás dentro de una sesión.
-
-```bash
-# Lanzar y conectarse
-claude-mux                       # ejecutar Claude en el directorio actual y conectarse
-claude-mux ~/projects/my-app     # ejecutar Claude en un directorio y conectarse
-claude-mux -d ~/projects/my-app  # igual que arriba (forma explícita)
-claude-mux -t my-app             # conectarse a una sesión tmux existente
-
-# Crear nuevos proyectos
-claude-mux -n ~/projects/app     # crear un nuevo proyecto de Claude y conectarse
-claude-mux -n ~/new/path/app -p  # igual, creando el directorio y los padres
-claude-mux -n ~/app --template web        # nuevo proyecto con una plantilla CLAUDE.md específica
-claude-mux -n ~/app --no-multi-coder      # nuevo proyecto sin enlaces simbólicos AGENTS.md/GEMINI.md
-
-# Gestión de sesiones
-claude-mux -l                    # listar sesiones por estado (active, running, stopped)
-claude-mux -L                    # listar todos los proyectos (activos + inactivos)
-claude-mux -s my-app '/model sonnet'      # enviar un slash command a una sesión
-claude-mux --shutdown my-app              # apagar una sesión específica
-claude-mux --shutdown                     # apagar todas las sesiones gestionadas
-claude-mux --shutdown home --force        # apagar la sesión principal protegida
-claude-mux --restart my-app              # reiniciar una sesión específica
-claude-mux --restart                     # reiniciar todas las sesiones en ejecución
-claude-mux --permission-mode plan my-app  # reiniciar la sesión en modo plan
-claude-mux -a                    # iniciar todas las sesiones gestionadas bajo BASE_DIR
-
-# Otros
-claude-mux --list-templates      # mostrar plantillas CLAUDE.md disponibles
-claude-mux --guide               # mostrar comandos conversacionales para usar dentro de sesiones
-claude-mux --dry-run             # previsualizar acciones sin ejecutarlas
-claude-mux --version             # mostrar la versión
-claude-mux --help                # mostrar todas las opciones
-
-# Ver el log
-tail -f ~/Library/Logs/claude-mux.log
-```
-
-Cuando se ejecuta desde la terminal, la salida se replica en stdout en tiempo real. Cuando se ejecuta vía LaunchAgent, la salida solo va al archivo de log.
-
 ## Estados de sesión
 
 | Estado | Significado |
@@ -245,8 +203,6 @@ Rules:
 - --shutdown and --restart never attach — safe to run from inside a session
 - Always print command output verbatim in your response text — never run a
   command silently or rely on tool output being visible
-- When command output contains <assistant-must-display> tags, you MUST include
-  the COMPLETE content between those tags verbatim in your response.
 - The 'home' session is a general-purpose session in the base directory, always
   available for managing other sessions. It is protected (* in status):
   --shutdown requires --force, but --restart bypasses protection (it relaunches,
@@ -292,6 +248,48 @@ GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
 ```
 
 Cuando `ALLOW_CROSS_SESSION_CONTROL=true`, el comando de envío cambia para permitir apuntar a cualquier sesión, no solo a sí misma. La ruta es la ruta absoluta al script en el momento del lanzamiento, así las sesiones no dependen de `PATH`.
+
+## Referencia CLI
+
+Rara vez necesitas estos directamente: Claude los ejecuta por ti desde dentro de las sesiones. Están disponibles para scripting, automatización o cuando no estás dentro de una sesión.
+
+```bash
+# Lanzar y conectarse
+claude-mux                       # ejecutar Claude en el directorio actual y conectarse
+claude-mux ~/proyectos/mi-app    # ejecutar Claude en un directorio y conectarse
+claude-mux -d ~/proyectos/mi-app # igual que arriba (forma explícita)
+claude-mux -t my-app             # conectarse a una sesión tmux existente
+
+# Crear nuevos proyectos
+claude-mux -n ~/proyectos/app    # crear un nuevo proyecto de Claude y conectarse
+claude-mux -n ~/nueva/ruta/app -p  # igual, creando el directorio y los padres
+claude-mux -n ~/app --template web        # nuevo proyecto con una plantilla CLAUDE.md específica
+claude-mux -n ~/app --no-multi-coder      # nuevo proyecto sin enlaces simbólicos AGENTS.md/GEMINI.md
+
+# Gestión de sesiones
+claude-mux -l                    # listar sesiones por estado (active, running, stopped)
+claude-mux -L                    # listar todos los proyectos (activos + inactivos)
+claude-mux -s my-app '/model sonnet'      # enviar un slash command a una sesión
+claude-mux --shutdown my-app              # apagar una sesión específica
+claude-mux --shutdown                     # apagar todas las sesiones gestionadas
+claude-mux --shutdown home --force        # apagar la sesión principal protegida
+claude-mux --restart my-app              # reiniciar una sesión específica
+claude-mux --restart                     # reiniciar todas las sesiones en ejecución
+claude-mux --permission-mode plan my-app  # reiniciar la sesión en modo plan
+claude-mux -a                    # iniciar todas las sesiones gestionadas bajo BASE_DIR
+
+# Otros
+claude-mux --list-templates      # mostrar plantillas CLAUDE.md disponibles
+claude-mux --guide               # mostrar comandos conversacionales para usar dentro de sesiones
+claude-mux --dry-run             # previsualizar acciones sin ejecutarlas
+claude-mux --version             # mostrar la versión
+claude-mux --help                # mostrar todas las opciones
+
+# Ver el log
+tail -f ~/Library/Logs/claude-mux.log
+```
+
+Cuando se ejecuta desde la terminal, la salida se replica en stdout en tiempo real. Cuando se ejecuta vía LaunchAgent, la salida solo va al archivo de log.
 
 ## Solución de problemas
 
