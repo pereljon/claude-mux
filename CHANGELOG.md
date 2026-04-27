@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Fixed
+- **`--update` mv not checked**: installing the downloaded binary now fails loudly if `$install_path` is not writable, instead of printing a false success message.
+- **`--update` VERSION validation**: downloaded script must contain `VERSION="<expected>"` exactly, not just any `VERSION=` string.
+- **`--update` brew exit code**: `brew upgrade` failure now exits with an error instead of printing a false success message.
+
 ## [1.7.0] — 2026-04-26
 
 ### Added

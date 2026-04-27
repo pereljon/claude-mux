@@ -603,7 +603,10 @@ do_update() {
     # Detect install method
     if command -v brew &>/dev/null && brew list claude-mux &>/dev/null 2>&1; then
         echo "Updating via Homebrew..."
-        brew upgrade claude-mux
+        if ! brew upgrade claude-mux; then
+            echo "Error: brew upgrade claude-mux failed" >&2
+            exit 1
+        fi
     else
         # Direct download
         local download_url="https://github.com/pereljon/claude-mux/releases/download/v${latest}/claude-mux"
@@ -629,14 +632,18 @@ do_update() {
             echo "Error: downloaded file is too small (${file_size} bytes) — likely not a valid script" >&2
             exit 1
         fi
-        if ! grep -q '^VERSION=' "$tmp"; then
+        if ! grep -q "^VERSION=\"${latest}\"" "$tmp"; then
             rm -f "$tmp"
-            echo "Error: downloaded file missing VERSION string — likely corrupt" >&2
+            echo "Error: downloaded file VERSION does not match expected v$latest — likely corrupt" >&2
             exit 1
         fi
 
         chmod +x "$tmp"
-        mv "$tmp" "$install_path"
+        if ! mv "$tmp" "$install_path"; then
+            rm -f "$tmp"
+            echo "Error: failed to install to $install_path — check permissions" >&2
+            exit 1
+        fi
     fi
 
     echo "claude-mux updated: $VERSION -> $latest"
