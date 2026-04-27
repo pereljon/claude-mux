@@ -4,6 +4,19 @@
 
 A shell script and macOS LaunchAgent that automatically creates and maintains persistent Claude Code sessions in tmux for every project directory under `BASE_DIR` (default `~/Claude`).
 
+## Design Principles
+
+claude-mux is infrastructure, not a framework. It keeps Claude Code sessions alive in tmux and gets out of the way. Everything else follows from that:
+
+- **Lean over featureful.** A new feature must justify its weight. If Claude Code already handles something, don't duplicate it. If tmux already handles something, don't wrap it.
+- **Support, don't impose.** Never force assumptions, paradigms, or methodology on the user. Claude Code has its own workflows -- claude-mux exists to make them persistent and accessible, not to replace or reshape them.
+- **Conversational first.** The primary interface is natural language within a session. CLI flags exist for automation and scripting; the typical user should rarely need them.
+- **Eliminate complexity, don't relocate it.** Every abstraction must remove more burden than it introduces. If a feature requires the user to learn claude-mux-specific concepts to use Claude Code, it's doing more harm than good.
+
+## Security Context
+
+claude-mux is a single-user tool installed and run by the user on their own account. All managed directories, config files, SSH keys, and templates are owned by that user. The relevant threat model is accidental footguns (e.g. path traversal in user-supplied arguments), not multi-user or adversarial scenarios. Hardening that assumes an untrusted operator or attacker-controlled config is out of scope.
+
 ## Directory Structure (Expected)
 
 Projects are discovered by the presence of a `.claude/` directory, at any depth under BASE_DIR:
@@ -426,6 +439,48 @@ claude-mux -L
 ```
 
 All sessions should be running. Check `~/Library/Logs/claude-mux.log` for any errors.
+
+## Translation Standards
+
+When creating or updating translated READMEs in `translations/`, follow these rules for consistency.
+
+**Keep in English (load-bearing or universal):**
+- CLI flags and commands (`--guide`, `-l`, `--shutdown`, etc.)
+- Product/proper names (Claude Code, claude-mux, tmux, Remote Control, LaunchAgent, Homebrew, GitHub)
+- Real file paths and config keys (`~/.claude-mux/`, `BASE_DIR`, `DEFAULT_PERMISSION_MODE`, etc.)
+- Environment variable names
+- The "Session System Prompt" code block -- literal injected prompt text, not prose
+- Status keywords in tables (`active`, `running`, `stopped`, `idle`) -- literal program output strings
+
+**Translate to target language:**
+- Section headers and body prose
+- Conversational example labels (`You:` / `Claude:`) to native equivalents (`Tu:`, `あなた:`, `Du:`, etc.)
+- Conversational dialogue prose
+- Descriptive text in tables (around the status keywords)
+- Inline shell comments in code blocks (the `# ...` text after a command) -- these are explanatory prose, not code. Example: `claude-mux -l   # list active sessions` to `claude-mux -l   # liste les sessions actives` (French)
+
+**Placeholder translation in code examples -- script-aware:**
+- **Latin-script languages** (`es`, `fr`, `de`, `pt-BR`, `it`): translate generic placeholders like `~/path/to/your/project` to local equivalents (`~/ruta/a/tu/proyecto`, `~/chemin/vers/votre/projet`, `~/pfad/zu/deinem/projekt`)
+- **Non-Latin languages** (`ja`, `ko`, `zh-CN`, `he`, `ar`, `hi`, `ru`): keep ASCII placeholders -- mixing native script with ASCII paths in code blocks reads awkwardly. Use clearer English names if helpful (e.g., `~/projects/my-app`)
+- **Identifier-style example names** (`my-app`, `api-server`, `data-pipeline`): keep ASCII regardless of target language -- they are example identifiers, not prose
+
+**Tone and style:**
+- Match English tone: developer-direct, concise
+- No em dashes, no marketing fluff
+- No LLM-stereotype phrases: "leverage", "delve", "streamline", etc.
+- Use the formal/technical register appropriate to the target language
+
+## Deprecation Policy
+
+When changing or removing existing behavior:
+
+1. **Deprecate first**: print a warning when the old behavior is invoked. Keep it functional. Document under "Deprecated" in `CHANGELOG.md`.
+2. **Wait at least one minor version** (preferably two) before removing.
+3. **Removal**: drop the code, document under "Removed" in `CHANGELOG.md`. Keep a brief migration note.
+
+Example: `LAUNCHAGENT_MODE=batch` was deprecated in v1.4 and removed in v1.5. The legacy `LAUNCHAGENT_ENABLED=true` still works but maps to `home`.
+
+Don't remove features without warning users first. Don't break someone's working setup without an upgrade path.
 
 ## Resolved Implementation Notes
 

@@ -11,6 +11,15 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - **Installer dependency warnings**: warns (non-blocking) if tmux or claude are not found at install time.
 - **Installer upgrade mode**: detects existing `~/.claude-mux/config` and skips interactive prompts on reinstall, preserving user settings.
 
+### Fixed
+- **`send-keys` key-name injection**: all `tmux send-keys` calls now use `-l` (literal) flag for content, preventing tmux from interpreting text as key names.
+- **`-s` command validation**: slash commands sent via `-s` must start with `/` and cannot contain newlines, preventing accidental or malicious injection into other sessions.
+- **`perm_flags` shell injection**: permission mode flags in generated launch scripts are now split into name/value variables, preventing word-splitting or injection from a malformed mode value.
+- **TMPDIR guard**: expanded from single-quote check to reject spaces, dollar signs, backticks, and double quotes in TMPDIR.
+- **Temp file permissions**: explicit `chmod 600` on launch and prompt temp files after `mktemp`.
+- **JSON escaping for `CLAUDE_MUX_BIN`**: permissions.allow entry now passes the path directly to Python instead of interpolating into a JSON string literal, correctly handling backslashes and quotes in the path.
+- **Restart caller session**: `--restart` (all) now correctly recreates the calling session via a background handoff process instead of silently dropping it after SIGHUP.
+
 ### Changed
 - CLI Reference section moved to end of README (before Troubleshooting), reinforcing that conversational usage is primary.
 

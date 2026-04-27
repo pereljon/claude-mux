@@ -32,6 +32,11 @@
 - Offer to add new settings (with defaults) that didn't exist in the old config
 - Option B: pre-fill prompts with existing config values and let user change them
 
+### Example CLAUDE.md templates not shipped
+**Severity:** Low
+**Status:** Open - future improvement
+**Description:** `templates/` in the repo root should contain example CLAUDE.md templates (web, python, etc.) that `install.sh` optionally copies to `~/.claude-mux/templates/` during install. Currently users must create templates from scratch.
+
 ### macOS only - no Linux/systemd support
 **Severity:** Medium
 **Status:** Open - partially addressed (path detection done, LaunchAgent/installer remain macOS-only)

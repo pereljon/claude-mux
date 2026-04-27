@@ -469,9 +469,10 @@ LOG_FILE="$LOG_DIR/claude-mux.log"
 TMUX_BIN="${TMUX_BIN:-$(command -v tmux 2>/dev/null || true)}"
 CLAUDE_BIN="${CLAUDE_BIN:-$(command -v claude 2>/dev/null || true)}"
 
-# Validate TMPDIR is safe for use in single-quoted shell strings
-if [[ "${TMPDIR:-}" == *"'"* ]]; then
-    echo "ERROR: TMPDIR contains a single quote — cannot safely create temp files" >&2
+# Validate TMPDIR is safe for use in shell strings (no quotes, spaces, or shell metacharacters)
+if [[ "${TMPDIR:-}" =~ [\'\"\$\`\ \	] ]]; then
+    echo "ERROR: TMPDIR contains unsafe characters (quotes, spaces, or shell metacharacters)" >&2
+    echo "       Set TMPDIR to a path without special characters." >&2
     exit 1
 fi
 CLAUDE_MUX_BIN="$(command -v "$0" 2>/dev/null)"
@@ -895,7 +896,7 @@ shutdown_single_session() {
     fi
     if claude_running_in_session "$session"; then
         log "Sending /exit to session '$session'"
-        [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" "/exit" Enter
+        [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
         # Poll until Claude exits (max 10s, check every 0.5s)
         if [[ "$DRY_RUN" != "true" ]]; then
             _wait=0
@@ -958,7 +959,7 @@ shutdown_claude_sessions() {
         managed_list+=("$session")
         if claude_running_in_session "$session"; then
             log "Sending /exit to session '$session'"
-            [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" "/exit" Enter
+            [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
             (( exit_count++ ))
         fi
     done <<< "$sessions"
@@ -1246,17 +1247,18 @@ except: sys.exit(1)
 
     # Two forms: bare name (when Claude runs `claude-mux ...` from PATH) and
     # absolute path (when injection or scripts use the full path).
-    local mux_rules="[\"Bash(claude-mux)\", \"Bash(claude-mux *)\", \"Bash(${CLAUDE_MUX_BIN})\", \"Bash(${CLAUDE_MUX_BIN} *)\"]"
+    # The bin path is passed directly to python to avoid bash mangling of backslashes/quotes.
 
     if [[ -f "$settings_file" ]]; then
-        if ! /usr/bin/python3 - "$settings_file" "$mux_rules" >> "$LOG_FILE" 2>&1 << 'PYEOF'
+        if ! /usr/bin/python3 - "$settings_file" "$CLAUDE_MUX_BIN" >> "$LOG_FILE" 2>&1 << 'PYEOF'
 import json, sys
 try:
     with open(sys.argv[1]) as f: d = json.load(f)
 except (json.JSONDecodeError, OSError) as e:
     print(f"ERROR reading {sys.argv[1]}: {e}", file=sys.stderr)
     sys.exit(1)
-new_rules = json.loads(sys.argv[2])
+b = sys.argv[2]
+new_rules = ['Bash(claude-mux)', 'Bash(claude-mux *)', f'Bash({b})', f'Bash({b} *)']
 allow = d.setdefault('permissions', {}).setdefault('allow', [])
 for rule in new_rules:
     if rule not in allow:
@@ -1273,9 +1275,10 @@ PYEOF
     else
         /usr/bin/python3 -c "
 import json, sys
-d = {'permissions': {'allow': json.loads(sys.argv[1])}}
+b = sys.argv[1]
+d = {'permissions': {'allow': ['Bash(claude-mux)', 'Bash(claude-mux *)', f'Bash({b})', f'Bash({b} *)']}}
 with open(sys.argv[2], 'w') as f: json.dump(d, f, indent=2)
-" "$mux_rules" "$settings_file" 2>/dev/null
+" "$CLAUDE_MUX_BIN" "$settings_file" 2>/dev/null
     fi
 }
 
@@ -1394,40 +1397,44 @@ create_claude_session() {
     local tmux_prompt
     tmux_prompt="$(build_system_prompt "$session_name")"
 
-    # Build permission mode flags for the launch command
-    local perm_flags
+    # Build permission mode flags for the launch command.
+    # perm_flag_name and perm_flag_value are interpolated into the generated script below.
+    # They are safe because mode_override is validated against a whitelist by all callers
+    # (setmode dispatch at line ~2033, DEFAULT_PERMISSION_MODE at line ~427).
+    local perm_flag_name perm_flag_value
     if [[ "$mode_override" == "dangerously-skip-permissions" ]]; then
-        perm_flags="--dangerously-skip-permissions"
+        perm_flag_name="--dangerously-skip-permissions"
+        perm_flag_value=""
     elif [[ -n "$mode_override" ]]; then
-        perm_flags="--permission-mode ${mode_override}"
+        perm_flag_name="--permission-mode"
+        perm_flag_value="$mode_override"
     else
-        perm_flags="--permission-mode auto"
+        perm_flag_name="--permission-mode"
+        perm_flag_value="auto"
     fi
 
     # Write the launch command to a temp script to avoid quoting complexity.
     # A trap inside the script guarantees cleanup even if claude exits unexpectedly.
     # The prompt is written to a separate file to avoid any quoting issues in the heredoc.
     #
-    # NOTE: perm_flags, session_name, and model_flag are interpolated as text into this
-    # generated script. They are safe because perm_flags comes from a whitelist, session_name
-    # is stripped to [a-zA-Z0-9-] by sanitize_session_name, and model_flag is whitelisted.
-    # Any future caller of create_claude_session must ensure mode_override is validated
-    # before passing it in — the heredoc provides no further protection.
+    # NOTE: session_name is stripped to [a-zA-Z0-9-] by sanitize_session_name,
+    # model_flag is whitelisted, and perm_flag_value comes from a validated whitelist.
     local launch_script prompt_file
     launch_script=$(mktemp "${TMPDIR:-/tmp}/claude-launch-XXXXXX")
     prompt_file=$(mktemp "${TMPDIR:-/tmp}/claude-prompt-XXXXXX")
+    chmod 600 "$launch_script" "$prompt_file"
     printf '%s' "$tmux_prompt" > "$prompt_file"
     cat > "$launch_script" << LAUNCH_EOF
 #!/bin/bash
 trap 'rm -f "${launch_script}" "${prompt_file}"' EXIT
 export PATH="$(dirname "$CLAUDE_BIN"):\$PATH"
 _prompt=\$(cat '${prompt_file}')
-claude -c --remote-control ${perm_flags} --name '${session_name}' --append-system-prompt "\$_prompt" 2>/dev/null || \
-claude --remote-control ${perm_flags} --name '${session_name}' --append-system-prompt "\$_prompt"
+claude -c --remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --name '${session_name}' --append-system-prompt "\$_prompt" 2>/dev/null || \
+claude --remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --name '${session_name}' --append-system-prompt "\$_prompt"
 LAUNCH_EOF
     chmod +x "$launch_script"
 
-    if ! "$TMUX_BIN" send-keys -t "$session_name" "bash '${launch_script}'" Enter 2>/dev/null; then
+    if ! { "$TMUX_BIN" send-keys -t "$session_name" -l "bash '${launch_script}'" && "$TMUX_BIN" send-keys -t "$session_name" Enter; } 2>/dev/null; then
         log "WARN: send-keys failed for '$session_name', cleaning up temp script"
         rm -f "$launch_script" "$prompt_file"
         return
@@ -1446,7 +1453,7 @@ LAUNCH_EOF
         _pane=$("$TMUX_BIN" capture-pane -t "$session_name" -p 2>/dev/null) || continue
         if echo "$_pane" | grep -q "Yes, I trust this folder"; then
             log "Auto-accepting trust prompt for '$session_name'"
-            "$TMUX_BIN" send-keys -t "$session_name" "" Enter
+            "$TMUX_BIN" send-keys -t "$session_name" Enter
             # Wait a bit more for Claude to finish loading after trust accept
             sleep 2
             _ready=true
@@ -1459,10 +1466,10 @@ LAUNCH_EOF
         fi
     done
     if [[ "$_ready" == "true" ]]; then
-        "$TMUX_BIN" send-keys -t "$session_name" "ready" Enter 2>/dev/null
+        "$TMUX_BIN" send-keys -t "$session_name" -l "ready" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
     else
         log "WARN: Claude prompt not detected in '$session_name' after 10s, sending ready anyway"
-        "$TMUX_BIN" send-keys -t "$session_name" "ready" Enter 2>/dev/null
+        "$TMUX_BIN" send-keys -t "$session_name" -l "ready" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
     fi
 
     # Home session is always protected
@@ -1696,6 +1703,7 @@ launch_single_session() {
     local prompt_file launch_script
     prompt_file=$(mktemp "${TMPDIR:-/tmp}/claude-prompt-XXXXXX")
     launch_script=$(mktemp "${TMPDIR:-/tmp}/claude-launch-XXXXXX")
+    chmod 600 "$prompt_file" "$launch_script"
     printf '%s' "$tmux_prompt" > "$prompt_file"
     cat > "$launch_script" << LAUNCH_EOF
 #!/bin/bash
@@ -1728,13 +1736,13 @@ LAUNCH_EOF
             (( _poll++ ))
             _pane=$("$TMUX_BIN" capture-pane -t "$LAUNCH_SESSION_NAME" -p 2>/dev/null) || continue
             if echo "$_pane" | grep -q "Yes, I trust this folder"; then
-                "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" "" Enter 2>/dev/null
+                "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
                 sleep 2
                 break
             fi
             echo "$_pane" | grep -qE '^❯|^> ' && break
         done
-        "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" "ready" Enter 2>/dev/null
+        "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" -l "ready" 2>/dev/null && "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
     ) &
 
     if [[ "$NO_ATTACH" == "true" ]]; then
@@ -1908,7 +1916,15 @@ case "$COMMAND" in
             echo "Run 'claude-mux -l' to see available sessions." >&2
             exit 1
         fi
-        "$TMUX_BIN" send-keys -t "$SEND_SESSION" "$SEND_COMMAND" Enter
+        if [[ "$SEND_COMMAND" != /* ]]; then
+            echo "ERROR: -s only accepts slash commands (must start with /)" >&2
+            exit 1
+        fi
+        if [[ "$SEND_COMMAND" == *$'\n'* ]]; then
+            echo "ERROR: -s command cannot contain newlines" >&2
+            exit 1
+        fi
+        "$TMUX_BIN" send-keys -t "$SEND_SESSION" -l "$SEND_COMMAND" && "$TMUX_BIN" send-keys -t "$SEND_SESSION" Enter
         exit 0
         ;;
     shutdown) shutdown_claude_sessions; exit $? ;;
@@ -1984,36 +2000,61 @@ case "$COMMAND" in
                     done <<< "$_restart_list"
                 else
                     # If running inside a session that's in the restart list,
-                    # move it to the end so it restarts last (otherwise it can't
-                    # restart the remaining sessions).
+                    # separate it out. We can't kill-session on the caller because
+                    # this script is running in that pane (SIGHUP would kill us).
                     _caller_session=""
                     if [[ -n "${TMUX:-}" ]]; then
                         _caller_session=$("$TMUX_BIN" display-message -p '#{session_name}' 2>/dev/null) || _caller_session=""
                     fi
-                    _reordered_list=""
+                    _other_list=""
                     _caller_entry=""
                     while IFS='|' read -r _name _dir; do
                         [[ -z "$_name" ]] && continue
                         if [[ "$_name" == "$_caller_session" ]]; then
                             _caller_entry="${_name}|${_dir}"
                         else
-                            _reordered_list="${_reordered_list}${_name}|${_dir}
+                            _other_list="${_other_list}${_name}|${_dir}
 "
                         fi
                     done <<< "$_restart_list"
-                    if [[ -n "$_caller_entry" ]]; then
-                        _reordered_list="${_reordered_list}${_caller_entry}
-"
-                        log "Caller session '$_caller_session' moved to end of restart order"
-                    fi
 
+                    # Shut down and recreate all non-caller sessions
                     shutdown_claude_sessions
                     detect_github_ssh_accounts
                     while IFS='|' read -r _name _dir; do
                         [[ -z "$_name" ]] && continue
                         log "Restarting session '$_name' in $_dir"
                         create_claude_session "$_name" "$_dir"
-                    done <<< "$_reordered_list"
+                    done <<< "$_other_list"
+
+                    # Handle caller session last: spawn a background process that
+                    # recreates the session, then kills the old one. This avoids
+                    # SIGHUP killing this script before recreation completes.
+                    if [[ -n "$_caller_entry" ]]; then
+                        IFS='|' read -r _caller_name _caller_dir <<< "$_caller_entry"
+                        log "Restarting caller session '$_caller_name' via background handoff"
+                        (
+                            # Wait briefly for the main script to finish
+                            sleep 1
+                            # Shut down Claude in the caller session
+                            if "$TMUX_BIN" has-session -t "$_caller_name" 2>/dev/null; then
+                                "$TMUX_BIN" send-keys -t "$_caller_name" -l "/exit" && "$TMUX_BIN" send-keys -t "$_caller_name" Enter
+                                _w=0
+                                while [[ $_w -lt 20 ]]; do
+                                    # Check if Claude is still running, not just if the session exists
+                                    "$TMUX_BIN" has-session -t "$_caller_name" 2>/dev/null && claude_running_in_session "$_caller_name" || break
+                                    sleep 0.5
+                                    (( _w++ ))
+                                done
+                                "$TMUX_BIN" kill-session -t "$_caller_name" 2>/dev/null
+                            fi
+                            # Recreate the session
+                            if ! "$CLAUDE_MUX_BIN" -d "$_caller_dir" --no-attach 2>>"$LOG_FILE"; then
+                                echo "ERROR: Failed to recreate caller session '$_caller_name' in $_caller_dir" >> "$LOG_FILE"
+                            fi
+                        ) &
+                        disown
+                    fi
                 fi
 
                 log "=== claude-mux restart complete ==="
