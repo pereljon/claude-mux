@@ -37,6 +37,15 @@
 **Status:** Open - future improvement
 **Description:** `templates/` in the repo root should contain example CLAUDE.md templates (web, python, etc.) that `install.sh` optionally copies to `~/.claude-mux/templates/` during install. Currently users must create templates from scratch.
 
+### Submit to homebrew-core for brew.sh listing
+**Severity:** Low
+**Status:** Future - waiting on adoption
+**Description:** claude-mux is currently distributed via a personal tap (`pereljon/tap`). To appear on brew.sh, it needs to be accepted into homebrew-core. Homebrew's notability gate typically requires a few hundred GitHub stars before a shell script utility submission is accepted; low-star submissions are closed quickly.
+**When ready:**
+- Ensure formula passes `brew audit --strict --new`
+- Submit PR to `Homebrew/homebrew-core` with the formula
+- Note: macOS-only tools face higher reviewer scrutiny; Linux support (see below) would help
+
 ### macOS only - no Linux/systemd support
 **Severity:** Medium
 **Status:** Open - partially addressed (path detection done, LaunchAgent/installer remain macOS-only)

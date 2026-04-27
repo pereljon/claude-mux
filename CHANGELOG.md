@@ -4,6 +4,8 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-04-26
+
 ### Added
 - **Update notifications**: cached daily check against GitHub releases API. Displays one-line notification on interactive TTY when a newer version is available. Re-notifies weekly. Configurable via `UPDATE_CHECK=true/false`.
 - **`--update` self-update**: downloads latest release from GitHub (or delegates to `brew upgrade` if installed via Homebrew). Offers to restart running sessions after update.
@@ -149,7 +151,10 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - User config at `~/.claude-autorc` (later `~/.claude-mux/config`).
 - Logging to `~/Library/Logs/claude-autorc.log` (later `claude-mux.log`).
 
-[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/pereljon/claude-mux/compare/v1.6.2...v1.7.0
+[1.6.2]: https://github.com/pereljon/claude-mux/compare/v1.6.1...v1.6.2
+[1.6.1]: https://github.com/pereljon/claude-mux/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/pereljon/claude-mux/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/pereljon/claude-mux/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/pereljon/claude-mux/compare/v1.3.0...v1.4.0

@@ -96,6 +96,23 @@ claude-mux के अंदर यह सब होता है:
 
 ## इंस्टॉल
 
+### Homebrew (अनुशंसित)
+
+```bash
+brew tap pereljon/tap
+brew install claude-mux
+```
+
+कॉन्फिग (`~/.claude-mux/config`) पहली बार चलाने पर स्वचालित रूप से बनाई जाती है। LaunchAgent सेटअप (लॉगिन पर होम सेशन) के लिए, रिपोजिटरी को क्लोन करें और `install.sh` चलाएं।
+
+अपडेट करने के लिए:
+
+```bash
+brew upgrade claude-mux
+```
+
+### मैन्युअल
+
 ```bash
 ./install.sh
 ```

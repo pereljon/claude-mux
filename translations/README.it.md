@@ -98,6 +98,23 @@ Dietro le quinte, claude-mux gestisce:
 
 ## Installazione
 
+### Homebrew (consigliato)
+
+```bash
+brew tap pereljon/tap
+brew install claude-mux
+```
+
+La configurazione (`~/.claude-mux/config`) viene creata automaticamente al primo avvio. Per la configurazione del LaunchAgent (sessione home all'accesso), clona il repository ed esegui `install.sh`.
+
+Per aggiornare:
+
+```bash
+brew upgrade claude-mux
+```
+
+### Manuale
+
 ```bash
 ./install.sh
 ```

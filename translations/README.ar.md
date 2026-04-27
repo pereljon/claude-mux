@@ -96,6 +96,23 @@ Claude: يطبع قائمة الأوامر التحاورية كاملة
 
 ## التثبيت
 
+### Homebrew (موصى به)
+
+```bash
+brew tap pereljon/tap
+brew install claude-mux
+```
+
+يتم إنشاء الإعدادات (`~/.claude-mux/config`) تلقائياً عند التشغيل الأول. لإعداد LaunchAgent (جلسة رئيسية عند تسجيل الدخول)، انسخ المستودع وشغّل `install.sh`.
+
+للتحديث:
+
+```bash
+brew upgrade claude-mux
+```
+
+### يدوي
+
 ```bash
 ./install.sh
 ```

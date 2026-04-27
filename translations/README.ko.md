@@ -96,6 +96,23 @@ Claude: 전체 대화형 명령 목록을 출력합니다
 
 ## 설치
 
+### Homebrew (권장)
+
+```bash
+brew tap pereljon/tap
+brew install claude-mux
+```
+
+설정 파일(`~/.claude-mux/config`)은 첫 실행 시 자동으로 생성됩니다. LaunchAgent 설정(로그인 시 홈 세션)을 위해서는 저장소를 클론하고 `install.sh`를 실행하세요.
+
+업데이트하려면:
+
+```bash
+brew upgrade claude-mux
+```
+
+### 수동
+
 ```bash
 ./install.sh
 ```

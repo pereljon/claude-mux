@@ -96,6 +96,23 @@ Claude: מדפיס את רשימת הפקודות השיחותיות המלאה
 
 ## התקנה
 
+### Homebrew (מומלץ)
+
+```bash
+brew tap pereljon/tap
+brew install claude-mux
+```
+
+הגדרות (`~/.claude-mux/config`) נוצרות אוטומטית בהרצה הראשונה. להגדרת LaunchAgent (סשן בית בעת כניסה למערכת), יש לשכפל את המאגר ולהפעיל את `install.sh`.
+
+לעדכון:
+
+```bash
+brew upgrade claude-mux
+```
+
+### ידני
+
 ```bash
 ./install.sh
 ```

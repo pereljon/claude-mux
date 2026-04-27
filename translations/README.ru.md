@@ -96,6 +96,23 @@ Home-сессия всегда **защищена** — `--shutdown home` отк
 
 ## Установка
 
+### Homebrew (рекомендуется)
+
+```bash
+brew tap pereljon/tap
+brew install claude-mux
+```
+
+Конфигурация (`~/.claude-mux/config`) создаётся автоматически при первом запуске. Для настройки LaunchAgent (домашняя сессия при входе в систему) клонируйте репозиторий и запустите `install.sh`.
+
+Для обновления:
+
+```bash
+brew upgrade claude-mux
+```
+
+### Вручную
+
 ```bash
 ./install.sh
 ```

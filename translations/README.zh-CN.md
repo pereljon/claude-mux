@@ -98,6 +98,23 @@ Claude：打印完整的对话式命令列表
 
 ## 安装
 
+### Homebrew（推荐）
+
+```bash
+brew tap pereljon/tap
+brew install claude-mux
+```
+
+配置文件（`~/.claude-mux/config`）会在首次运行时自动创建。要设置 LaunchAgent（登录时的 home 会话），请克隆仓库并运行 `install.sh`。
+
+更新：
+
+```bash
+brew upgrade claude-mux
+```
+
+### 手动
+
 ```bash
 ./install.sh
 ```
