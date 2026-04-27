@@ -9,6 +9,14 @@ if [[ "$(id -u)" -eq 0 ]]; then
     exit 1
 fi
 
+# Check dependencies (warn, don't block — user may install them after)
+if ! command -v tmux &>/dev/null; then
+    echo "WARNING: tmux not found. Install with: brew install tmux" >&2
+fi
+if ! command -v claude &>/dev/null; then
+    echo "WARNING: Claude Code CLI not found. Install with: brew install claude" >&2
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_BASE_DIR="$HOME/Claude"
 BASE_DIR=""
