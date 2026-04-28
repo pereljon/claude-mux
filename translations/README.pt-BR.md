@@ -81,7 +81,7 @@ Digite `help` dentro de qualquer sessão para ver a lista completa de comandos.
 
 A sessão home é uma sessão de propósito geral que reside no seu diretório base (`~/Claude` por padrão). Ela inicia automaticamente no login quando `LAUNCHAGENT_MODE=home`, dando a você uma sessão do Claude sempre pronta, acessível pelo seu celular. Use-a para gerenciar todas as suas outras sessões sem precisar lançar sessões específicas de projeto primeiro.
 
-A sessão home é sempre **protegida** — `--shutdown home` se recusa a pará-la sem `--force`. Sessões protegidas são marcadas com `*` na saída de status (por exemplo, `active*`).
+A sessão home é sempre **protegida** — `--shutdown home` se recusa a pará-la sem `--force`.
 
 ## O Que Faz
 
@@ -113,12 +113,16 @@ brew tap pereljon/tap
 brew install claude-mux
 ```
 
-A configuração (`~/.claude-mux/config`) é criada automaticamente na primeira execução. Para configurar o LaunchAgent (sessão inicial no login), clone o repositório e execute `install.sh`.
+Após instalar, execute o comando de configuração:
+
+```bash
+claude-mux --install
+```
 
 Para atualizar:
 
 ```bash
-brew upgrade claude-mux
+brew upgrade claude-mux       # ou: claude-mux --update  (funciona de dentro de qualquer sessão)
 ```
 
 ### Manual
@@ -127,18 +131,24 @@ brew upgrade claude-mux
 ./install.sh
 ```
 
-O instalador interativo pergunta onde ficam seus projetos do Claude, se deve iniciar uma sessão home no login e qual modelo usar. Ele instala o `claude-mux` em `~/bin`, cria `~/.claude-mux/config` e configura o LaunchAgent.
+`install.sh` copia o binário para `~/bin` e adiciona ao `PATH`. Em seguida, execute:
+
+```bash
+claude-mux --install
+```
+
+A configuração interativa pergunta onde ficam seus projetos do Claude, se deve iniciar uma sessão home no login e qual modelo usar. Ela cria `~/.claude-mux/config` e instala o LaunchAgent.
 
 Use `--non-interactive` para pular os prompts e aceitar os padrões.
 
 Opções:
 
 ```bash
-./install.sh --non-interactive                     # pula prompts, usa padrões
-./install.sh --base-dir ~/work/claude              # usa um diretório base diferente
-./install.sh --launchagent-mode none               # desabilita o comportamento do LaunchAgent
-./install.sh --home-model haiku                    # usa Haiku para a sessão home
-./install.sh --no-launchagent                      # pula a instalação do LaunchAgent inteiramente
+claude-mux --install --non-interactive                     # pula prompts, usa padrões
+claude-mux --install --base-dir ~/work/claude              # usa um diretório base diferente
+claude-mux --install --launchagent-mode none               # desabilita o comportamento do LaunchAgent
+claude-mux --install --home-model haiku                    # usa Haiku para a sessão home
+claude-mux --install --no-launchagent                      # pula a instalação do LaunchAgent inteiramente
 ```
 
 O LaunchAgent executa `claude-mux --autolaunch` no login com 45 segundos de atraso para permitir que os serviços do sistema inicializem.
@@ -147,18 +157,18 @@ O LaunchAgent executa `claude-mux --autolaunch` no login com 45 segundos de atra
 
 | Status | Significado |
 |--------|-------------|
-| `active` | a sessão tmux existe, o Claude está em execução e há um cliente tmux local conectado |
-| `running` | a sessão tmux existe e o Claude está em execução (sem cliente local conectado) |
+| `running` | a sessão tmux existe e o Claude está em execução |
+| `protected` | igual a `running`, mas a sessão é protegida — `--shutdown` exige `--force` para parar. A sessão home é sempre protegida. |
 | `stopped` | a sessão tmux existe, mas o Claude foi encerrado |
 | `idle` | existe um projeto `.claude/` em `BASE_DIR`, mas sem sessão tmux do claude-mux em execução (mostrado apenas com `-L`) |
 
-Um `*` ao final de qualquer status indica que a sessão é protegida e exige `--force` para ser encerrada (por exemplo, `active*`, `running*`). A sessão home é sempre protegida.
+Um prefixo `>` no nome da sessão (por exemplo, `> home`) marca a sessão que executou o comando de listagem.
 
 Executar `claude-mux` em um diretório que já tem uma sessão em execução conecta-se a ela. Múltiplos terminais podem se conectar à mesma sessão (comportamento padrão do tmux).
 
 ## Configuração
 
-Na primeira execução, `~/.claude-mux/config` é criado automaticamente com todas as configurações comentadas. Edite-o para sobrescrever quaisquer padrões — o script nunca precisa ser modificado diretamente.
+`~/.claude-mux/config` é criado pelo `claude-mux --install` (ou na primeira execução de qualquer comando se nenhum config existir). Edite-o para sobrescrever quaisquer padrões — o script nunca precisa ser modificado diretamente.
 
 | Variável | Padrão | Descrição |
 |----------|--------|-----------|
@@ -220,6 +230,8 @@ Cada sessão do Claude é iniciada com `--append-system-prompt` contendo context
 
 ```
 You are running inside tmux session '<session-name>'.
+claude-mux version: <version>
+[Update available: <new-version> (found <date>). Tell the user and suggest they say "update claude-mux" to update.]
 claude-mux path: /path/to/claude-mux
 
 Rules:
@@ -253,6 +265,7 @@ Rules:
 - When user says: switch this session to MODEL model / switch session NAME to MODEL model
 - When user says: compact/clear this session / compact/clear session NAME
 - When user says: list templates — run claude-mux --list-templates
+- When user says: update claude-mux — warns about restart, gets confirmation, then runs --update and --restart
 
 Commands:
   -s '<session-name>' '/command'  Send slash command to yourself
@@ -269,10 +282,13 @@ Commands:
   --permission-mode MODE SESSION  Restart session with a different permission mode
                               Modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions
                               ("yolo" is an alias for dangerously-skip-permissions)
+  --update                    Update claude-mux to the latest version
   -a                          Start ALL sessions (use with caution)
 
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
 ```
+
+(A linha de atualização só é incluída quando uma atualização está disponível.)
 
 Quando `ALLOW_CROSS_SESSION_CONTROL=true`, o comando de envio muda para permitir mirar qualquer sessão, não apenas a si mesma. O caminho é o caminho absoluto do script no momento do lançamento, então as sessões não dependem do `PATH`.
 
@@ -308,6 +324,8 @@ claude-mux -a                    # inicia todas as sessões gerenciadas em BASE_
 # Outros
 claude-mux --list-templates      # mostra os templates CLAUDE.md disponíveis
 claude-mux --guide               # mostra os comandos conversacionais para uso dentro das sessões
+claude-mux --install             # configuração interativa: config + LaunchAgent
+claude-mux --update              # atualiza para a versão mais recente
 claude-mux --dry-run             # pré-visualiza ações sem executar
 claude-mux --version             # imprime a versão
 claude-mux --help                # mostra todas as opções

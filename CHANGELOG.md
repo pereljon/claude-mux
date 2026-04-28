@@ -4,6 +4,14 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.8.1] — 2026-04-28
+
+### Added
+- **Version in session prompt**: each session now receives the running claude-mux version (`claude-mux version: X.Y.Z`) in its system prompt injection. Claude can report the current version without running shell commands.
+- **Update notification in session**: if `~/.claude-mux/.update-check` contains a newer available version, the injection prompt instructs Claude to tell the user and suggest they say "update claude-mux".
+- **"update claude-mux" trigger**: new conversational command. Claude warns that all sessions will be restarted, asks for confirmation, then runs `claude-mux --update` followed by `claude-mux --restart`.
+- **`--install` and `--update` in session commands block**: both commands are now listed in the injection prompt's Commands reference so Claude knows about them.
+
 ## [1.8.0] — 2026-04-28
 
 ### Added

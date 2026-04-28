@@ -81,7 +81,7 @@ Claude: يطبع قائمة الأوامر التحاورية كاملة
 
 الجلسة الرئيسية هي جلسة عامة الغرض تعيش في دليلك الأساسي (`~/Claude` افتراضيًا). تُطلق تلقائيًا عند تسجيل الدخول حين يكون `LAUNCHAGENT_MODE=home`، مما يمنحك جلسة Claude واحدة جاهزة دائمًا يمكن الوصول إليها من هاتفك. استخدمها لإدارة جميع جلساتك الأخرى دون الحاجة إلى إطلاق جلسات لكل مشروع أولًا.
 
-الجلسة الرئيسية **محمية** دائمًا — `--shutdown home` يرفض إيقافها دون `--force`. الجلسات المحمية تُعلَّم بالعلامة `*` في مخرجات الحالة (مثل `active*`).
+الجلسة الرئيسية **محمية** دائمًا — `--shutdown home` يرفض إيقافها دون `--force`. الجلسات المحمية تظهر بالحالة `protected` في عمود الحالة؛ وتُمييز الجلسة الحالية بعلامة `>` في عمود الاسم.
 
 ## ما الذي يفعله
 
@@ -113,12 +113,16 @@ brew tap pereljon/tap
 brew install claude-mux
 ```
 
-يتم إنشاء الإعدادات (`~/.claude-mux/config`) تلقائياً عند التشغيل الأول. لإعداد LaunchAgent (جلسة رئيسية عند تسجيل الدخول)، انسخ المستودع وشغّل `install.sh`.
+بعد التثبيت، شغّل أمر الإعداد لإنشاء ملف الإعدادات وتثبيت LaunchAgent اختياريًا (جلسة رئيسية عند تسجيل الدخول):
+
+```bash
+claude-mux --install
+```
 
 للتحديث:
 
 ```bash
-brew upgrade claude-mux
+brew upgrade claude-mux       # أو: claude-mux --update  (يعمل من داخل أي جلسة)
 ```
 
 ### يدوي
@@ -127,18 +131,24 @@ brew upgrade claude-mux
 ./install.sh
 ```
 
-يسأل المُثبِّت التفاعلي عن مكان مشاريع Claude، وعمّا إذا كنت تريد بدء جلسة رئيسية عند تسجيل الدخول، وأي نموذج تستخدم. ثم يُثبِّت `claude-mux` في `~/bin`، ويُنشئ `~/.claude-mux/config`، ويُعدّ LaunchAgent.
+يقوم `install.sh` بنسخ الملف التنفيذي إلى `~/bin` وإضافته إلى `PATH`. بعد ذلك، شغّل:
+
+```bash
+claude-mux --install
+```
+
+يسأل الإعداد التفاعلي عن مكان مشاريع Claude، وعمّا إذا كنت تريد بدء جلسة رئيسية عند تسجيل الدخول، وأي نموذج تستخدم. ثم يُنشئ `~/.claude-mux/config` ويُثبِّت LaunchAgent.
 
 استخدم `--non-interactive` لتجاوز المطالبات وقبول القيم الافتراضية.
 
 الخيارات:
 
 ```bash
-./install.sh --non-interactive                     # تجاوز المطالبات واستخدم القيم الافتراضية
-./install.sh --base-dir ~/work/claude              # استخدام دليل أساسي مختلف
-./install.sh --launchagent-mode none               # تعطيل سلوك LaunchAgent
-./install.sh --home-model haiku                    # استخدام Haiku للجلسة الرئيسية
-./install.sh --no-launchagent                      # تخطي تثبيت LaunchAgent بالكامل
+claude-mux --install --non-interactive                     # تجاوز المطالبات واستخدم القيم الافتراضية
+claude-mux --install --base-dir ~/work/claude              # استخدام دليل أساسي مختلف
+claude-mux --install --launchagent-mode none               # تعطيل سلوك LaunchAgent
+claude-mux --install --home-model haiku                    # استخدام Haiku للجلسة الرئيسية
+claude-mux --install --no-launchagent                      # تخطي تثبيت LaunchAgent بالكامل
 ```
 
 يُشغِّل LaunchAgent الأمر `claude-mux --autolaunch` عند تسجيل الدخول مع تأخير بدء قدره 45 ثانية للسماح لخدمات النظام بالتهيئة.
@@ -147,18 +157,18 @@ brew upgrade claude-mux
 
 | الحالة | المعنى |
 |--------|--------|
-| `active` | جلسة tmux موجودة و Claude يعمل، وعميل tmux محلي ملحق |
-| `running` | جلسة tmux موجودة و Claude يعمل (بدون عميل محلي ملحق) |
+| `running` | جلسة tmux موجودة و Claude يعمل |
+| `protected` | مثل `running`، لكن الجلسة محمية — `--shutdown` يتطلب `--force` لإيقافها. الجلسة الرئيسية محمية دائمًا. |
 | `stopped` | جلسة tmux موجودة لكن Claude خرج |
 | `idle` | يوجد مشروع `.claude/` تحت `BASE_DIR` لكن لا توجد جلسة tmux من claude-mux تعمل (يظهر فقط مع `-L`) |
 
-علامة `*` في نهاية أي حالة تعني أن الجلسة محمية وتتطلب `--force` لإيقافها (مثل `active*` و `running*`). الجلسة الرئيسية محمية دائمًا.
+البادئة `>` على اسم الجلسة (مثل `> home`) تُشير إلى الجلسة التي نفّذت أمر القائمة.
 
 تشغيل `claude-mux` في دليل لديه جلسة قيد التشغيل بالفعل يُلحقك بها. يمكن لعدة طرفيات الإلحاق بالجلسة نفسها (سلوك tmux القياسي).
 
 ## التهيئة
 
-عند التشغيل لأول مرة، يُنشأ `~/.claude-mux/config` تلقائيًا مع تعطيل جميع الإعدادات بالتعليق. عدِّله لتجاوز أي قيم افتراضية — لا حاجة أبدًا لتعديل السكربت مباشرةً.
+يُنشأ `~/.claude-mux/config` بواسطة `claude-mux --install` (أو عند أول تشغيل لأي أمر إذا لم يكن الملف موجودًا). عدِّله لتجاوز أي قيم افتراضية — لا حاجة أبدًا لتعديل السكربت مباشرةً.
 
 | المتغير | الافتراضي | الوصف |
 |---------|-----------|-------|
@@ -220,6 +230,8 @@ brew upgrade claude-mux
 
 ```
 You are running inside tmux session '<session-name>'.
+claude-mux version: <version>
+[Update available: <new-version> (found <date>). Tell the user and suggest they say "update claude-mux" to update.]
 claude-mux path: /path/to/claude-mux
 
 Rules:
@@ -253,6 +265,7 @@ Rules:
 - When user says: switch this session to MODEL model / switch session NAME to MODEL model
 - When user says: compact/clear this session / compact/clear session NAME
 - When user says: list templates — run claude-mux --list-templates
+- When user says: update claude-mux — warns about restart, gets confirmation, then runs --update and --restart
 
 Commands:
   -s '<session-name>' '/command'  Send slash command to yourself
@@ -269,10 +282,13 @@ Commands:
   --permission-mode MODE SESSION  Restart session with a different permission mode
                               Modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions
                               ("yolo" is an alias for dangerously-skip-permissions)
+  --update                    Update claude-mux to the latest version
   -a                          Start ALL sessions (use with caution)
 
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
 ```
+
+(سطر التحديث اختياري — يظهر فقط عند توفر تحديث.)
 
 عندما يكون `ALLOW_CROSS_SESSION_CONTROL=true`، يتغير أمر الإرسال للسماح باستهداف أي جلسة، لا الجلسة نفسها فحسب. المسار هو المسار المطلق للسكربت وقت الإطلاق، فلا تعتمد الجلسات على `PATH`.
 
@@ -308,6 +324,8 @@ claude-mux -a                    # بدء جميع الجلسات المُدار
 # أخرى
 claude-mux --list-templates      # عرض قوالب CLAUDE.md المتاحة
 claude-mux --guide               # عرض الأوامر التحاورية للاستخدام داخل الجلسات
+claude-mux --install          # إعداد تفاعلي: الإعدادات + LaunchAgent
+claude-mux --update           # تحديث إلى أحدث إصدار
 claude-mux --dry-run             # معاينة الإجراءات دون تنفيذها
 claude-mux --version             # طباعة الإصدار
 claude-mux --help                # عرض جميع الخيارات

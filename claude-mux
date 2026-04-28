@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.8.0"
+VERSION="1.8.1"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -126,6 +126,7 @@ claude-mux conversational commands:
   compact this session / compact session [NAME]
   clear this session / clear session [NAME]
   list templates
+  update claude-mux
 EOF
 }
 
@@ -993,6 +994,35 @@ apply_tmux_options() {
         "$TMUX_BIN" set-option -t "$session" monitor-activity on 2>/dev/null
 }
 
+# Returns version line and optional update note for the system prompt.
+# Format: "claude-mux version: X.Y.Z" plus update note if a newer version is cached.
+get_version_prompt_lines() {
+    local version_line="claude-mux version: ${VERSION}"
+
+    local cache="$HOME/.claude-mux/.update-check"
+    if [[ ! -f "$cache" ]]; then
+        echo "$version_line"
+        return
+    fi
+
+    local last_check latest last_notify
+    read -r last_check latest last_notify < "$cache" 2>/dev/null || true
+
+    if [[ -z "$latest" ]] || ! version_gt "$latest" "$VERSION"; then
+        echo "$version_line"
+        return
+    fi
+
+    # Format check date — macOS (date -r) with Linux fallback (date -d @)
+    local check_date
+    if ! check_date=$(date -r "$last_check" +%Y-%m-%d 2>/dev/null); then
+        check_date=$(date -d "@${last_check}" +%Y-%m-%d 2>/dev/null) || check_date="recently"
+    fi
+
+    printf '%s\nUpdate available: %s (found %s). Tell the user and suggest they say "update claude-mux" to update.' \
+        "$version_line" "$latest" "$check_date"
+}
+
 # Build the system prompt injected into each Claude session
 build_system_prompt() {
     local session_name="$1"
@@ -1006,7 +1036,11 @@ build_system_prompt() {
 This is the home session: the always-on tmux session in your base directory. It launches at login, stays protected from shutdown, and is the default Remote Control entry point when no project sessions are running."
     fi
 
+    local version_lines
+    version_lines="$(get_version_prompt_lines)"
+
     local prompt="You are running inside tmux session '${session_name}'. claude-mux path: ${mux_bin}${home_line}
+${version_lines}
 
 Rules:
 - You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command. Never tell the user you cannot change models or run slash commands.
@@ -1032,6 +1066,7 @@ $(guide)
 - When user says: switch this session to MODEL model / switch session NAME to MODEL model — send /model MODEL via -s to the named or current session
 - When user says: compact this session / compact session NAME — send /compact via -s to the named or current session
 - When user says: clear this session / clear session NAME — send /clear via -s to the named or current session
+- When user says: update claude-mux — check the installed version and latest available; warn the user that all sessions will be restarted and ask for confirmation before proceeding; if confirmed, run claude-mux --update then claude-mux --restart
 - When user says: list templates — run claude-mux --list-templates
 - These trigger phrases work in any language. If the user types the equivalent intent in their native language (Spanish, French, German, Japanese, Hebrew, Arabic, Hindi, etc.), infer the intent and run the corresponding command. Output of claude-mux commands (lists, status, guide) is shown verbatim regardless of input language.
 
@@ -1051,6 +1086,7 @@ Commands:
                               Modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions
                               (\"yolo\" is an alias for dangerously-skip-permissions)
   -a                          Start ALL sessions (use with caution)
+  --update                    Update claude-mux to the latest version
 ${GITHUB_SSH_INFO}"
 
     echo "$prompt"

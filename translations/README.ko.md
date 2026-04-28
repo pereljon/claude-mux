@@ -81,7 +81,7 @@ Claude: 전체 대화형 명령 목록을 출력합니다
 
 홈 세션은 베이스 디렉터리(`~/Claude` 기본값)에 있는 범용 세션입니다. `LAUNCHAGENT_MODE=home`이면 로그인 시 자동으로 시작되어 휴대폰에서 항상 준비된 Claude 세션을 제공합니다. 프로젝트별 세션을 먼저 시작하지 않아도 다른 모든 세션을 관리할 수 있습니다.
 
-홈 세션은 항상 **보호** 상태입니다 - `--shutdown home`은 `--force` 없이는 중지를 거부합니다. 보호된 세션은 상태 출력에서 `*`로 표시됩니다(예: `active*`).
+홈 세션은 항상 **보호** 상태입니다 - `--shutdown home`은 `--force` 없이는 중지를 거부합니다. 보호된 세션은 상태 열에 `protected`로 표시됩니다. 현재 세션은 이름 열에서 `>`로 표시됩니다.
 
 ## 동작 방식
 
@@ -113,12 +113,16 @@ brew tap pereljon/tap
 brew install claude-mux
 ```
 
-설정 파일(`~/.claude-mux/config`)은 첫 실행 시 자동으로 생성됩니다. LaunchAgent 설정(로그인 시 홈 세션)을 위해서는 저장소를 클론하고 `install.sh`를 실행하세요.
+설치 후, 설정 명령을 실행하여 config를 만들고 LaunchAgent를 선택적으로 설치하세요(로그인 시 홈 세션):
+
+```bash
+claude-mux --install
+```
 
 업데이트하려면:
 
 ```bash
-brew upgrade claude-mux
+brew upgrade claude-mux       # 또는: claude-mux --update  (모든 세션 내에서 실행 가능)
 ```
 
 ### 수동
@@ -127,18 +131,24 @@ brew upgrade claude-mux
 ./install.sh
 ```
 
-대화형 설치 프로그램은 Claude 프로젝트가 어디에 있는지, 로그인 시 홈 세션을 시작할지, 어떤 모델을 사용할지 묻습니다. `claude-mux`를 `~/bin`에 설치하고 `~/.claude-mux/config`를 생성하며 LaunchAgent를 설정합니다.
+`install.sh`는 바이너리를 `~/bin`에 복사하고 `PATH`에 추가합니다. 그 다음, 실행하세요:
+
+```bash
+claude-mux --install
+```
+
+대화형 설정은 Claude 프로젝트가 어디에 있는지, 로그인 시 홈 세션을 시작할지, 어떤 모델을 사용할지 묻습니다. `~/.claude-mux/config`를 생성하고 LaunchAgent를 설치합니다.
 
 프롬프트를 건너뛰고 기본값을 사용하려면 `--non-interactive`를 사용하세요.
 
 옵션:
 
 ```bash
-./install.sh --non-interactive                     # 프롬프트 건너뛰기, 기본값 사용
-./install.sh --base-dir ~/work/claude              # 다른 베이스 디렉터리 사용
-./install.sh --launchagent-mode none               # LaunchAgent 동작 비활성화
-./install.sh --home-model haiku                    # 홈 세션에 Haiku 사용
-./install.sh --no-launchagent                      # LaunchAgent 설치 전부 건너뛰기
+claude-mux --install --non-interactive                     # 프롬프트 건너뛰기, 기본값 사용
+claude-mux --install --base-dir ~/work/claude              # 다른 베이스 디렉터리 사용
+claude-mux --install --launchagent-mode none               # LaunchAgent 동작 비활성화
+claude-mux --install --home-model haiku                    # 홈 세션에 Haiku 사용
+claude-mux --install --no-launchagent                      # LaunchAgent 설치 전부 건너뛰기
 ```
 
 LaunchAgent는 시스템 서비스 초기화를 위해 45초의 시작 지연을 두고 로그인 시 `claude-mux --autolaunch`를 실행합니다.
@@ -147,18 +157,18 @@ LaunchAgent는 시스템 서비스 초기화를 위해 45초의 시작 지연을
 
 | 상태 | 의미 |
 |--------|---------|
-| `active` | tmux 세션이 존재하고 Claude가 실행 중이며 로컬 tmux 클라이언트가 연결되어 있음 |
-| `running` | tmux 세션이 존재하고 Claude가 실행 중임 (로컬 클라이언트 연결 없음) |
+| `running` | tmux 세션이 존재하고 Claude가 실행 중임 |
+| `protected` | `running`과 동일하지만 세션이 보호됨 — `--shutdown`으로 중지하려면 `--force`가 필요. 홈 세션은 항상 보호됩니다. |
 | `stopped` | tmux 세션은 존재하지만 Claude가 종료됨 |
 | `idle` | `BASE_DIR` 아래에 `.claude/` 프로젝트가 존재하지만 claude-mux tmux 세션이 실행되지 않음 (`-L`에서만 표시) |
 
-상태 뒤의 `*`는 세션이 보호되어 있어 종료에 `--force`가 필요함을 나타냅니다(예: `active*`, `running*`). 홈 세션은 항상 보호됩니다.
+세션 이름의 `>` 접두사(예: `> home`)는 list 명령을 실행한 세션을 나타냅니다.
 
 이미 실행 중인 세션이 있는 디렉터리에서 `claude-mux`를 실행하면 해당 세션에 연결됩니다. 여러 터미널이 같은 세션에 연결할 수 있습니다(표준 tmux 동작).
 
 ## 구성
 
-처음 실행할 때 모든 설정이 주석 처리된 상태로 `~/.claude-mux/config`가 자동 생성됩니다. 기본값을 재정의하려면 이 파일을 편집하세요 - 스크립트 자체는 절대 수정할 필요가 없습니다.
+`~/.claude-mux/config`는 `claude-mux --install`로 생성됩니다 (또는 config가 없는 경우 명령어 첫 실행 시). 기본값을 재정의하려면 이 파일을 편집하세요 - 스크립트 자체는 절대 수정할 필요가 없습니다.
 
 | 변수 | 기본값 | 설명 |
 |----------|---------|-------------|
@@ -220,6 +230,8 @@ LaunchAgent는 시스템 서비스 초기화를 위해 45초의 시작 지연을
 
 ```
 You are running inside tmux session '<session-name>'.
+claude-mux version: <version>
+[Update available: <new-version> (found <date>). Tell the user and suggest they say "update claude-mux" to update.]
 claude-mux path: /path/to/claude-mux
 
 Rules:
@@ -253,6 +265,7 @@ Rules:
 - When user says: switch this session to MODEL model / switch session NAME to MODEL model
 - When user says: compact/clear this session / compact/clear session NAME
 - When user says: list templates — run claude-mux --list-templates
+- When user says: update claude-mux — warns about restart, gets confirmation, then runs --update and --restart
 
 Commands:
   -s '<session-name>' '/command'  Send slash command to yourself
@@ -269,10 +282,13 @@ Commands:
   --permission-mode MODE SESSION  Restart session with a different permission mode
                               Modes: default, acceptEdits, plan, auto, bypassPermissions, dontAsk, dangerously-skip-permissions
                               ("yolo" is an alias for dangerously-skip-permissions)
+  --update                    Update claude-mux to the latest version
   -a                          Start ALL sessions (use with caution)
 
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
 ```
+
+(업데이트 라인은 업데이트가 가능한 경우에만 포함됩니다.)
 
 `ALLOW_CROSS_SESSION_CONTROL=true`이면 send 명령이 자기 자신뿐 아니라 임의의 세션을 대상으로 지정할 수 있도록 변경됩니다. 경로는 시작 시점의 스크립트 절대 경로이므로 세션은 `PATH`에 의존하지 않습니다.
 
@@ -308,6 +324,8 @@ claude-mux -a                    # BASE_DIR 아래 모든 관리 세션 시작
 # 기타
 claude-mux --list-templates      # 사용 가능한 CLAUDE.md 템플릿 표시
 claude-mux --guide               # 세션 내에서 사용 가능한 대화형 명령 표시
+claude-mux --install             # 대화형 설정: config + LaunchAgent
+claude-mux --update              # 최신 버전으로 업데이트
 claude-mux --dry-run             # 실행하지 않고 동작 미리 보기
 claude-mux --version             # 버전 출력
 claude-mux --help                # 모든 옵션 표시

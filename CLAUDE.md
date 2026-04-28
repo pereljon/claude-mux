@@ -34,6 +34,8 @@ These affect how code changes should be made. Full architecture is in `implentat
 - **Output display tags**: listing commands wrap output in `<assistant-must-display>` XML tags when stdout is not a TTY
 - **Caller-last restart ordering**: `--restart` (all) from inside a session restarts the calling session last
 - **Home session**: session named `home` in `$BASE_DIR`, always protected, requires `--force` to shut down
+- **Version injection**: `get_version_prompt_lines()` reads `~/.claude-mux/.update-check`; if a newer version is cached, it appends an update note telling Claude to notify the user and suggest "update claude-mux"
+- **Session status**: `>` prefix marks the calling session (via `$TMUX_PANE`); `protected` status for protected+running sessions; `stopped` for protected+not-running
 
 ## Security Context
 
@@ -62,7 +64,7 @@ Each step requires explicit user approval. Approval for one step does not imply 
 
 1. **Commit**: propose the commit message and changed files, wait for approval before running `git commit`
 2. **Push**: wait for explicit approval before running `git push`
-3. **Release**: only the user can authorize a release (tag + push tag). "Commit" or "push" do not imply release.
+3. **Release**: only the user can authorize a release. A release requires all three: `git tag vX.Y.Z`, `git push origin vX.Y.Z`, and `gh release create vX.Y.Z`. "Commit" or "push" do not imply release. Pushing a tag alone does NOT create a GitHub Release.
 
 After completing work, proactively ask which steps the user wants: "Want to commit, push, or release?"
 

@@ -52,6 +52,15 @@
 **Description:** Uses macOS LaunchAgent (launchd) and macOS-specific tools. Path detection was refactored to use `command -v` (no longer hardcodes `/opt/homebrew/bin`), so the core script now works on any platform where tmux and claude are in PATH. LaunchAgent and installer remain macOS-specific.
 **Remaining:** systemd user unit, XDG Autostart fallback, `uname -s` dispatch in installer. Planned for v1.7.
 
+### ! commands not available in Remote Control
+**Severity:** Low
+**Status:** Open - needs design
+**Description:** Claude Code's `!` shell passthrough (e.g. `! claude-mux --update`) works in a terminal session but is not available in Remote Control. RC users have no shell to pass through to. Claude may suggest `! <command>` to users who are on RC, which will silently fail or confuse them.
+**Needs investigation:**
+- When and why would Claude suggest `! <command>` to users inside a claude-mux session
+- Whether the injection should tell Claude never to suggest `! <command>` to users
+- Whether RC context can be detected from inside a session
+
 ## Resolved
 
 ### Claude ignores injection and claims it cannot run slash commands
