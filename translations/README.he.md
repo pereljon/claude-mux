@@ -20,8 +20,16 @@ claude-mux פותר את כל אלה. הוא עוטף את Claude Code ב-tmux �
 ## התחלה מהירה
 
 ```bash
-./install.sh
+brew tap pereljon/tap
+brew install claude-mux
 ```
+
+```bash
+cd ~/path/to/your/project
+claude-mux
+```
+
+או:
 
 ```bash
 claude-mux ~/path/to/your/project

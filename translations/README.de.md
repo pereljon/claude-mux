@@ -22,8 +22,16 @@ claude-mux behebt all das. Es kapselt Claude Code in tmux, sodass Sitzungen pers
 ## Schnellstart
 
 ```bash
-./install.sh
+brew tap pereljon/tap
+brew install claude-mux
 ```
+
+```bash
+cd ~/pfad/zu/deinem/projekt
+claude-mux
+```
+
+Oder:
 
 ```bash
 claude-mux ~/pfad/zu/deinem/projekt

@@ -22,8 +22,16 @@ claude-mux résout tout cela. Il encapsule Claude Code dans tmux pour que les se
 ## Démarrage rapide
 
 ```bash
-./install.sh
+brew tap pereljon/tap
+brew install claude-mux
 ```
+
+```bash
+cd ~/chemin/vers/votre/projet
+claude-mux
+```
+
+Ou :
 
 ```bash
 claude-mux ~/chemin/vers/votre/projet

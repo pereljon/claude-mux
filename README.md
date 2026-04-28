@@ -20,8 +20,16 @@ claude-mux fixes all of this. It wraps Claude Code in tmux so sessions persist, 
 ## Quick Start
 
 ```bash
-./install.sh
+brew tap pereljon/tap
+brew install claude-mux
 ```
+
+```bash
+cd ~/path/to/your/project
+claude-mux
+```
+
+Or:
 
 ```bash
 claude-mux ~/path/to/your/project

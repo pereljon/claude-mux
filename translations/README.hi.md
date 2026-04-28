@@ -20,8 +20,16 @@ claude-mux यह सब ठीक करता है। यह Claude Code क
 ## त्वरित शुरुआत
 
 ```bash
-./install.sh
+brew tap pereljon/tap
+brew install claude-mux
 ```
+
+```bash
+cd ~/path/to/your/project
+claude-mux
+```
+
+या:
 
 ```bash
 claude-mux ~/path/to/your/project

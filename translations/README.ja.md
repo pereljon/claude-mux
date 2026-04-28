@@ -20,8 +20,16 @@ claude-mux はこれらをすべて解決します。Claude Code を tmux でラ
 ## クイックスタート
 
 ```bash
-./install.sh
+brew tap pereljon/tap
+brew install claude-mux
 ```
+
+```bash
+cd ~/path/to/your/project
+claude-mux
+```
+
+または：
 
 ```bash
 claude-mux ~/path/to/your/project

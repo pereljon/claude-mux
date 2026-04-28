@@ -22,8 +22,16 @@ claude-mux risolve tutto questo. Avvolge Claude Code in tmux in modo che le sess
 ## Avvio rapido
 
 ```bash
-./install.sh
+brew tap pereljon/tap
+brew install claude-mux
 ```
+
+```bash
+cd ~/percorso/al/tuo/progetto
+claude-mux
+```
+
+Oppure:
 
 ```bash
 claude-mux ~/percorso/al/tuo/progetto

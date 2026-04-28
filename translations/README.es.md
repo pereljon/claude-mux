@@ -20,8 +20,16 @@ claude-mux soluciona todo esto. Envuelve Claude Code en tmux para que las sesion
 ## Inicio rápido
 
 ```bash
-./install.sh
+brew tap pereljon/tap
+brew install claude-mux
 ```
+
+```bash
+cd ~/ruta/a/tu/proyecto
+claude-mux
+```
+
+O:
 
 ```bash
 claude-mux ~/ruta/a/tu/proyecto

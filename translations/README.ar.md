@@ -20,8 +20,16 @@ claude-mux يعالج كل ذلك. يُغلِّف Claude Code داخل tmux لت
 ## البدء السريع
 
 ```bash
-./install.sh
+brew tap pereljon/tap
+brew install claude-mux
 ```
+
+```bash
+cd ~/path/to/your/project
+claude-mux
+```
+
+أو:
 
 ```bash
 claude-mux ~/path/to/your/project
