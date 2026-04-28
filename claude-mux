@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.7.3"
+VERSION="1.7.4"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -739,7 +739,7 @@ $(guide)
 - When user says: status — report your session name, current model, current permission mode, context usage estimate, then run claude-mux -l and include the results
 - When user says: list active sessions — run claude-mux -l
 - When user says: list all sessions — run claude-mux -L
-- When user says: start session SESSION — run claude-mux -d SESSION --no-attach; confirm with "Started. SESSION is now running." — use the session name only, not the directory path (sessions appear by name in Remote Control)
+- When user says: start session SESSION — run claude-mux -d SESSION --no-attach; confirm with the session name only (e.g. Started. SESSION is now running.) — do not include the directory path, sessions appear by name in Remote Control
 - When user says: stop this session / stop session NAME — run claude-mux --shutdown with session name (or current session if none given)
 - When user says: stop all sessions — run claude-mux --shutdown
 - When user says: restart this session / restart session NAME — run claude-mux --restart with session name (or current session if none given)

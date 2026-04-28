@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.7.4] — 2026-04-27
+
+### Fixed
+- **Bash syntax error in injection prompt**: unescaped double quotes in the start-session confirmation example were terminating the `local prompt="..."` assignment in `build_system_prompt`, causing `--restart` and any other operation that builds the system prompt to fail with `local: ... not a valid identifier`. Reworded the example to avoid nested double quotes.
+
 ## [1.7.3] — 2026-04-27
 
 ### Fixed
@@ -174,6 +179,7 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - Logging to `~/Library/Logs/claude-autorc.log` (later `claude-mux.log`).
 
 [Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.7.1...HEAD
+[1.7.4]: https://github.com/pereljon/claude-mux/compare/v1.7.3...v1.7.4
 [1.7.3]: https://github.com/pereljon/claude-mux/compare/v1.7.2...v1.7.3
 [1.7.2]: https://github.com/pereljon/claude-mux/compare/v1.7.1...v1.7.2
 [1.7.1]: https://github.com/pereljon/claude-mux/compare/v1.7.0...v1.7.1
