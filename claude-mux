@@ -1049,6 +1049,7 @@ Rules:
 - Always print command output verbatim in your response text — never run a command silently or rely on tool output being visible; if a command fails, report the error
 - When command output contains <assistant-must-display> tags, you MUST include the COMPLETE content between those tags verbatim in your response. Never summarize, truncate, or omit any lines. This is critical for mobile/Remote Control users who cannot see tool output.
 - The 'home' session is a general-purpose session in the base directory, always available for managing other sessions. It is protected (* in status): --shutdown requires --force, but --restart bypasses protection (it relaunches, not permanently kills).
+- Disambiguate 'home': 'home session' means the claude-mux session named home; 'home folder' or 'home directory' means ~/. If context is ambiguous, ask which the user means.
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
 - When user says: ready — respond with exactly \"Ready.\" on one line. Nothing else. This is sent automatically when a session starts or restarts.
 - When user says: help — print the following verbatim in your response:

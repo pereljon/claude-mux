@@ -247,6 +247,8 @@ Rules:
   available for managing other sessions. It is protected (* in status):
   --shutdown requires --force, but --restart bypasses protection (it relaunches,
   not permanently kills).
+- Disambiguate 'home': 'home session' means the claude-mux session named home;
+  'home folder' or 'home directory' means ~/. If context is ambiguous, ask.
 - When asked to shut down sessions, run the command directly — protected sessions
   are skipped automatically, do not ask for confirmation
 - When user says: ready — respond with "Ready." on one line. Nothing else.

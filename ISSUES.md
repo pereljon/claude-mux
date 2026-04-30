@@ -54,12 +54,9 @@
 
 ### ! commands not available in Remote Control
 **Severity:** Low
-**Status:** Open - needs design
-**Description:** Claude Code's `!` shell passthrough (e.g. `! claude-mux --update`) works in a terminal session but is not available in Remote Control. RC users have no shell to pass through to. Claude may suggest `! <command>` to users who are on RC, which will silently fail or confuse them.
-**Needs investigation:**
-- When and why would Claude suggest `! <command>` to users inside a claude-mux session
-- Whether the injection should tell Claude never to suggest `! <command>` to users
-- Whether RC context can be detected from inside a session
+**Status:** Closed - not feasible
+**Description:** Claude Code's `!` shell passthrough is a Claude Code CLI input-handler feature — it intercepts `!command` before the shell sees it. tmux send-keys cannot replicate this: keystrokes sent while Claude Code is active go nowhere (tested: `!touch test` via send-keys did not execute). There is no path for claude-mux to implement `!command` bypass for RC users.
+**Resolution:** Add injection rule to tell Claude never to suggest `! <command>` to users, since RC users have no shell and terminal users can just type it themselves.
 
 ## Resolved
 
