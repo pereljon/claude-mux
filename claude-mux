@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.9.0"
+VERSION="1.9.1"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -1333,7 +1333,7 @@ Rules:
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
 - Use claude-mux for ALL session management. Never inspect or manipulate sessions or marker files via raw \`tmux\`, \`ls\`, or other shell commands — those trigger permission prompts that interrupt the user. claude-mux -l shows session status (running/protected/stopped). For checking marker-file existence (e.g. .claudemux-protected, .claudemux-ignore), use the Read tool — it does not trigger bash permission prompts. The trigger rules below cover every session management action.
 - Don't guess at claude-mux flags or behavior. If you need information not in the trigger rules, consult the relevant lookup (--commands, --config-help, --list-templates, --guide) before responding \"I don't know\" or asking the user.
-- When user says: ready — respond with exactly \"Ready.\" on one line. Nothing else. This is sent automatically when a session starts or restarts.
+- When user says: ready — respond with exactly \"Session ready!\" on one line. Nothing else. This is sent automatically when a session starts or restarts.
 - When user says: help — run claude-mux --guide and print the output verbatim in your response.
 - When user says: status — report your session name, current model, current permission mode, context usage estimate, then run claude-mux -l and include the results
 - When user says: list active sessions — run claude-mux -l
@@ -2443,10 +2443,10 @@ LAUNCH_EOF
         fi
     done
     if [[ "$_ready" == "true" ]]; then
-        "$TMUX_BIN" send-keys -t "$session_name" -l "ready" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
+        "$TMUX_BIN" send-keys -t "$session_name" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
     else
         log "WARN: Claude prompt not detected in '$session_name' after 10s, sending ready anyway"
-        "$TMUX_BIN" send-keys -t "$session_name" -l "ready" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
+        "$TMUX_BIN" send-keys -t "$session_name" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
     fi
 
     # Protect at launch if .claudemux-protected marker exists in working dir
@@ -2747,7 +2747,7 @@ LAUNCH_EOF
             fi
             echo "$_pane" | grep -qE '^❯|^> ' && break
         done
-        "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" -l "ready" 2>/dev/null && "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
+        "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
     ) &
 
     if [[ "$NO_ATTACH" == "true" ]]; then

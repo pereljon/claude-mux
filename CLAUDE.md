@@ -31,7 +31,7 @@ These affect how code changes should be made. Full architecture is in `implentat
 
 - **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name for self-referencing slash commands via `send-keys`
 - **Multi-coder symlinks**: `AGENTS.md`/`GEMINI.md` created as symlinks to `CLAUDE.md`. Configurable via `MULTI_CODER_FILES`.
-- **Ready trigger**: sends `ready` after Claude loads; expects "Ready." response to confirm session is alive
+- **Ready trigger**: sends `Ready?` after Claude loads; expects "Session ready!" response to confirm session is alive
 - **Output display tags**: listing commands wrap output in `<assistant-must-display>` XML tags when stdout is not a TTY
 - **Caller-last restart ordering**: `--restart` (all) from inside a session restarts the calling session last
 - **Home session**: session named `home` in `$BASE_DIR`, protected by default (via `$BASE_DIR/.claudemux-protected` marker, created by `--install`), requires `--force` to shut down
@@ -110,6 +110,8 @@ Each step requires explicit user approval. Approval for one step does not imply 
    - **Release order matters**: the Homebrew bump CI triggers on every `gh release create` and blindly sets the formula to that version. Always create releases in ascending version order. If backfilling an older release after a newer one is already live, manually update the tap formula afterward.
 
 After completing work, proactively ask which steps the user wants: "Want to commit, push, or release?"
+
+After a release completes, run `/compact`.
 
 ## Testing Plan
 

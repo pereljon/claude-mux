@@ -271,7 +271,7 @@ Rules:
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically
 - Use claude-mux for ALL session management. Never use raw tmux, ls, or other shell commands for session management.
 - Don't guess at claude-mux flags. If you need information not in the trigger rules, run the relevant lookup.
-- When user says: ready — respond with "Ready." on one line. Nothing else.
+- When user says: ready — respond with "Session ready!" on one line. Nothing else.
 - When user says: help — run claude-mux --guide and print the output verbatim
 - When user says: status — report session name, model, permission mode, context estimate, then run claude-mux -l
 - When user says: list active sessions — run claude-mux -l
@@ -395,9 +395,9 @@ Sessions must be authenticated (not showing "Not logged in"). After a clean auth
 
 The `/terminal-setup` command cannot run inside tmux. claude-mux enables tmux `extended-keys` by default (`TMUX_EXTENDED_KEYS=true`), which supports Shift+Enter in most modern terminals. If Shift+Enter doesn't work, use `\` + Return to enter newlines in your prompt.
 
-### "Ready." on session start
+### "Session ready!" on session start
 
-When a session starts or restarts, claude-mux automatically sends a `ready` message after Claude finishes loading. The injection tells Claude to respond with "Ready." and nothing else. This confirms the session is alive and the injection is working.
+When a session starts or restarts, claude-mux automatically sends a `Ready?` message after Claude finishes loading. The injection tells Claude to respond with "Session ready!" and nothing else. This confirms the session is alive and the injection is working.
 
 ### Slash commands over Remote Control
 

@@ -269,7 +269,7 @@ Rules:
   not permanently kills).
 - When asked to shut down sessions, run the command directly — protected sessions
   are skipped automatically, do not ask for confirmation
-- When user says: ready — respond with "Ready." on one line. Nothing else.
+- When user says: ready — respond with "Session ready!" on one line. Nothing else.
   Sent automatically when a session starts or restarts.
 - When user says: help — print the conversational commands list verbatim
 - When user says: status — report session name, current model, current permission

@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.9.1] — 2026-05-02
+
+### Changed
+- **Ready trigger**: claude-mux now sends `Ready?` (was `ready`) after a session starts. Expected response is `Session ready!` (was `Ready.`).
+
 ## [1.9.0] — 2026-05-01
 
 ### Added
@@ -248,7 +253,8 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - User config at `~/.claude-autorc` (later `~/.claude-mux/config`).
 - Logging to `~/Library/Logs/claude-autorc.log` (later `claude-mux.log`).
 
-[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.9.1...HEAD
+[1.9.1]: https://github.com/pereljon/claude-mux/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/pereljon/claude-mux/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/pereljon/claude-mux/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/pereljon/claude-mux/compare/v1.7.4...v1.8.0
