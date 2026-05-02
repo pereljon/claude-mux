@@ -69,7 +69,7 @@ Claude: plan permission mode के साथ सेशन पुनः शु�
 
 
 You: "switch this session to yolo mode"
-Claude: switches to bypassPermissions mode via Shift+Tab (no restart needed if already in the cycle)
+Claude: switches to bypassPermissions mode via Shift+Tab — no restart needed
 
 You: "what mode is this session"
 Claude: reports the current permission mode (default, acceptEdits, plan, bypassPermissions)
