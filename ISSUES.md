@@ -53,6 +53,63 @@
 - **L8** Same as M9: sequential trust + bypass prompts not handled by the polling loop.
 - **L9** "Yes, I accept" bypassPermissions detection is fragile to Claude UI text changes. Use `grep -qi "yes.*accept"` for resilience.
 
+### Project rename / move with history preservation
+**Severity:** Low
+**Status:** Open - planned feature
+**Description:** When a project directory is renamed or moved, its Claude Code history and memory are stored under the old encoded path in `~/.claude/projects/`. The new path gets no history — Claude Code starts fresh. There is currently no claude-mux command to handle this.
+**Proposed behavior:** `claude-mux --rename OLD NEW` / `claude-mux --move DIR DEST` — renames/moves the project directory and renames the corresponding `~/.claude/projects/` folder to the new encoded path. History and memory follow automatically since they live inside that folder. Marker files (`.claudemux-*`) travel with the project directory via the `mv` itself.
+**Notes:** Rename and move are the same operation under the hood (`mv`). The encoded path in `~/.claude/projects/` uses `-` for `/`, spaces, and most special characters — the rename must re-encode the new path correctly.
+**Additional registries to update (see ~/.claude structure notes below):**
+- `~/.claude/homunculus/projects.json` — contains a parallel project registry keyed by short hex UUID with a `root` path field. Must update the `root` value for the matching entry, or homunculus loses track of the project entirely.
+- `~/.claude/homunculus/projects/<uuid>/project.json` — also contains the `root` path. Must be updated in sync.
+- The `~/.claude/projects/` encoded folder rename handles history and memory automatically.
+
+### Project copy with history
+**Severity:** Low
+**Status:** Open - planned feature, requires investigation
+**Description:** Copying a project including its Claude Code history and memory is more complex than rename/move because new UUIDs must be established for the destination.
+**Proposed approach:**
+1. Create the new project directory (with optional git init and template)
+2. Start and immediately stop a session in it — Claude Code initializes `~/.claude/projects/-encoded-new-path/` with a fresh UUID and creates a new homunculus entry
+3. Copy `.jsonl` history files from the source `~/.claude/projects/` folder into the destination folder
+4. Copy the `memory/` folder contents — pure markdown, no UUIDs embedded, safe to copy directly
+5. Copy UUID subdirectories (task/plan artifacts) alongside their `.jsonl` files
+6. For homunculus: copy `observations.jsonl`, `instincts`, `evolved`, `observations.archive` from source `~/.claude/homunculus/projects/<src-uuid>/` into the new destination's homunculus folder — keeping the new project UUID assigned in step 2
+**Open questions requiring testing:**
+- Do `.jsonl` files embed the source project path in their content or metadata? If so, copied history would reference the old path.
+- Are UUID subdirectories referenced by UUID from within `.jsonl` files? If so, they must be copied under their original UUIDs, not remapped.
+- Does Claude Code read all `.jsonl` files in a project folder, or only the one matching the active session UUID?
+- What does `~/.claude/homunculus/projects/<uuid>/evolved` and `instincts` contain — are they derived/computed or user-meaningful? Worth preserving in a copy?
+- Are there any other internal references that would break a naive file copy?
+**Prerequisite:** Test the above before implementing to avoid shipping a copy command that produces subtly broken history.
+
+### Tip of the day
+**Severity:** Low
+**Status:** Open - planned feature
+**Description:** A rotating tip shown at session start and available on demand, surfacing features users may not know about.
+**Proposed behavior:**
+- `claude-mux --tip` prints a single tip (usable standalone or from inside a session)
+- Conversational trigger: "tip" or "tip of the day" — Claude calls `--tip` and displays it
+- On session start: if `TIP_OF_DAY=true` (default), show a tip once per day. Daily gate checked via `~/.claude-mux/.tip-date` (stores last date shown, per-user not per-session — all sessions on the same day see the same tip, only the first session of the day shows it automatically)
+- Selection: date-based hash by default (`day_of_year % num_tips`) so the same tip shows all day; `TIP_MODE=random` for pure random
+- Config options: `TIP_OF_DAY=true/false` (disable entirely), `TIP_MODE=daily|random`
+**Implementation notes:**
+- Tips stored as a numbered bash array embedded in the script. Source of truth is `internal/tips.md` in the repo.
+- No external file dependency at runtime — tips travel with the binary.
+- `--tip` output should be short: one tip, 1-3 lines, no header/footer noise. Just the tip text.
+- See `internal/tips.md` for the full tips list.
+
+### Demo video
+**Severity:** Low
+**Status:** Open - planned asset
+**Description:** A screen recording showing claude-mux from curl install through common and interesting commands, with terminal and Remote Control visible simultaneously.
+**Format:** Split screen, single take. Terminal (full claude-mux session) on the left, RC on iPhone mirrored via QuickTime on the right. Both live at the same time — the viewer sees actions in RC immediately reflected in the terminal and vice versa.
+**See:** `internal/demo-script.md` for the full shot-by-shot outline.
+**Notes:**
+- The key shot is typing in RC on the phone and watching the terminal respond in real time
+- No editing required beyond trim — single continuous recording
+- Host on YouTube + embed in README; also useful for Product Hunt launch
+
 ### Submit to homebrew-core for brew.sh listing
 **Severity:** Low
 **Status:** Future - waiting on adoption
@@ -62,17 +119,58 @@
 - Submit PR to `Homebrew/homebrew-core` with the formula
 - Note: macOS-only tools face higher reviewer scrutiny; Linux support (see below) would help
 
+### curl install support (macOS + Linux)
+**Severity:** Low
+**Status:** Open - planned for v1.10
+**Description:** A curl-based install path that works on both macOS and Linux without requiring Homebrew or a package manager. The mechanism is already essentially in place (`install.sh` + `--update` self-replace), but it needs to be documented, tested, and promoted as a first-class install method.
+**Proposed:**
+```bash
+curl -fsSL https://github.com/pereljon/claude-mux/releases/latest/download/install.sh | bash
+```
+- Downloads and runs `install.sh`, which pulls the binary and runs `claude-mux --install`
+- `--update` already handles self-replace from GitHub releases for non-brew installs
+- Works on macOS (alternative to Homebrew), Linux (primary method until distro packages exist), and WSL2
+**Notes:** WSL2 on Windows gets this for free — Claude Code runs in WSL2, tmux runs in WSL2, curl install works unchanged. No separate Windows support needed.
+**README change (v1.10):** Promote curl to primary install method in Quick Start. Move Homebrew to "macOS alternative" below it. curl works for any user on any platform with no prerequisites; Homebrew requires Homebrew to be installed first.
+
 ### macOS only - no Linux/systemd support
 **Severity:** Medium
 **Status:** Open - partially addressed (path detection done, LaunchAgent/installer remain macOS-only)
 **Description:** Uses macOS LaunchAgent (launchd) and macOS-specific tools. Path detection was refactored to use `command -v` (no longer hardcodes `/opt/homebrew/bin`), so the core script now works on any platform where tmux and claude are in PATH. LaunchAgent and installer remain macOS-specific.
-**Remaining:** systemd user unit, XDG Autostart fallback, `uname -s` dispatch in installer. Planned for v1.7.
+**Remaining:** systemd user unit, XDG Autostart fallback, `uname -s` dispatch in installer.
+**Package strategy (v1.10+):**
+- curl install: universal fallback, works everywhere (see above)
+- AUR: low effort, high reach for the target audience on Arch/Manjaro
+- apt PPA: when there's demand from Debian/Ubuntu users
+- Homebrew on Linux: covers users who already have it
+- Snap/Flatpak: not worth it for a bash script
 
 ### ! commands not available in Remote Control
 **Severity:** Low
 **Status:** Closed - not feasible
 **Description:** Claude Code's `!` shell passthrough is a Claude Code CLI input-handler feature — it intercepts `!command` before the shell sees it. tmux send-keys cannot replicate this: keystrokes sent while Claude Code is active go nowhere (tested: `!touch test` via send-keys did not execute). There is no path for claude-mux to implement `!command` bypass for RC users.
 **Resolution:** Add injection rule to tell Claude never to suggest `! <command>` to users, since RC users have no shell and terminal users can just type it themselves.
+
+---
+
+## v2.0 Milestone
+
+Architectural changes significant enough to warrant a major version bump. Not scheduled — collected here so they don't get lost.
+
+### Data directory separation
+Move static data (tips, default templates, possibly command/guide output) out of the script and into a platform-appropriate data directory. The script would resolve `DATA_DIR` at startup relative to the binary location, with embedded fallbacks for single-file installs.
+
+- Homebrew (Apple Silicon): `/opt/homebrew/share/claude-mux/`
+- Homebrew (Intel): `/usr/local/share/claude-mux/`
+- Linux: `/usr/local/share/claude-mux/` or `$XDG_DATA_DIRS`
+- Manual install: fallback to embedded defaults (single-file installs keep working)
+
+Trigger: when the embedded data (tips, default templates) grows large enough to make the script hard to read, or when default templates need to ship via brew independently of script releases.
+
+### Language / runtime reconsideration
+The monolithic bash script is the right call at current scope. If claude-mux grows significantly — project rename/move/copy operations, a relay layer, cross-platform packaging, a data directory — bash starts fighting back. At that point, rewriting the session management core in Go or another typed language (with bash as a thin CLI wrapper) is worth evaluating.
+
+---
 
 ## Resolved
 
@@ -101,3 +199,55 @@
 ### Bash 3.2 incompatibility (declare -A)
 **Resolved in:** commit 575eac1
 **Fix:** Replaced associative arrays with string-based collision detection.
+
+---
+
+## Reference: ~/.claude Folder Structure
+
+Documented here because several planned features (rename, move, copy, cleanup) must interact with this structure correctly. Not exhaustive — covers the parts relevant to claude-mux.
+
+### Project history and memory: `~/.claude/projects/`
+
+One subdirectory per working directory Claude Code has been used in. Named by encoding the absolute path: `/` → `-`, spaces and special characters → `-`. Lossy but readable.
+
+Contents of each project folder:
+- `<uuid>.jsonl` — full conversation transcript for that session. One file per conversation.
+- `<uuid>/` — subdirectory of artifacts associated with a conversation (tasks, plans). UUID matches the `.jsonl` file.
+- `memory/` — persistent cross-session memory files (markdown with frontmatter). Present only if memory has been written for the project.
+
+The link between a working directory and its history is purely the encoded folder name. Renaming or moving the project directory without renaming this folder causes Claude Code to start fresh with no history.
+
+**Encoding rule:** absolute path with every `/`, space, and special character replaced by `-`. Leading `/` becomes a leading `-`. Encoding is lossy — consecutive special characters and spaces adjacent to slashes both become `-`, so the original cannot always be perfectly reconstructed.
+
+### Parallel observability registry: `~/.claude/homunculus/`
+
+A separate system that tracks tool-level events per project. Not part of core Claude Code history — appears to be a monitoring/learning layer.
+
+- `projects.json` — registry of all known projects, keyed by short hex UUID (`d6b3aef60967`, etc.). Each entry has: `id`, `name`, `root` (absolute path), `remote`, `created_at`, `last_seen`.
+- `projects/<uuid>/project.json` — per-project metadata (same fields as the registry entry).
+- `projects/<uuid>/observations.jsonl` — timestamped `tool_start`/`tool_complete` events: tool name, session UUID, project name/id, input/output snippets.
+- `projects/<uuid>/instincts` — derived patterns (contents unknown, likely computed).
+- `projects/<uuid>/evolved` — evolved/learned state (contents unknown).
+- `projects/<uuid>/observations.archive` — archived older observations.
+
+**Key difference from `~/.claude/projects/`:** Uses short hex UUIDs as keys, not encoded paths. The `root` field holds the absolute path. Any operation that changes a project's path (rename, move) must update `root` in both `projects.json` and `projects/<uuid>/project.json`.
+
+### Global config: `~/.claude/settings.json`
+
+Main Claude Code settings file. Rolling backups written to `~/.claude/backups/` as `~/.claude.json.backup.<timestamp>` — several per hour during active use. claude-mux should not touch this file.
+
+### Global agents, skills, commands
+
+- `~/.claude/agents/` — subagent definitions (`.md` files, ~38). Global, not per-project.
+- `~/.claude/skills/` — skill directories (~125). Global, not per-project.
+- `~/.claude/commands/` — slash command definitions (`.md` files, ~72). Global, not per-project.
+- `~/.claude/hooks/hooks.json` — hook definitions. Global. claude-mux should not touch these.
+
+### Potential future features
+
+| Feature | What to touch |
+|---------|--------------|
+| `--rename` / `--move` | `mv` project dir; rename `~/.claude/projects/` encoded folder; update `root` in `~/.claude/homunculus/projects.json` and `projects/<uuid>/project.json` |
+| `--copy` | Create dir; start+stop session to init both registries; copy `.jsonl` + `memory/` + UUID subdirs; copy homunculus observation files into new UUID folder |
+| `--delete` cleanup | Already trashes the project folder. Optionally: remove orphaned `~/.claude/projects/` encoded folder and `~/.claude/homunculus/` entry |
+| History size warning | Alert when a project's `.jsonl` files exceed a threshold (the main claude-mux transcript hit 107MB in a single long session) |

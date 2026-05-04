@@ -4,10 +4,13 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
-## [1.9.1] — 2026-05-02
+## [1.9.1] — 2026-05-04
 
 ### Changed
 - **Ready trigger**: claude-mux now sends `Ready?` (was `ready`) after a session starts. Expected response is `Session ready!` (was `Ready.`).
+
+### Fixed
+- **`--hide` on home directory**: `--hide` now refuses with an error if the target directory is `$BASE_DIR`. Hiding the home session from listings served no useful purpose and removed the always-on anchor from `-L` output.
 
 ## [1.9.0] — 2026-05-01
 

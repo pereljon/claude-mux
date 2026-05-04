@@ -1856,6 +1856,14 @@ hide_command() {
         return 1
     fi
 
+    local norm_dir norm_base
+    norm_dir=$(cd "$dir" 2>/dev/null && pwd) || norm_dir="$dir"
+    norm_base=$(cd "$BASE_DIR" 2>/dev/null && pwd) || norm_base="$BASE_DIR"
+    if [[ "$norm_dir" == "$norm_base" ]]; then
+        echo "ERROR: Cannot hide the home session directory" >&2
+        return 1
+    fi
+
     local marker="$dir/.claudemux-ignore"
     if [[ -f "$marker" ]]; then
         echo "Already hidden: $(basename "$dir")"
