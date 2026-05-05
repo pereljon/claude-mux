@@ -222,12 +222,13 @@ Per-project state lives in marker files at the project root, not in central conf
 | `.claudemux-ignore` | Project is hidden from `claude-mux -L` listings | `--hide` / `--show` |
 
 ```bash
-claude-mux --hide                    # hide current project from -L listings
-claude-mux --show                    # unhide current project
+claude-mux --hide                    # hide current session's project from -L listings
+claude-mux --hide my-project         # hide a specific session's project
+claude-mux --show my-project         # unhide a project
 claude-mux --protect                 # protect this session from accidental shutdown
 claude-mux --unprotect               # remove protection
 claude-mux -L --hidden               # list only hidden projects
-claude-mux --delete ~/projects/old   # move project folder to system trash (macOS)
+claude-mux --delete my-project       # move project folder to system trash (macOS)
 ```
 
 Markers travel with the project folder across renames and moves. A single `.gitignore` pattern (`.claudemux-*`) covers all current and future markers.
@@ -337,7 +338,7 @@ Rules:
 - When user says: protect this session / protect SESSION — run claude-mux --protect
 - When user says: unprotect this session / unprotect SESSION — run claude-mux --unprotect
 - When user says: is this hidden / is this protected — check for .claudemux-ignore or .claudemux-protected
-- When user says: delete this project / delete PROJECT — confirm in chat first, then run claude-mux --delete DIR --yes
+- When user says: delete this project / delete PROJECT — confirm in chat first, then run claude-mux --delete SESSION --yes
 - When user says: list templates — run claude-mux --list-templates
 - These trigger phrases work in any language.
 
@@ -348,7 +349,7 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Force-shutdown a protected session (--shutdown SESSION --force)
   - Hide/show projects (--hide / --show)
   - Protect/unprotect sessions (--protect / --unprotect)
-  - Move a project to trash (--delete DIR — macOS; honors protection unless --force)
+  - Move a project to trash (--delete SESSION — macOS; honors protection unless --force)
   - Show all config options (--config-help)
   - Run interactive setup or reconfigure (--install)
   - Update claude-mux (--update)
@@ -389,14 +390,16 @@ claude-mux --restart                     # restart all running sessions
 claude-mux --permission-mode plan my-app  # restart session with plan mode
 claude-mux -a                    # start all managed sessions under BASE_DIR
 
-# Project markers
-claude-mux --hide                # hide current project from -L listings
-claude-mux --hide ~/projects/old # hide a specific project
-claude-mux --show                # unhide current project
+# Project markers (all commands use session names, not paths)
+claude-mux --hide                # hide current session's project from -L listings
+claude-mux --hide my-project     # hide a specific project by session name
+claude-mux --show my-project     # unhide a project
 claude-mux --protect             # protect this session from accidental shutdown
 claude-mux --unprotect           # remove protection
-claude-mux --delete ~/projects/old       # move project folder to system trash (macOS)
-claude-mux --delete ~/projects/old --yes # same, skip confirmation prompt
+claude-mux --delete my-project           # move project folder to system trash (macOS)
+claude-mux --delete my-project --yes     # same, skip confirmation prompt
+claude-mux --rename my-project new-name  # rename project directory
+claude-mux --move my-project ~/Claude/work  # move project to a new parent
 
 # Other
 claude-mux --list-templates      # show available CLAUDE.md templates

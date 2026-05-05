@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.10.1"
+VERSION="1.11.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -114,9 +114,9 @@ RESTART_SESSIONS=()
 SETMODE_VALUE=""
 SETMODE_SESSIONS=()
 GETMODE_SESSION=""
-HIDE_DIR=""
-PROTECT_DIR=""
-DELETE_DIR=""
+HIDE_SESSION=""
+PROTECT_SESSION=""
+DELETE_SESSION=""
 DELETE_YES=false
 SAVE_TEMPLATE_NAME=""
 SAVE_TEMPLATE_DIR=""
@@ -185,7 +185,7 @@ Self-targeting (works inside sessions):
   -n DIR --no-attach       New project (with -p for parent dirs)
   --template NAME          CLAUDE.md template for -n
   --list-templates         Show available templates
-  --save-template NAME [DIR]  Save CLAUDE.md as a template (default: current dir)
+  --save-template NAME [SESSION]  Save CLAUDE.md as a template (default: current session)
   --shutdown SESSION...    Shut down sessions (omit SESSION for all)
   --shutdown ... --force   Override protection
   --restart SESSION...     Restart sessions
@@ -194,15 +194,15 @@ Self-targeting (works inside sessions):
                            bypassPermissions
                            ("yolo" is an alias for bypassPermissions)
   --get-mode [SESSION]     Print current permission mode of a session
-  --hide [DIR]             Hide project from listings (touches .claudemux-ignore)
-  --show [DIR]             Restore project visibility
-  --protect [DIR]          Protect a project's session at launch
+  --hide [SESSION]          Hide project from listings (touches .claudemux-ignore)
+  --show [SESSION]          Restore project visibility
+  --protect [SESSION]       Protect a project's session at launch
                            (touches .claudemux-protected; toggles tmux marker)
-  --unprotect [DIR]        Remove protection
-  --delete DIR             Move project folder to system trash (macOS only).
+  --unprotect [SESSION]     Remove protection
+  --delete SESSION          Move project folder to system trash (macOS only).
                            --force overrides protection; --yes skips prompt.
-  --rename OLD NEW         Rename project directory, migrate history and homunculus
-  --move SRC DEST          Move project into DEST parent, migrate history and homunculus
+  --rename SESSION NAME     Rename project directory, migrate history and homunculus
+  --move SESSION PATH       Move project into PATH parent, migrate history and homunculus
                            Both: --force overrides protection; --dry-run previews steps
   --tip                    Print a tip (standalone; no daily gate)
   --config-help            List all valid config options
@@ -338,11 +338,11 @@ Commands:
                           With --include-hidden: include hidden projects
                           With --hidden: show only hidden projects
   --list-templates      Show available CLAUDE.md templates
-  --hide [DIR]          Hide project from listings (creates .claudemux-ignore)
-  --show [DIR]          Restore project visibility (removes .claudemux-ignore)
-  --protect [DIR]       Protect a project's session at launch (creates .claudemux-protected)
-  --unprotect [DIR]     Remove protection (deletes .claudemux-protected)
-  --delete DIR          Move a project folder to the system trash (macOS)
+  --hide [SESSION]      Hide project from listings (creates .claudemux-ignore)
+  --show [SESSION]      Restore project visibility (removes .claudemux-ignore)
+  --protect [SESSION]   Protect a project's session at launch (creates .claudemux-protected)
+  --unprotect [SESSION] Remove protection (deletes .claudemux-protected)
+  --delete SESSION      Move a project folder to the system trash (macOS)
                           Honors protection unless --force; prompts unless --yes.
   --shutdown [SESSION...]  Shut down all managed sessions, or specific session(s)
   --restart [SESSION...]   Restart specific session(s), or all that were running
@@ -458,35 +458,35 @@ while [[ $# -gt 0 ]]; do
             set_command "--hide" "hide"
             shift
             if [[ $# -gt 0 && "$1" != -* ]]; then
-                HIDE_DIR="$1"; shift
+                HIDE_SESSION="$1"; shift
             fi
             ;;
         --show)
             set_command "--show" "show"
             shift
             if [[ $# -gt 0 && "$1" != -* ]]; then
-                HIDE_DIR="$1"; shift
+                HIDE_SESSION="$1"; shift
             fi
             ;;
         --protect)
             set_command "--protect" "protect"
             shift
             if [[ $# -gt 0 && "$1" != -* ]]; then
-                PROTECT_DIR="$1"; shift
+                PROTECT_SESSION="$1"; shift
             fi
             ;;
         --unprotect)
             set_command "--unprotect" "unprotect"
             shift
             if [[ $# -gt 0 && "$1" != -* ]]; then
-                PROTECT_DIR="$1"; shift
+                PROTECT_SESSION="$1"; shift
             fi
             ;;
         --delete)
             set_command "--delete" "delete"
             shift
             if [[ $# -gt 0 && "$1" != -* ]]; then
-                DELETE_DIR="$1"; shift
+                DELETE_SESSION="$1"; shift
             fi
             ;;
         --save-template)
@@ -501,13 +501,13 @@ while [[ $# -gt 0 ]]; do
         --rename)
             set_command "--rename" "rename"
             shift
-            [[ $# -lt 2 || "$1" == -* || "$2" == -* ]] && { echo "ERROR: --rename requires OLD NEW" >&2; exit 1; }
+            [[ $# -lt 2 || "$1" == -* || "$2" == -* ]] && { echo "ERROR: --rename requires SESSION NAME" >&2; exit 1; }
             RENAME_SRC="$1"; RENAME_DST="$2"; RENAME_MODE="rename"; shift 2
             ;;
         --move)
             set_command "--move" "move"
             shift
-            [[ $# -lt 2 || "$1" == -* || "$2" == -* ]] && { echo "ERROR: --move requires SRC DEST" >&2; exit 1; }
+            [[ $# -lt 2 || "$1" == -* || "$2" == -* ]] && { echo "ERROR: --move requires SESSION PATH" >&2; exit 1; }
             RENAME_SRC="$1"; RENAME_DST="$2"; RENAME_MODE="move"; shift 2
             ;;
         --yes|-y)        DELETE_YES=true; shift ;;
@@ -1408,16 +1408,16 @@ Rules:
 - When user says: compact this session / compact session NAME — send /compact via -s to the named or current session
 - When user says: clear this session / clear session NAME — send /clear via -s to the named or current session
 - When user says: update claude-mux — check the installed version and latest available; warn the user that all sessions will be restarted and ask for confirmation before proceeding; if confirmed, run claude-mux --update then claude-mux --restart
-- When user says: hide this project / hide PROJECT — run claude-mux --hide (no arg defaults to current dir, or pass project path/name). Confirm with the project name.
-- When user says: show this project / show PROJECT / unhide PROJECT — run claude-mux --show.
-- When user says: protect this session / protect SESSION — run claude-mux --protect (no arg defaults to current dir).
-- When user says: unprotect this session / unprotect SESSION — run claude-mux --unprotect.
+- When user says: hide this project / hide PROJECT — run claude-mux --hide (no arg = current session, or pass session name). Confirm with the project name.
+- When user says: show this project / show PROJECT / unhide PROJECT — run claude-mux --show (no arg = current session, or pass session name).
+- When user says: protect this session / protect SESSION — run claude-mux --protect (no arg = current session, or pass session name).
+- When user says: unprotect this session / unprotect SESSION — run claude-mux --unprotect (no arg = current session, or pass session name).
 - When user says: is this hidden / is this protected — check for .claudemux-ignore or .claudemux-protected in the project folder and report state.
-- When user says: delete this project / delete PROJECT — confirm in chat first (\"Move project '<name>' to trash? Yes/No\"). If user confirms, run claude-mux --delete DIR --yes (the chat exchange replaces the TTY prompt). If the project is protected, warn and ask if --force should be used. The folder is moved to the system trash, recoverable via Finder.
+- When user says: delete this project / delete PROJECT — confirm in chat first (\"Move project '<name>' to trash? Yes/No\"). If user confirms, run claude-mux --delete SESSION --yes (the chat exchange replaces the TTY prompt). If the project is protected, warn and ask if --force should be used. The folder is moved to the system trash, recoverable via Finder.
 - When user says: list templates — run claude-mux --list-templates
 - When user says: save this as a template named NAME / make a template from this project called NAME — run claude-mux --save-template NAME (no DIR arg needed; defaults to current project). Confirm with the template filename.
-- When user says: rename this project to NAME — run claude-mux --rename . NAME
-- When user says: move this project to PATH — run claude-mux --move . PATH
+- When user says: rename this project to NAME — run claude-mux --rename CURRENT_SESSION NAME (where CURRENT_SESSION is this tmux session name)
+- When user says: move this project to PATH — run claude-mux --move CURRENT_SESSION PATH (where CURRENT_SESSION is this tmux session name)
 - When user says: tip / tip of the day — run claude-mux --tip and display the output. Tips are in English; render in the user's conversation language.
 - When user references sessions by number (e.g., stop 1-3, restart 5, compact 2 and 4), map the numbers to session names from the most recent list output, then run the corresponding command for each.
 - These trigger phrases work in any language. If the user types the equivalent intent in their native language (Spanish, French, German, Japanese, Hebrew, Arabic, Hindi, etc.), infer the intent and run the corresponding command. Output of claude-mux commands (lists, status, guide) is shown verbatim regardless of input language.
@@ -1430,8 +1430,8 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Get current permission mode of a session (--get-mode SESSION)
   - Hide/show projects (--hide / --show)
   - Protect/unprotect sessions (--protect / --unprotect)
-  - Rename a project (--rename OLD NEW) or move it (--move SRC DEST) — migrates history and registry
-  - Move a project to trash (--delete DIR — macOS; honors protection unless --force)
+  - Rename a project (--rename SESSION NAME) or move it (--move SESSION PATH) — migrates history and registry
+  - Move a project to trash (--delete SESSION — macOS; honors protection unless --force)
   - Show all config options (--config-help)
   - Run interactive setup or reconfigure (--install)
   - Update claude-mux (--update)
@@ -1804,20 +1804,20 @@ status_claude_sessions() {
             # TTY: printf-aligned columns
             printf "  %-3s %-9s %-30s %s\n" "#" "STATUS" "SESSION" "DIRECTORY"
             printf "  %-3s %-9s %-30s %s\n" "---" "------" "-------" "---------"
-            echo "$sorted_rows" | while IFS='|' read -r _status _name _path; do
+            while IFS='|' read -r _status _name _path; do
                 [[ -z "$_status" ]] && continue
                 (( _n++ ))
                 printf "  %-3s %-9s %-30s %s\n" "$_n" "$_status" "$_name" "$_path"
-            done
+            done <<< "$sorted_rows"
         else
             # Non-TTY (Claude): markdown table
             echo "| # | Status | Session | Directory |"
             echo "|---|--------|---------|-----------|"
-            echo "$sorted_rows" | while IFS='|' read -r _status _name _path; do
+            while IFS='|' read -r _status _name _path; do
                 [[ -z "$_status" ]] && continue
                 (( _n++ ))
                 echo "| $_n | $_status | $_name | $_path |"
-            done
+            done <<< "$sorted_rows"
         fi
     fi
 
@@ -1917,28 +1917,52 @@ ensure_gitignore_entry() {
     log "Added '$pattern' to $gi"
 }
 
-# Resolve a project directory from an optional argument. With no arg,
-# returns the current working directory. Always returns an absolute path.
-resolve_project_dir() {
-    local arg="${1:-}"
-    if [[ -z "$arg" ]]; then
-        pwd
-        return
+# Resolve a session name to its project directory.
+# No arg: uses the calling tmux session.
+# "home": always BASE_DIR.
+# Running session: directory from tmux.
+# Idle project: scans PROJECT_DIRS by basename match.
+resolve_session_dir() {
+    local name="${1:-}"
+    if [[ -z "$name" ]]; then
+        if [[ -n "${TMUX_PANE:-}" ]]; then
+            name=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null)
+        fi
+        if [[ -z "$name" ]]; then
+            echo "ERROR: Cannot determine current session (not inside tmux)" >&2
+            return 1
+        fi
     fi
-    if [[ "$arg" = /* ]]; then
-        echo "$arg"
-    else
-        # Falls back to the unresolved relative path if cd fails (non-existent dir).
-        # Callers that require the path to exist validate with [[ -d ]] afterward.
-        (cd "$arg" 2>/dev/null && pwd) || echo "$arg"
+    if [[ "$name" == "home" ]]; then
+        echo "$BASE_DIR"
+        return 0
     fi
+    if "$TMUX_BIN" has-session -t "$name" 2>/dev/null; then
+        local _dir
+        _dir=$("$TMUX_BIN" display-message -t "$name" -p '#{pane_current_path}' 2>/dev/null)
+        if [[ -n "$_dir" && -d "$_dir" ]]; then
+            echo "$_dir"
+            return 0
+        fi
+    fi
+    discover_projects
+    local _proj _sname
+    for _proj in "${PROJECT_DIRS[@]}" "${HIDDEN_PROJECT_DIRS[@]+"${HIDDEN_PROJECT_DIRS[@]}"}"; do
+        _sname=$(sanitize_session_name "$(basename "$_proj")")
+        if [[ "$_sname" == "$name" ]]; then
+            echo "$_proj"
+            return 0
+        fi
+    done
+    echo "ERROR: Cannot resolve session '$name'" >&2
+    return 1
 }
 
 # Hide a project from claude-mux listings by creating .claudemux-ignore.
 hide_command() {
     local arg="${1:-}"
     local dir
-    dir=$(resolve_project_dir "$arg")
+    dir=$(resolve_session_dir "$arg") || return 1
 
     if [[ ! -d "$dir" ]]; then
         echo "ERROR: '$dir' is not a directory" >&2
@@ -1992,7 +2016,7 @@ session_name_for_dir() {
 protect_command() {
     local arg="${1:-}"
     local dir
-    dir=$(resolve_project_dir "$arg")
+    dir=$(resolve_session_dir "$arg") || return 1
 
     if [[ ! -d "$dir" ]]; then
         echo "ERROR: '$dir' is not a directory" >&2
@@ -2032,7 +2056,7 @@ protect_command() {
 unprotect_command() {
     local arg="${1:-}"
     local dir
-    dir=$(resolve_project_dir "$arg")
+    dir=$(resolve_session_dir "$arg") || return 1
 
     if [[ ! -d "$dir" ]]; then
         echo "ERROR: '$dir' is not a directory" >&2
@@ -2099,12 +2123,12 @@ delete_command() {
     local yes="${3:-false}"
 
     if [[ -z "$arg" ]]; then
-        echo "ERROR: --delete requires a directory" >&2
+        echo "ERROR: --delete requires a session name" >&2
         return 1
     fi
 
     local dir
-    dir=$(resolve_project_dir "$arg")
+    dir=$(resolve_session_dir "$arg") || return 1
 
     if [[ ! -d "$dir" ]]; then
         echo "ERROR: '$dir' is not a directory" >&2
@@ -2179,7 +2203,7 @@ delete_command() {
 show_command() {
     local arg="${1:-}"
     local dir
-    dir=$(resolve_project_dir "$arg")
+    dir=$(resolve_session_dir "$arg") || return 1
 
     if [[ ! -d "$dir" ]]; then
         echo "ERROR: '$dir' is not a directory" >&2
@@ -2929,7 +2953,7 @@ tip_of_day() {
         "\`claude-mux -L\` lists all projects including inactive ones. \`claude-mux -L --hidden\` shows only hidden projects. \`claude-mux -L --include-hidden\` shows everything."
         "The current session is marked with \`>\` in session listings, so you always know which session ran the command."
         "Protected sessions show \`protected\` status in listings. A protected session that isn't running shows \`stopped\` — so you can see at a glance that something that should be running isn't."
-        "\`claude-mux --delete ~/projects/old-thing\` moves the project folder to the Trash — never \`rm -rf\`. Recoverable from Finder if you change your mind."
+        "\`claude-mux --delete old-thing\` moves the project folder to the Trash — never \`rm -rf\`. Recoverable from Finder if you change your mind."
         "If you have multiple GitHub SSH accounts configured in \`~/.ssh/config\`, claude-mux injects the host aliases into every session. Claude knows which account to use for each remote without being told."
         "Session restarts typically take about 2 seconds. claude-mux polls for Claude's input prompt rather than using fixed sleeps, so it hands control back as soon as Claude is ready."
         "\`claude-mux --install\` reconfigures your setup interactively — base directory, home session model, permission mode, LaunchAgent behavior. Run it any time your setup needs changing."
@@ -2944,6 +2968,8 @@ tip_of_day() {
         "Say \"list templates\" from any session to see your available CLAUDE.md templates without leaving the conversation."
         "Say \"save this as a template named NAME\" to copy the current project's CLAUDE.md into your template library. Use it on any future project with \`claude-mux -n DIR --template NAME\`."
         "\`claude-mux --rename old-name new-name\` renames a project folder and moves its conversation history to match. Say \"rename this project to NAME\" to do it from inside a session."
+        "All project commands use session names, not directory paths. \`claude-mux --hide my-project\`, \`--protect my-project\`, \`--delete my-project\`. No arg means the current session."
+        "Session lists show row numbers. Say \"stop 1-3\" or \"restart 5\" to target sessions by number instead of typing names."
     )
 
     local num_tips=${#tips[@]}
@@ -2982,9 +3008,9 @@ save_template_command() {
         return 1
     fi
 
-    # Resolve source directory
+    # Resolve source directory (session name or current session)
     local src_dir
-    src_dir=$(resolve_project_dir "$dir")
+    src_dir=$(resolve_session_dir "$dir") || return 1
 
     if [[ ! -d "$src_dir" ]]; then
         echo "ERROR: '$src_dir' is not a directory" >&2
@@ -3043,9 +3069,9 @@ rename_move_command() {
         return 1
     fi
 
-    # Resolve and validate source
+    # Resolve and validate source (session name)
     local src_abs
-    src_abs=$(resolve_project_dir "$src_arg")
+    src_abs=$(resolve_session_dir "$src_arg") || return 1
     if [[ ! -d "$src_abs" ]]; then
         echo "ERROR: '$src_abs' is not a directory" >&2
         return 1
@@ -3069,8 +3095,13 @@ rename_move_command() {
         fi
         dst_abs="$(dirname "$src_abs")/$dst_arg"
     else
+        # Destination for --move is a directory path, not a session name
         local dst_parent
-        dst_parent=$(resolve_project_dir "$dst_arg")
+        if [[ "$dst_arg" = /* ]]; then
+            dst_parent="$dst_arg"
+        else
+            dst_parent=$(cd "$dst_arg" 2>/dev/null && pwd) || dst_parent="$dst_arg"
+        fi
         if [[ ! -d "$dst_parent" ]]; then
             echo "ERROR: Destination parent '$dst_parent' is not a directory" >&2
             return 1
@@ -3405,11 +3436,11 @@ case "$COMMAND" in
     save-template) save_template_command "${SAVE_TEMPLATE_NAME:-}" "${SAVE_TEMPLATE_DIR:-}"; exit $? ;;
     rename)     rename_move_command "${RENAME_SRC:-}" "${RENAME_DST:-}" "rename"; exit $? ;;
     move)       rename_move_command "${RENAME_SRC:-}" "${RENAME_DST:-}" "move"; exit $? ;;
-    hide)       hide_command "${HIDE_DIR:-}"; exit $? ;;
-    show)       show_command "${HIDE_DIR:-}"; exit $? ;;
-    protect)    protect_command "${PROTECT_DIR:-}"; exit $? ;;
-    unprotect)  unprotect_command "${PROTECT_DIR:-}"; exit $? ;;
-    delete)     delete_command "${DELETE_DIR:-}" "$FORCE" "${DELETE_YES:-false}"; exit $? ;;
+    hide)       hide_command "${HIDE_SESSION:-}"; exit $? ;;
+    show)       show_command "${HIDE_SESSION:-}"; exit $? ;;
+    protect)    protect_command "${PROTECT_SESSION:-}"; exit $? ;;
+    unprotect)  unprotect_command "${PROTECT_SESSION:-}"; exit $? ;;
+    delete)     delete_command "${DELETE_SESSION:-}" "$FORCE" "${DELETE_YES:-false}"; exit $? ;;
     send)
         get_managed_session_names
         if ! is_managed_session "$SEND_SESSION"; then

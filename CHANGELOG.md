@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-05-05
+
+### Changed
+- **Session names everywhere**: `--hide`, `--show`, `--protect`, `--unprotect`, `--delete`, `--rename`, and `--move` now accept session names instead of directory paths. No-arg defaults to the calling session. Resolves running sessions via tmux and idle projects via `PROJECT_DIRS` scan. Replaces `resolve_project_dir()` + `resolve_session_to_dir()` with a single `resolve_session_dir()`.
+
 ## [1.10.1] — 2026-05-05
 
 ### Changed

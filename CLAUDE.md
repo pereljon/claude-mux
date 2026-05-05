@@ -6,6 +6,8 @@ Guidance for Claude Code when working in this repository.
 
 **claude-mux** -- persistent Claude Code sessions in tmux. Shell script + macOS LaunchAgent. Deliverables: `claude-mux`, `install.sh`, `config.example`, `com.user.claude-mux.plist`.
 
+This is an open-source project with external users. Treat it accordingly: safety, portability, stability matter.
+
 ## Design Principles
 
 Infrastructure, not a framework. Keep sessions alive, get out of the way.
@@ -15,6 +17,7 @@ Infrastructure, not a framework. Keep sessions alive, get out of the way.
 - **Conversational first.** Natural language in-session is the primary interface.
 - **Eliminate complexity, don't relocate it.** Every abstraction must remove more burden than it introduces.
 - **Session management is invisible.** Claude should be able to manage sessions without permission prompts interrupting the conversation. Achieved two ways: (1) claude-mux is added to each project's allow list by `setup_claude_mux_permissions()` so Claude can run it freely; (2) the injection instructs Claude to use claude-mux rather than raw shell commands that would trigger prompts. Destructive operations (e.g. `--delete`) may still require confirmation — that's intentional, not a gap.
+- **Session names, not paths.** CLI commands operate on session names, not directory paths. The script resolves session names to directories internally via tmux (running sessions) or `PROJECT_DIRS` scanning (idle projects). Exceptions that accept paths (e.g. `--move` destination, `-d`/`-n` launch directory) require explicit approval before adding.
 
 ## Documentation Roles
 
@@ -118,6 +121,8 @@ After a release completes, compact the session: `claude-mux -s SESSION_NAME '/co
 Before coding a new feature or change, review with the user: happy path, edge cases, flag conflicts, config migration, injection prompt updates, display changes. Get confirmation before writing code.
 
 ## Change Checklist
+
+**GATE: Do NOT suggest commit, push, or release until every item below has been checked and all affected files are updated.** This is not optional — it is a prerequisite before proposing any git operation.
 
 After any code change, check whether these need updating:
 

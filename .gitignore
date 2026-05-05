@@ -13,3 +13,4 @@ internal/
 
 # Logs (generated at runtime, not part of the project)
 *.log
+.claudemux-*
