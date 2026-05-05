@@ -140,6 +140,6 @@ After any code change, check whether these need updating:
 - **When adding a config var**: update `config_help()` in the script and add an entry to `config.example`
 - **When adding a CLI flag**: update `commands_help()` in the script and the compressed feature list in `build_system_prompt()`
 - **When adding a new lookup flag** (`--*-help`, `--*-commands`): add it to the Reference lookups meta-block in `build_system_prompt()`
-- **When adding a user-facing feature**: add a tip to `internal/tips.md` and embed it in the `tip_of_day()` array in the script
+- **When adding a user-facing feature**: add a tip to `internal/tips.md` and embed it in the `tip_of_day()` array in the script. Tips teach users how to use conversational commands (the injection triggers), not CLI flags or internal implementation details.
 
 When proposing or making multiple changes, consider logical ordering -- some changes should be performed before others (e.g. move code to a new location before updating references to it, validate inputs before using them).

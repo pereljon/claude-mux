@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.11.1] — 2026-05-05
+
+### Changed
+- **Tips rewrite**: all tips now focus on conversational commands instead of CLI flags or internal implementation details. Reduced from 44 to 37 tips.
+
 ## [1.11.0] — 2026-05-05
 
 ### Changed
