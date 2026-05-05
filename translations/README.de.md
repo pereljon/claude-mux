@@ -4,7 +4,7 @@
 
 > Hinweis: Diese Übersetzung kann hinter dem englischen README zurückliegen. Die kanonische Version findest du unter [README.md](../README.md).
 
-Persistente Claude Code-Sitzungen für alle deine Projekte, von überall über die Claude-Mobile-App erreichbar.
+Persistente Claude Code-Sitzungen für alle deine Projekte, von überall über die Claude-Mobile-App erreichbar. ***Von Claude verwaltet!***
 
 ## Warum
 

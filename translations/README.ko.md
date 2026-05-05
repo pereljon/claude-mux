@@ -2,7 +2,7 @@
 
 [English](../README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [日本語](README.ja.md) · **한국어** · [Italiano](README.it.md) · [Русский](README.ru.md) · [中文](README.zh-CN.md) · [עברית](README.he.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
-모든 프로젝트를 위한 영구 Claude Code 세션 - Claude 모바일 앱을 통해 어디서나 접근 가능합니다.
+모든 프로젝트를 위한 영구 Claude Code 세션 - Claude 모바일 앱을 통해 어디서나 접근 가능합니다. ***Claude가 관리!***
 
 ## 왜 사용하나요
 

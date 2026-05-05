@@ -4,7 +4,7 @@
 
 > Nota: questa traduzione potrebbe essere in ritardo rispetto al README inglese. Consulta [README.md](../README.md) per la versione canonica.
 
-Sessioni persistenti di Claude Code per tutti i tuoi progetti, accessibili da qualsiasi luogo tramite l'app mobile di Claude.
+Sessioni persistenti di Claude Code per tutti i tuoi progetti, accessibili da qualsiasi luogo tramite l'app mobile di Claude. ***Gestito da Claude!***
 
 ## Perché
 

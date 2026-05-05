@@ -4,7 +4,7 @@
 
 > 注意：此翻译可能落后于英文 README。规范版本请参阅 [README.md](../README.md)。
 
-为你所有项目提供持久的 Claude Code 会话 - 通过 Claude 移动应用从任何地方访问。
+为你所有项目提供持久的 Claude Code 会话 - 通过 Claude 移动应用从任何地方访问。***由 Claude 管理！***
 
 ## 为什么
 

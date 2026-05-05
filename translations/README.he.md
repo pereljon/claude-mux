@@ -2,7 +2,7 @@
 
 [English](../README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Italiano](README.it.md) · [Русский](README.ru.md) · [中文](README.zh-CN.md) · **עברית** · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
-סשנים מתמשכים של Claude Code לכל הפרויקטים שלך - נגישים מכל מקום דרך אפליקציית Claude לנייד.
+סשנים מתמשכים של Claude Code לכל הפרויקטים שלך - נגישים מכל מקום דרך אפליקציית Claude לנייד. ***מנוהל על ידי Claude!***
 
 ## למה
 

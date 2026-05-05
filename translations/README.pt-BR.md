@@ -2,7 +2,7 @@
 
 [English](../README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · **Português** · [日本語](README.ja.md) · [한국어](README.ko.md) · [Italiano](README.it.md) · [Русский](README.ru.md) · [中文](README.zh-CN.md) · [עברית](README.he.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
-Sessões persistentes do Claude Code para todos os seus projetos, acessíveis de qualquer lugar pelo aplicativo móvel do Claude.
+Sessões persistentes do Claude Code para todos os seus projetos, acessíveis de qualquer lugar pelo aplicativo móvel do Claude. ***Gerenciado pelo Claude!***
 
 ## Por que
 

@@ -2,7 +2,7 @@
 
 [English](../README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Italiano](README.it.md) · [Русский](README.ru.md) · [中文](README.zh-CN.md) · [עברית](README.he.md) · **العربية** · [हिन्दी](README.hi.md)
 
-جلسات Claude Code دائمة لجميع مشاريعك، يمكن الوصول إليها من أي مكان عبر تطبيق Claude للهاتف المحمول.
+جلسات Claude Code دائمة لجميع مشاريعك، يمكن الوصول إليها من أي مكان عبر تطبيق Claude للهاتف المحمول. ***يديره Claude!***
 
 ## لماذا
 

@@ -2,7 +2,7 @@
 
 **English** · [Español](translations/README.es.md) · [Français](translations/README.fr.md) · [Deutsch](translations/README.de.md) · [Português](translations/README.pt-BR.md) · [日本語](translations/README.ja.md) · [한국어](translations/README.ko.md) · [Italiano](translations/README.it.md) · [Русский](translations/README.ru.md) · [中文](translations/README.zh-CN.md) · [עברית](translations/README.he.md) · [العربية](translations/README.ar.md) · [हिन्दी](translations/README.hi.md)
 
-Persistent Claude Code sessions for all your projects - accessible from anywhere via the Claude mobile app.
+Persistent Claude Code sessions for all your projects - accessible from anywhere via the Claude mobile app. ***Managed by Claude!***
 
 ## Why
 

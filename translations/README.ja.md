@@ -2,7 +2,7 @@
 
 [English](../README.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Português](README.pt-BR.md) · **日本語** · [한국어](README.ko.md) · [Italiano](README.it.md) · [Русский](README.ru.md) · [中文](README.zh-CN.md) · [עברית](README.he.md) · [العربية](README.ar.md) · [हिन्दी](README.hi.md)
 
-すべてのプロジェクトに対して永続的な Claude Code セッションを提供し、Claude モバイルアプリからどこでもアクセスできるようにします。
+すべてのプロジェクトに対して永続的な Claude Code セッションを提供し、Claude モバイルアプリからどこでもアクセスできるようにします。***Claudeが管理！***
 
 ## なぜ必要か
 
