@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.12.1] — 2026-05-08
+
+### Fixed
+- **install.sh curl pipe**: `BASH_SOURCE[0]` is unset when piped via `curl | bash` with `set -u`, causing an "unbound variable" error. Now defaults to `/dev/stdin`.
+
 ## [1.12.0] — 2026-05-06
 
 ### Added
