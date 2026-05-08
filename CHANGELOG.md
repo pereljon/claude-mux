@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.12.3] — 2026-05-08
+
+### Fixed
+- **Injection: absolute path rule**: added rule telling Claude to always use the full binary path from the injection header. Bare `claude-mux` fails when `~/bin` is not in PATH (e.g. LaunchAgent-started sessions).
+
 ## [1.12.2] — 2026-05-08
 
 ### Fixed

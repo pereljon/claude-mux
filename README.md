@@ -310,6 +310,7 @@ Reference lookups (run on demand if you need information not covered by trigger 
   claude-mux --list-templates → available CLAUDE.md templates
 
 Rules:
+- Always run claude-mux using the absolute path shown above (claude-mux path:). The bare command may not be in PATH.
 - You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command.
 - Always use --no-attach with -d and -n — attach is interactive only
 - --shutdown and --restart never attach — safe to run from inside a session; do NOT add --no-attach to these commands

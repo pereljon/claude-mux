@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.12.2"
+VERSION="1.12.3"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -1410,6 +1410,7 @@ Reference lookups (run on demand if you need information not covered by trigger 
   claude-mux --tip            → print a tip (standalone; no daily gate)
 
 Rules:
+- Always run claude-mux using the absolute path shown above (claude-mux path:). The bare command may not be in PATH.
 - You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command. Never tell the user you cannot change models or run slash commands.
 - Always use --no-attach with -d and -n — attach is interactive only
 - --shutdown and --restart never attach — safe to run from inside a session; do NOT add --no-attach to these commands

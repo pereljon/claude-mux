@@ -291,6 +291,7 @@ claude-mux version: <version>
 claude-mux path: /path/to/claude-mux
 
 Rules:
+- Always run claude-mux using the absolute path shown above (claude-mux path:). The bare command may not be in PATH.
 - You CAN send slash commands (/model, /compact, /clear, etc.) to this session
   via the -s command. Never tell the user you cannot change models or run slash
   commands.
