@@ -8,6 +8,24 @@ Guidance for Claude Code when working in this repository.
 
 This is an open-source project with external users. Treat it accordingly: safety, portability, stability matter.
 
+## Feature Freeze
+
+**Status: ACTIVE** -- No new features until v2.0 work begins.
+
+Allowed:
+- Bug fixes
+- Documentation updates
+- Translation updates
+- Security fixes
+
+Not allowed:
+- New CLI flags or commands
+- New config variables
+- New conversational triggers
+- New functionality of any kind
+
+If a user requests a new feature, acknowledge it and suggest tracking it in ISSUES.md under the v2.0 milestone instead.
+
 ## Design Principles
 
 Infrastructure, not a framework. Keep sessions alive, get out of the way.
