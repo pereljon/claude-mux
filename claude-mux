@@ -2515,7 +2515,7 @@ detect_github_ssh_accounts() {
     printf -v joined '%s, ' "${parts[@]}"
     joined="${joined%, }"
 
-    GITHUB_SSH_INFO=" GitHub SSH accounts configured in ~/.ssh/config: ${joined}. Use the host alias as the git remote, e.g. git clone git@github.com-${accounts[0]}:org/repo.git"
+    GITHUB_SSH_INFO=" GitHub SSH accounts configured in ~/.ssh/config: ${joined}. Use the host alias as the git remote, e.g. git clone git@github.com-${accounts[0]}:org/repo.git. For gh CLI operations (repo create, PR create, etc.), run \`gh auth switch --user <account>\` first to target the correct GitHub account."
 }
 
 create_claude_session() {

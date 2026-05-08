@@ -337,7 +337,16 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - User config at `~/.claude-autorc` (later `~/.claude-mux/config`).
 - Logging to `~/Library/Logs/claude-autorc.log` (later `claude-mux.log`).
 
-[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.9.1...HEAD
+[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.12.4...HEAD
+[1.12.4]: https://github.com/pereljon/claude-mux/compare/v1.12.3...v1.12.4
+[1.12.3]: https://github.com/pereljon/claude-mux/compare/v1.12.2...v1.12.3
+[1.12.2]: https://github.com/pereljon/claude-mux/compare/v1.12.1...v1.12.2
+[1.12.1]: https://github.com/pereljon/claude-mux/compare/v1.12.0...v1.12.1
+[1.12.0]: https://github.com/pereljon/claude-mux/compare/v1.11.1...v1.12.0
+[1.11.1]: https://github.com/pereljon/claude-mux/compare/v1.11.0...v1.11.1
+[1.11.0]: https://github.com/pereljon/claude-mux/compare/v1.10.1...v1.11.0
+[1.10.1]: https://github.com/pereljon/claude-mux/compare/v1.10.0...v1.10.1
+[1.10.0]: https://github.com/pereljon/claude-mux/compare/v1.9.1...v1.10.0
 [1.9.1]: https://github.com/pereljon/claude-mux/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/pereljon/claude-mux/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/pereljon/claude-mux/compare/v1.8.0...v1.8.1

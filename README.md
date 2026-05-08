@@ -140,7 +140,7 @@ Under the hood, claude-mux handles:
 
 ## Requirements
 
-- macOS (Apple Silicon)
+- macOS (Apple Silicon or Intel)
 - [tmux](https://github.com/tmux/tmux) - `brew install tmux`
 - [Claude Code](https://claude.ai/code) - `brew install claude`
 
@@ -363,7 +363,7 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Update claude-mux (--update)
 
 Self-targeting send: claude-mux -s '<session-name>' '/command' sends slash commands to yourself.
-GitHub SSH accounts configured in ~/.ssh/config: <accounts>.
+GitHub SSH accounts configured in ~/.ssh/config: <accounts>. For gh CLI operations (repo create, PR create, etc.), run `gh auth switch --user <account>` first to target the correct GitHub account.
 ```
 
 The home session receives additional context: a description of its role, plus self-management triggers for reading/editing config and templates. When `ALLOW_CROSS_SESSION_CONTROL=true`, the send command can target any session, not just itself. The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.
@@ -464,3 +464,9 @@ Slash commands (e.g. `/model`, `/clear`) are [not natively supported](https://gi
 - `~/Library/Logs/claude-mux.log` - all script actions with UTC timestamps (configurable via `LOG_DIR`)
 
 For low-level LaunchAgent debugging, use Console.app or `log show`.
+
+## More
+
+- [FAQ](FAQ.md) — common questions about claude-mux
+- [Known Issues](ISSUES.md) — open bugs, planned features, and resolved issues
+- [Changelog](CHANGELOG.md) — what changed per release

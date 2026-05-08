@@ -133,6 +133,7 @@ Each step requires explicit user approval. Approval for one step does not imply 
 1. **Commit**: propose the commit message and changed files, wait for approval before running `git commit`
 2. **Push**: wait for explicit approval before running `git push`
 3. **Release**: only the user can authorize a release. A release requires all three: `git tag vX.Y.Z`, `git push origin vX.Y.Z`, and `gh release create vX.Y.Z`. "Commit" or "push" do not imply release. Pushing a tag alone does NOT create a GitHub Release.
+   - **Release gate**: only create a release if `claude-mux` or `install.sh` have changed since the last release. These are the only release assets users download. Docs-only changes (translations, FAQ, ISSUES, CHANGELOG, README) are available via the repo and do not need a release.
    - **Release order matters**: the Homebrew bump CI triggers on every `gh release create` and blindly sets the formula to that version. Always create releases in ascending version order. If backfilling an older release after a newer one is already live, manually update the tap formula afterward.
 
 After completing work, proactively ask which steps the user wants: "Want to commit, push, or release?"

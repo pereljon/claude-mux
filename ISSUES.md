@@ -32,14 +32,17 @@
 - Offer to add new settings (with defaults) that didn't exist in the old config
 - Option B: pre-fill prompts with existing config values and let user change them
 
-### Translation files need v1.10 update
+### Translation files need v1.10–v1.12 update
 **Severity:** Low
 **Status:** Open — translations not yet updated
-**Description:** All 12 translation files (`translations/README.*.md`) are behind v1.10. Changes that need reflecting:
+**Description:** All 12 translation files (`translations/README.*.md`) are behind by several versions (v1.10–v1.12). Changes that need reflecting:
 - curl as primary Quick Start (one-liner)
 - New Install section structure (curl recommended, Homebrew macOS alternative)
-- New conversational examples: rename, save-as-template, tip
-- New features in "What It Does" or similar sections if present
+- Session names instead of paths for `--hide`/`--delete`/`--protect` (v1.11.0)
+- New conversational examples: rename, save-as-template, tip, enable/disable tips, update
+- Requirements: "Apple Silicon or Intel" (not just Apple Silicon)
+- New "More" section linking FAQ, ISSUES, CHANGELOG
+- FAQ and ISSUES translations need creating
 
 ### Code review deferred issues (v1.9.0)
 **Severity:** Low–Medium
@@ -217,7 +220,6 @@ Main Claude Code settings file. Rolling backups written to `~/.claude/backups/` 
 
 | Feature | What to touch |
 |---------|--------------|
-| `--rename` / `--move` | `mv` project dir; rename `~/.claude/projects/` encoded folder; update `root` in `~/.claude/homunculus/projects.json` and `projects/<uuid>/project.json` |
 | `--copy` | Create dir; start+stop session to init both registries; copy `.jsonl` + `memory/` + UUID subdirs; copy homunculus observation files into new UUID folder |
 | `--delete` cleanup | Already trashes the project folder. Optionally: remove orphaned `~/.claude/projects/` encoded folder and `~/.claude/homunculus/` entry |
 | History size warning | Alert when a project's `.jsonl` files exceed a threshold (the main claude-mux transcript hit 107MB in a single long session) |

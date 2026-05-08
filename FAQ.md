@@ -150,6 +150,10 @@ This removes tip hooks and permission rules from all projects, unloads the Launc
 
 Not natively. Claude Code does not support slash commands (`/model`, `/clear`, etc.) in RC sessions. claude-mux works around this by injecting each session with `claude-mux -s` so Claude can send slash commands to itself via tmux. Just say "switch to Haiku" or "compact this session" and Claude handles it.
 
+## I can't select text in a session
+
+Hold **Option** (macOS) or **Shift** (Linux/Windows terminals) while clicking and dragging. This bypasses tmux's mouse capture and copies the selection to your system clipboard. No config changes needed.
+
 ## What languages are supported for conversational commands?
 
 All of them. The trigger phrases ("help", "status", "list sessions", etc.) work in any language. Claude infers the intent from the user's natural language and runs the matching command. The README is also translated into 12 languages.
