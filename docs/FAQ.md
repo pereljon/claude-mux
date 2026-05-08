@@ -114,6 +114,10 @@ Update with `brew upgrade claude-mux`. Note: if you installed via Homebrew, `--u
 
 `claude --worktree --tmux` creates a tmux session for an isolated git worktree, designed for parallel coding tasks. claude-mux manages persistent sessions for your actual project directories, with Remote Control enabled, system prompt injection for self-management, conversation resume, and session lifecycle management. They solve different problems.
 
+## How is this different from Claude Cowork Dispatch?
+
+Dispatch launches tasks from the Claude desktop app, but requires the app to be running and isn't bound to a specific project. claude-mux manages persistent, project-bound sessions that survive reboots and are accessible from anywhere via Remote Control - no desktop app required.
+
 ## Why do sessions show "Not logged in"?
 
 This happens on first launch if the macOS keychain is locked, which is common when the LaunchAgent starts before you unlock the keychain after login. Fix it by running `security unlock-keychain` in a regular terminal, then attach to any session (`claude-mux -t <name>`) and run `/login` to complete the browser auth flow. After that, restart all sessions and they will pick up the stored credential.

@@ -34,7 +34,7 @@
 
 ### Translation files need v1.10–v1.12 update
 **Severity:** Low
-**Status:** Open — translations not yet updated
+**Status:** Open - translations not yet updated
 **Description:** All 12 translation files (`translations/README.*.md`) are behind by several versions (v1.10–v1.12). Changes that need reflecting:
 - curl as primary Quick Start (one-liner)
 - New Install section structure (curl recommended, Homebrew macOS alternative)
@@ -46,11 +46,11 @@
 
 ### Code review deferred issues (v1.9.0)
 **Severity:** Low–Medium
-**Status:** Resolved in v1.10.0 — M3, M4, M9/L8, L3, L9 fixed; L4, L5, L6, L7, M7 addressed with comments
+**Status:** Resolved in v1.10.0 - M3, M4, M9/L8, L3, L9 fixed; L4, L5, L6, L7, M7 addressed with comments
 
 ### Project rename / move with history preservation
 **Severity:** Low
-**Status:** Resolved in v1.10.0 — `--rename OLD NEW` and `--move SRC DEST` implemented
+**Status:** Resolved in v1.10.0 - `--rename OLD NEW` and `--move SRC DEST` implemented
 
 ### Project copy with history
 **Severity:** Low
@@ -58,39 +58,39 @@
 **Description:** Copying a project including its Claude Code history and memory is more complex than rename/move because new UUIDs must be established for the destination.
 **Proposed approach:**
 1. Create the new project directory (with optional git init and template)
-2. Start and immediately stop a session in it — Claude Code initializes `~/.claude/projects/-encoded-new-path/` with a fresh UUID and creates a new homunculus entry
+2. Start and immediately stop a session in it - Claude Code initializes `~/.claude/projects/-encoded-new-path/` with a fresh UUID and creates a new homunculus entry
 3. Copy `.jsonl` history files from the source `~/.claude/projects/` folder into the destination folder
-4. Copy the `memory/` folder contents — pure markdown, no UUIDs embedded, safe to copy directly
+4. Copy the `memory/` folder contents - pure markdown, no UUIDs embedded, safe to copy directly
 5. Copy UUID subdirectories (task/plan artifacts) alongside their `.jsonl` files
-6. For homunculus: copy `observations.jsonl`, `instincts`, `evolved`, `observations.archive` from source `~/.claude/homunculus/projects/<src-uuid>/` into the new destination's homunculus folder — keeping the new project UUID assigned in step 2
+6. For homunculus: copy `observations.jsonl`, `instincts`, `evolved`, `observations.archive` from source `~/.claude/homunculus/projects/<src-uuid>/` into the new destination's homunculus folder - keeping the new project UUID assigned in step 2
 **Open questions requiring testing:**
 - Do `.jsonl` files embed the source project path in their content or metadata? If so, copied history would reference the old path.
 - Are UUID subdirectories referenced by UUID from within `.jsonl` files? If so, they must be copied under their original UUIDs, not remapped.
 - Does Claude Code read all `.jsonl` files in a project folder, or only the one matching the active session UUID?
-- What does `~/.claude/homunculus/projects/<uuid>/evolved` and `instincts` contain — are they derived/computed or user-meaningful? Worth preserving in a copy?
+- What does `~/.claude/homunculus/projects/<uuid>/evolved` and `instincts` contain - are they derived/computed or user-meaningful? Worth preserving in a copy?
 - Are there any other internal references that would break a naive file copy?
 **Prerequisite:** Test the above before implementing to avoid shipping a copy command that produces subtly broken history.
 
 ### Tip of the day
 **Severity:** Low
-**Status:** Resolved in v1.10.0 — `--tip`, `TIP_OF_DAY`, `TIP_MODE`, daily gate, session-start delivery implemented
+**Status:** Resolved in v1.10.0 - `--tip`, `TIP_OF_DAY`, `TIP_MODE`, daily gate, session-start delivery implemented
 
 ### Reply timestamp
 **Severity:** Low
 **Status:** Open - discuss before implementing
 **Description:** Optional config var (`REPLY_TIMESTAMP=false` default) that injects an instruction into the system prompt telling Claude to begin each response with the current date and time via `date '+%Y-%m-%d %H:%M'`.
 **Tradeoff:** Requires a bash tool call at the start of every reply (small overhead). Alternative: inject session start time into prompt (free, but drifts in long sessions).
-**Note:** Per-project CLAUDE.md instruction (as in the analytical template) is the lighter version — only on projects that want it. The config var makes it global.
+**Note:** Per-project CLAUDE.md instruction (as in the analytical template) is the lighter version - only on projects that want it. The config var makes it global.
 
 ### Demo video
 **Severity:** Low
 **Status:** Open - planned asset
 **Description:** A screen recording showing claude-mux from curl install through common and interesting commands, with terminal and Remote Control visible simultaneously.
-**Format:** Split screen, single take. Terminal (full claude-mux session) on the left, RC on iPhone mirrored via QuickTime on the right. Both live at the same time — the viewer sees actions in RC immediately reflected in the terminal and vice versa.
+**Format:** Split screen, single take. Terminal (full claude-mux session) on the left, RC on iPhone mirrored via QuickTime on the right. Both live at the same time - the viewer sees actions in RC immediately reflected in the terminal and vice versa.
 **See:** `internal/demo-script.md` for the full shot-by-shot outline.
 **Notes:**
 - The key shot is typing in RC on the phone and watching the terminal respond in real time
-- No editing required beyond trim — single continuous recording
+- No editing required beyond trim - single continuous recording
 - Host on YouTube + embed in README; also useful for Product Hunt launch
 
 ### Submit to homebrew-core for brew.sh listing
@@ -104,7 +104,7 @@
 
 ### curl install support (macOS + Linux)
 **Severity:** Low
-**Status:** Resolved in v1.10.0 — curl install implemented, release-assets workflow added, README updated
+**Status:** Resolved in v1.10.0 - curl install implemented, release-assets workflow added, README updated
 
 ### macOS only - no Linux/systemd support
 **Severity:** Medium
@@ -121,14 +121,14 @@
 ### ! commands not available in Remote Control
 **Severity:** Low
 **Status:** Closed - not feasible
-**Description:** Claude Code's `!` shell passthrough is a Claude Code CLI input-handler feature — it intercepts `!command` before the shell sees it. tmux send-keys cannot replicate this: keystrokes sent while Claude Code is active go nowhere (tested: `!touch test` via send-keys did not execute). There is no path for claude-mux to implement `!command` bypass for RC users.
+**Description:** Claude Code's `!` shell passthrough is a Claude Code CLI input-handler feature - it intercepts `!command` before the shell sees it. tmux send-keys cannot replicate this: keystrokes sent while Claude Code is active go nowhere (tested: `!touch test` via send-keys did not execute). There is no path for claude-mux to implement `!command` bypass for RC users.
 **Resolution:** Add injection rule to tell Claude never to suggest `! <command>` to users, since RC users have no shell and terminal users can just type it themselves.
 
 ---
 
 ## v2.0 Milestone
 
-Architectural changes significant enough to warrant a major version bump. Not scheduled — collected here so they don't get lost.
+Architectural changes significant enough to warrant a major version bump. Not scheduled - collected here so they don't get lost.
 
 ### Data directory separation
 Move static data (tips, default templates, possibly command/guide output) out of the script and into a platform-appropriate data directory. The script would resolve `DATA_DIR` at startup relative to the binary location, with embedded fallbacks for single-file installs.
@@ -141,7 +141,7 @@ Move static data (tips, default templates, possibly command/guide output) out of
 Trigger: when the embedded data (tips, default templates) grows large enough to make the script hard to read, or when default templates need to ship via brew independently of script releases.
 
 ### Language / runtime reconsideration
-The monolithic bash script is the right call at current scope. If claude-mux grows significantly — project rename/move/copy operations, a relay layer, cross-platform packaging, a data directory — bash starts fighting back. At that point, rewriting the session management core in Go or another typed language (with bash as a thin CLI wrapper) is worth evaluating.
+The monolithic bash script is the right call at current scope. If claude-mux grows significantly - project rename/move/copy operations, a relay layer, cross-platform packaging, a data directory - bash starts fighting back. At that point, rewriting the session management core in Go or another typed language (with bash as a thin CLI wrapper) is worth evaluating.
 
 ---
 
@@ -177,44 +177,44 @@ The monolithic bash script is the right call at current scope. If claude-mux gro
 
 ## Reference: ~/.claude Folder Structure
 
-Documented here because several planned features (rename, move, copy, cleanup) must interact with this structure correctly. Not exhaustive — covers the parts relevant to claude-mux.
+Documented here because several planned features (rename, move, copy, cleanup) must interact with this structure correctly. Not exhaustive - covers the parts relevant to claude-mux.
 
 ### Project history and memory: `~/.claude/projects/`
 
 One subdirectory per working directory Claude Code has been used in. Named by encoding the absolute path: `/` → `-`, spaces and special characters → `-`. Lossy but readable.
 
 Contents of each project folder:
-- `<uuid>.jsonl` — full conversation transcript for that session. One file per conversation.
-- `<uuid>/` — subdirectory of artifacts associated with a conversation (tasks, plans). UUID matches the `.jsonl` file.
-- `memory/` — persistent cross-session memory files (markdown with frontmatter). Present only if memory has been written for the project.
+- `<uuid>.jsonl` - full conversation transcript for that session. One file per conversation.
+- `<uuid>/` - subdirectory of artifacts associated with a conversation (tasks, plans). UUID matches the `.jsonl` file.
+- `memory/` - persistent cross-session memory files (markdown with frontmatter). Present only if memory has been written for the project.
 
 The link between a working directory and its history is purely the encoded folder name. Renaming or moving the project directory without renaming this folder causes Claude Code to start fresh with no history.
 
-**Encoding rule:** absolute path with every `/`, space, and special character replaced by `-`. Leading `/` becomes a leading `-`. Encoding is lossy — consecutive special characters and spaces adjacent to slashes both become `-`, so the original cannot always be perfectly reconstructed.
+**Encoding rule:** absolute path with every `/`, space, and special character replaced by `-`. Leading `/` becomes a leading `-`. Encoding is lossy - consecutive special characters and spaces adjacent to slashes both become `-`, so the original cannot always be perfectly reconstructed.
 
 ### Parallel observability registry: `~/.claude/homunculus/`
 
-A separate system that tracks tool-level events per project. Not part of core Claude Code history — appears to be a monitoring/learning layer.
+A separate system that tracks tool-level events per project. Not part of core Claude Code history - appears to be a monitoring/learning layer.
 
-- `projects.json` — registry of all known projects, keyed by short hex UUID (`d6b3aef60967`, etc.). Each entry has: `id`, `name`, `root` (absolute path), `remote`, `created_at`, `last_seen`.
-- `projects/<uuid>/project.json` — per-project metadata (same fields as the registry entry).
-- `projects/<uuid>/observations.jsonl` — timestamped `tool_start`/`tool_complete` events: tool name, session UUID, project name/id, input/output snippets.
-- `projects/<uuid>/instincts` — derived patterns (contents unknown, likely computed).
-- `projects/<uuid>/evolved` — evolved/learned state (contents unknown).
-- `projects/<uuid>/observations.archive` — archived older observations.
+- `projects.json` - registry of all known projects, keyed by short hex UUID (`d6b3aef60967`, etc.). Each entry has: `id`, `name`, `root` (absolute path), `remote`, `created_at`, `last_seen`.
+- `projects/<uuid>/project.json` - per-project metadata (same fields as the registry entry).
+- `projects/<uuid>/observations.jsonl` - timestamped `tool_start`/`tool_complete` events: tool name, session UUID, project name/id, input/output snippets.
+- `projects/<uuid>/instincts` - derived patterns (contents unknown, likely computed).
+- `projects/<uuid>/evolved` - evolved/learned state (contents unknown).
+- `projects/<uuid>/observations.archive` - archived older observations.
 
 **Key difference from `~/.claude/projects/`:** Uses short hex UUIDs as keys, not encoded paths. The `root` field holds the absolute path. Any operation that changes a project's path (rename, move) must update `root` in both `projects.json` and `projects/<uuid>/project.json`.
 
 ### Global config: `~/.claude/settings.json`
 
-Main Claude Code settings file. Rolling backups written to `~/.claude/backups/` as `~/.claude.json.backup.<timestamp>` — several per hour during active use. claude-mux should not touch this file.
+Main Claude Code settings file. Rolling backups written to `~/.claude/backups/` as `~/.claude.json.backup.<timestamp>` - several per hour during active use. claude-mux should not touch this file.
 
 ### Global agents, skills, commands
 
-- `~/.claude/agents/` — subagent definitions (`.md` files, ~38). Global, not per-project.
-- `~/.claude/skills/` — skill directories (~125). Global, not per-project.
-- `~/.claude/commands/` — slash command definitions (`.md` files, ~72). Global, not per-project.
-- `~/.claude/hooks/hooks.json` — hook definitions. Global. claude-mux should not touch these.
+- `~/.claude/agents/` - subagent definitions (`.md` files, ~38). Global, not per-project.
+- `~/.claude/skills/` - skill directories (~125). Global, not per-project.
+- `~/.claude/commands/` - slash command definitions (`.md` files, ~72). Global, not per-project.
+- `~/.claude/hooks/hooks.json` - hook definitions. Global. claude-mux should not touch these.
 
 ### Potential future features
 

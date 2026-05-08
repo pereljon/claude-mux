@@ -3520,11 +3520,19 @@ apply_template() {
     _real_tmpldir="$(cd "$TEMPLATES_DIR" 2>/dev/null && pwd -P)"
     _real_tpl="$(cd "$(dirname "$tpl_path")" 2>/dev/null && pwd -P)/$(basename "$tpl_path")"
     if [[ -z "$_real_tmpldir" || "$_real_tpl" != "$_real_tmpldir/"* ]]; then
+        if [[ -n "$TEMPLATE_NAME" ]]; then
+            echo "ERROR: Template '$tpl_name' resolves outside templates directory" >&2
+            exit 1
+        fi
         log "WARN: Template '$tpl_name' resolves outside TEMPLATES_DIR — skipping"
         return
     fi
 
     if [[ ! -f "$tpl_path" ]]; then
+        if [[ -n "$TEMPLATE_NAME" ]]; then
+            echo "ERROR: Template '$tpl_name' not found. Run --list-templates to see available templates." >&2
+            exit 1
+        fi
         log "WARN: Template '$tpl_name' not found at $tpl_path — skipping"
         return
     fi

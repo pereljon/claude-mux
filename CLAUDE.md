@@ -34,7 +34,7 @@ Infrastructure, not a framework. Keep sessions alive, get out of the way.
 - **Support, don't impose.** Make Claude Code persistent and accessible, not reshaped.
 - **Conversational first.** Natural language in-session is the primary interface.
 - **Eliminate complexity, don't relocate it.** Every abstraction must remove more burden than it introduces.
-- **Session management is invisible.** Claude should be able to manage sessions without permission prompts interrupting the conversation. Achieved two ways: (1) claude-mux is added to each project's allow list by `setup_claude_mux_permissions()` so Claude can run it freely; (2) the injection instructs Claude to use claude-mux rather than raw shell commands that would trigger prompts. Destructive operations (e.g. `--delete`) may still require confirmation — that's intentional, not a gap.
+- **Session management is invisible.** Claude should be able to manage sessions without permission prompts interrupting the conversation. Achieved two ways: (1) claude-mux is added to each project's allow list by `setup_claude_mux_permissions()` so Claude can run it freely; (2) the injection instructs Claude to use claude-mux rather than raw shell commands that would trigger prompts. Destructive operations (e.g. `--delete`) may still require confirmation - that's intentional, not a gap.
 - **Session names, not paths.** CLI commands operate on session names, not directory paths. The script resolves session names to directories internally via tmux (running sessions) or `PROJECT_DIRS` scanning (idle projects). Exceptions that accept paths (e.g. `--move` destination, `-d`/`-n` launch directory) require explicit approval before adding.
 
 ## Documentation Roles
@@ -43,8 +43,13 @@ Infrastructure, not a framework. Keep sessions alive, get out of the way.
 |------|---------|
 | `CLAUDE.md` | Conventions, checklists, guardrails for working in this repo |
 | `implentation-spec.md` | Product spec: architecture, config reference, design decisions, translation standards, deprecation policy |
-| `README.md` | End-user installation, usage, configuration |
+| `README.md` | Landing page: install, capabilities, conversational examples, links to docs |
 | `CHANGELOG.md` | What changed per release |
+| `docs/CLI.md` | Full CLI command reference for scripting and automation |
+| `docs/guide.md` | Configuration, session details, internals, troubleshooting |
+| `docs/INSTALL.md` | Full installation guide (curl, Homebrew, manual, uninstall) |
+| `docs/FAQ.md` | Common questions about claude-mux |
+| `docs/ISSUES.md` | Open bugs, planned features, resolved issues |
 
 ## Non-Obvious Behaviors
 
@@ -59,7 +64,7 @@ These affect how code changes should be made. Full architecture is in `implentat
 - **Version injection**: `get_version_prompt_lines()` reads `~/.claude-mux/.update-check`; if a newer version is cached, it appends an update note telling Claude to notify the user and suggest "update claude-mux"
 - **Session status**: `>` prefix marks the calling session (via `$TMUX_PANE`); `protected` status for protected+running sessions; `stopped` for protected+not-running
 
-## Project Folder Indicators — Marker-File Philosophy
+## Project Folder Indicators - Marker-File Philosophy
 
 Per-project state lives in the project folder, not in central config. State files use the prefix `.claudemux-` and are auto-added to `.gitignore` when claude-mux creates them in a git-tracked project.
 
@@ -114,14 +119,15 @@ Single-user tool on the user's own account. Threat model: accidental footguns (p
 
 ## Known Issues / Hypotheses
 
-- **`bypassPermissions` confirmation prompt**: Claude shows a warning with "No, exit" / "Yes, I accept" when launched with `bypassPermissions`. The startup poller detects "Yes, I accept", sends Down (to move from option 1 to option 2), waits 1s for the UI to register the selection, then sends Enter. The 1s pause is critical — without it the keystrokes race and confirm "No, exit" instead.
-- **`bypassPermissions` requires restart to enter**: cannot switch a running session to `bypassPermissions` mid-session — must restart with the flag. Once in the Shift+Tab cycle, re-entry from other modes is silent (no prompt). Confirmation prompt only fires on initial launch.
+- **`bypassPermissions` confirmation prompt**: Claude shows a warning with "No, exit" / "Yes, I accept" when launched with `bypassPermissions`. The startup poller detects "Yes, I accept", sends Down (to move from option 1 to option 2), waits 1s for the UI to register the selection, then sends Enter. The 1s pause is critical - without it the keystrokes race and confirm "No, exit" instead.
+- **`bypassPermissions` requires restart to enter**: cannot switch a running session to `bypassPermissions` mid-session - must restart with the flag. Once in the Shift+Tab cycle, re-entry from other modes is silent (no prompt). Confirmation prompt only fires on initial launch.
 
 ## Working Rules
 
 - **Questions vs. implementation**: answer questions as questions. Don't start coding until explicitly asked.
 - **No speculation as fact**: distinguish what you know from what you're guessing. Say "I'm not sure" when you can't verify.
-- **No LLM-stereotype writing** in human-facing content: no em dashes, no "delve", "leverage", "streamline", "excited to share". Write like a developer.
+- **No LLM-stereotype writing** in human-facing content: no "delve", "leverage", "streamline", "excited to share". Write like a developer.
+- **No em dashes**. Use regular dashes (-) instead, everywhere: code, docs, comments, commit messages.
 
 ## Interactive Commands
 
@@ -164,7 +170,7 @@ Before coding a new feature or change, review with the user: happy path, edge ca
 
 ## Change Checklist
 
-**GATE: Do NOT suggest commit, push, or release until every item below has been checked and all affected files are updated.** This is not optional — it is a prerequisite before proposing any git operation.
+**GATE: Do NOT suggest commit, push, or release until every item below has been checked and all affected files are updated.** This is not optional - it is a prerequisite before proposing any git operation.
 
 After any code change, check whether these need updating:
 
