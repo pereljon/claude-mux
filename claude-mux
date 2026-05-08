@@ -1,8 +1,8 @@
 #!/bin/bash
-# claude-mux — Claude Code Multiplexer
+# claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.12.5"
+VERSION="1.12.6"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config

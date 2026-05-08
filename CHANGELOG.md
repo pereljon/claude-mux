@@ -4,6 +4,16 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.12.6] - 2026-05-08
+
+### Fixed
+- **Template validation**: `--template NAME` now errors with a helpful message when the template doesn't exist, instead of silently creating the project without it
+
+### Changed
+- **README restructured** as a landing page: Install, Why, What You Can Do, Talking to Claude, More links
+- **Reference docs moved to docs/**: CLI.md, guide.md, INSTALL.md, FAQ.md, ISSUES.md
+- Replaced em dashes with regular dashes across all documentation
+
 ## [1.12.5] - 2026-05-08
 
 ### Fixed
@@ -342,7 +352,8 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - User config at `~/.claude-autorc` (later `~/.claude-mux/config`).
 - Logging to `~/Library/Logs/claude-autorc.log` (later `claude-mux.log`).
 
-[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.12.5...HEAD
+[Unreleased]: https://github.com/pereljon/claude-mux/compare/v1.12.6...HEAD
+[1.12.6]: https://github.com/pereljon/claude-mux/compare/v1.12.5...v1.12.6
 [1.12.5]: https://github.com/pereljon/claude-mux/compare/v1.12.4...v1.12.5
 [1.12.4]: https://github.com/pereljon/claude-mux/compare/v1.12.3...v1.12.4
 [1.12.3]: https://github.com/pereljon/claude-mux/compare/v1.12.2...v1.12.3
