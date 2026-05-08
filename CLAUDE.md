@@ -79,7 +79,7 @@ The tipotd Stop hook lives in each project's `.claude/settings.local.json` (high
 - `launch_single_session()` (home session / LaunchAgent)
 - `--enable-tips` (explicit, walks all projects)
 
-**Remove hook** (via `remove_tip_hook()` or `disable_tips()`):
+**Remove hook** (via `setup_claude_mux_permissions()` when `TIP_OF_DAY=false`, or `disable_tips()`):
 - `--delete` (project being removed)
 - `--disable-tips` (explicit, walks all projects)
 - `--uninstall` (full teardown, walks all projects)

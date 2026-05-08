@@ -3075,8 +3075,8 @@ set_tip_config() {
     [[ ! -f "$config" ]] && return
     if grep -q '^TIP_OF_DAY=' "$config" 2>/dev/null; then
         local tmp
-        tmp=$(mktemp)
-        sed "s/^TIP_OF_DAY=.*/TIP_OF_DAY=$value/" "$config" > "$tmp" && mv "$tmp" "$config"
+        tmp=$(mktemp "${TMPDIR:-/tmp}/claude-mux-tip-XXXXXX") || return
+        sed "s/^TIP_OF_DAY=.*/TIP_OF_DAY=$value/" "$config" > "$tmp" && mv "$tmp" "$config" || rm -f "$tmp"
     else
         printf '\nTIP_OF_DAY=%s\n' "$value" >> "$config"
     fi
@@ -3167,9 +3167,21 @@ if len(new_allow) != len(allow):
     changed = True
     perms['allow'] = new_allow
 
+# Remove claude-mux additionalDirectories entry
+additional = perms.get('additionalDirectories', [])
+new_additional = [p for p in additional if 'claude-mux' not in p]
+if len(new_additional) != len(additional):
+    changed = True
+    if new_additional:
+        perms['additionalDirectories'] = new_additional
+    else:
+        perms.pop('additionalDirectories', None)
+
 # Clean up empty structures
 if not perms.get('allow'):
     perms.pop('allow', None)
+if not perms.get('additionalDirectories'):
+    perms.pop('additionalDirectories', None)
 if not perms:
     d.pop('permissions', None)
 

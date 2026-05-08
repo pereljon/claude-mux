@@ -55,7 +55,7 @@ List templates: "list templates" or `claude-mux --list-templates`.
 
 A Claude Code Stop hook in each project's `.claude/settings.local.json` calls `claude-mux --tipotd` after every conversation turn. The command checks if a tip has already been shown today (via `~/.claude-mux/.tip-date`). If yes, it exits in about 6ms. If not, it prints a tip and records today's date.
 
-Tips are enabled by default (`TIP_OF_DAY=true`). Toggle with "enable tips" or "disable tips" inside any session. `TIP_MODE=daily` shows the same tip all day; `TIP_MODE=random` picks a random one each time.
+Tips are enabled by default (`TIP_OF_DAY=true`). Toggle with "enable tips" or "disable tips" inside any session. `TIP_MODE=daily` shows the same tip all day; `TIP_MODE=random` picks a random tip per invocation (with the Stop hook, this means one random tip per day due to the daily gate).
 
 The `--tip` command always works regardless of the daily gate, so you can say "tip" anytime.
 
