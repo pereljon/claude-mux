@@ -2,7 +2,7 @@
 # claude-mux — Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.11.1"
+VERSION="1.12.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -151,6 +151,7 @@ claude-mux conversational commands:
   hide this project / show this project
   protect this session / unprotect this session
   tip / tip of the day
+  enable tips / disable tips
 EOF
 }
 
@@ -205,11 +206,15 @@ Self-targeting (works inside sessions):
   --move SESSION PATH       Move project into PATH parent, migrate history and homunculus
                            Both: --force overrides protection; --dry-run previews steps
   --tip                    Print a tip (standalone; no daily gate)
+  --tipotd                 Print a tip (daily-gated; for Stop hook use)
+  --enable-tips            Register tip-of-the-day Stop hook in all projects
+  --disable-tips           Remove tip-of-the-day Stop hook from all projects
   --config-help            List all valid config options
   --commands               Print this reference
   --guide                  Print conversational commands list
   --update                 Update claude-mux to the latest version
   --install [OPTS...]      Run interactive setup
+  --uninstall              Remove hooks, permissions, LaunchAgent, and config
   -a                       Start ALL sessions (use with caution)
 
 Interactive (user-only — never from inside a session):
@@ -298,7 +303,8 @@ TMUX_BIN, CLAUDE_BIN             defaults: resolved via `command -v`
 
 TIP_OF_DAY                       default: true
   Type: true | false
-  Description: Show a tip at session start (once per day, first session only).
+  Description: Show a tip once per day via Stop hook. Registers/removes the hook
+               in each project's settings.local.json. Say "enable/disable tips".
                Set false to disable. --tip always works regardless.
 
 TIP_MODE                         default: "daily"
@@ -348,12 +354,15 @@ Commands:
   --restart [SESSION...]   Restart specific session(s), or all that were running
   --permission-mode MODE [SESSION...]  Restart session(s) with the given permission mode
   --autolaunch             Invoked by LaunchAgent; dispatches based on LAUNCHAGENT_MODE
+  --enable-tips            Register tip-of-the-day Stop hook in all projects
+  --disable-tips           Remove tip-of-the-day Stop hook from all projects
   --update                 Update claude-mux to the latest version
   --install [OPTS...]      Run interactive setup (config + LaunchAgent)
                            Options: --non-interactive, --base-dir DIR,
                                     --launchagent-mode {none,home},
                                     --home-model {sonnet,haiku,opus},
                                     --no-launchagent
+  --uninstall              Remove hooks, permissions, LaunchAgent, and config
 
 Options:
   --no-template         With -n, skip applying CLAUDE.md template
@@ -519,6 +528,10 @@ while [[ $# -gt 0 ]]; do
         -v|--version)     echo "claude-mux $VERSION"; exit 0 ;;
         -h|--help)        usage; exit 0 ;;
         --tip)            set_command "--tip" "tip"; shift ;;
+        --tipotd)         set_command "--tipotd" "tipotd"; shift ;;
+        --enable-tips)    set_command "--enable-tips" "enable-tips"; shift ;;
+        --disable-tips)   set_command "--disable-tips" "disable-tips"; shift ;;
+        --uninstall)      set_command "--uninstall" "uninstall"; shift ;;
         --guide)          guide; exit 0 ;;
         --config-help)    config_help; exit 0 ;;
         --commands)       commands_help; exit 0 ;;
@@ -579,6 +592,19 @@ fi
 if [[ "$FORCE" == "true" && "$COMMAND" != "shutdown" && "$COMMAND" != "delete" && "$COMMAND" != "save-template" && "$COMMAND" != "rename" && "$COMMAND" != "move" ]]; then
     echo "ERROR: --force can only be used with --shutdown, --delete, --save-template, --rename, or --move" >&2
     exit 1
+fi
+
+# ── Fast-exit: daily-gated tip check ─────────────────────────────────────────
+# Runs on every Claude turn via Stop hook. Exit immediately if tip already
+# shown today — avoids config loading, function parsing, and binary resolution.
+# When tips are disabled, the hook is removed from settings.local.json entirely,
+# so this code path is never reached.
+if [[ "$COMMAND" == "tipotd" ]]; then
+    _f="$HOME/.claude-mux/.tip-date"
+    _t=$(date +%Y-%m-%d)
+    [[ -f "$_f" ]] && [[ "$(cat "$_f" 2>/dev/null)" == "$_t" ]] && exit 0
+    printf '%s' "$_t" > "$_f" 2>/dev/null
+    # Date changed — fall through to load config + tips array
 fi
 
 # ── User config (overrides defaults above) ────────────────────────────────────
@@ -687,10 +713,7 @@ if [[ "${TMPDIR:-}" =~ [\'\"\$\`\ \	] ]]; then
     echo "       Set TMPDIR to a path without special characters." >&2
     exit 1
 fi
-CLAUDE_MUX_BIN="$(command -v "$0" 2>/dev/null)"
-if [[ -z "$CLAUDE_MUX_BIN" ]]; then
-    CLAUDE_MUX_BIN="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
-fi
+CLAUDE_MUX_BIN="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 GITHUB_SSH_INFO=""
 
 # Warn when cross-session control is enabled — elevated privilege surface
@@ -1419,6 +1442,8 @@ Rules:
 - When user says: rename this project to NAME — run claude-mux --rename CURRENT_SESSION NAME (where CURRENT_SESSION is this tmux session name)
 - When user says: move this project to PATH — run claude-mux --move CURRENT_SESSION PATH (where CURRENT_SESSION is this tmux session name)
 - When user says: tip / tip of the day — run claude-mux --tip and display the output. Tips are in English; render in the user's conversation language.
+- When user says: enable tips / turn on tips — run claude-mux --enable-tips
+- When user says: disable tips / turn off tips — run claude-mux --disable-tips
 - When user references sessions by number (e.g., stop 1-3, restart 5, compact 2 and 4), map the numbers to session names from the most recent list output, then run the corresponding command for each.
 - These trigger phrases work in any language. If the user types the equivalent intent in their native language (Spanish, French, German, Japanese, Hebrew, Arabic, Hindi, etc.), infer the intent and run the corresponding command. Output of claude-mux commands (lists, status, guide) is shown verbatim regardless of input language.
 
@@ -1432,9 +1457,11 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Protect/unprotect sessions (--protect / --unprotect)
   - Rename a project (--rename SESSION NAME) or move it (--move SESSION PATH) — migrates history and registry
   - Move a project to trash (--delete SESSION — macOS; honors protection unless --force)
+  - Enable/disable tip-of-the-day (--enable-tips / --disable-tips)
   - Show all config options (--config-help)
   - Run interactive setup or reconfigure (--install)
   - Update claude-mux (--update)
+  - Uninstall claude-mux (--uninstall — removes hooks, permissions, LaunchAgent)
 
 Self-targeting send: claude-mux -s '${session_name}' '/command' sends slash commands ${send_scope}.
 ${GITHUB_SSH_INFO}"
@@ -2282,15 +2309,18 @@ setup_claude_mux_permissions() {
     local settings_file="$dir/.claude/settings.local.json"
     local mux_dir="$HOME/.claude-mux"
 
-    # Check if expected rules already exist (different rule set for home)
+    local tip_enabled="${TIP_OF_DAY:-true}"
+
+    # Check if expected rules and hooks already exist
     if [[ -f "$settings_file" ]]; then
-        if /usr/bin/python3 - "$settings_file" "$is_home" "$mux_dir" 2>/dev/null <<'PYEOF'
+        if /usr/bin/python3 - "$settings_file" "$is_home" "$mux_dir" "$tip_enabled" 2>/dev/null <<'PYEOF'
 import json, sys
 try:
     with open(sys.argv[1]) as f: d = json.load(f)
 except Exception: sys.exit(1)
 is_home = sys.argv[2] == 'true'
 mux_dir = sys.argv[3]
+tip_enabled = sys.argv[4] == 'true'
 perms = d.get('permissions', {})
 allow = perms.get('allow', [])
 if not any('claude-mux' in r for r in allow):
@@ -2301,6 +2331,16 @@ if is_home:
         sys.exit(1)
     if mux_dir not in perms.get('additionalDirectories', []):
         sys.exit(1)
+# Check tip hook matches desired state
+stop_hooks = d.get('hooks', {}).get('Stop', [])
+has_tip = any(
+    any(h.get('command', '').endswith('--tipotd') for h in entry.get('hooks', []))
+    for entry in stop_hooks
+)
+if tip_enabled and not has_tip:
+    sys.exit(1)
+if not tip_enabled and has_tip:
+    sys.exit(1)
 sys.exit(0)
 PYEOF
         then
@@ -2321,12 +2361,13 @@ PYEOF
     # absolute path (when injection or scripts use the full path).
     # Home rules: file-system access for ~/.claude-mux/** so the home session
     # can manage its own config and templates.
-    if ! /usr/bin/python3 - "$settings_file" "$CLAUDE_MUX_BIN" "$is_home" "$mux_dir" >> "$LOG_FILE" 2>&1 <<'PYEOF'
+    if ! /usr/bin/python3 - "$settings_file" "$CLAUDE_MUX_BIN" "$is_home" "$mux_dir" "$tip_enabled" >> "$LOG_FILE" 2>&1 <<'PYEOF'
 import json, sys, os
 path = sys.argv[1]
 b = sys.argv[2]
 is_home = sys.argv[3] == 'true'
 mux_dir = sys.argv[4]
+tip_enabled = sys.argv[5] == 'true'
 
 if os.path.exists(path):
     try:
@@ -2351,6 +2392,29 @@ if is_home:
     additional = perms.setdefault('additionalDirectories', [])
     if mux_dir not in additional:
         additional.append(mux_dir)
+
+# Tip-of-the-day Stop hook
+hooks = d.setdefault('hooks', {})
+stop_hooks = hooks.setdefault('Stop', [])
+tip_cmd = f'{b} --tipotd'
+has_tip = any(
+    any(h.get('command', '').endswith('--tipotd') for h in entry.get('hooks', []))
+    for entry in stop_hooks
+)
+if tip_enabled and not has_tip:
+    stop_hooks.append({
+        'matcher': '*',
+        'hooks': [{'type': 'command', 'command': tip_cmd, 'timeout': 5}]
+    })
+elif not tip_enabled and has_tip:
+    hooks['Stop'] = [
+        entry for entry in stop_hooks
+        if not any(h.get('command', '').endswith('--tipotd') for h in entry.get('hooks', []))
+    ]
+    if not hooks['Stop']:
+        del hooks['Stop']
+    if not hooks:
+        del d['hooks']
 
 try:
     with open(path, 'w') as f: json.dump(d, f, indent=2)
@@ -2963,6 +3027,7 @@ tip_of_day() {
         "All project commands work with session names. \"Hide my-project\", \"protect my-project\", \"delete my-project\". No name means the current session."
         "Say \"clear this session\" to wipe context and start fresh without restarting. Say \"compact this session\" to summarize and reduce context usage instead."
         "Say \"send /model opus to the api-server session\" to run any slash command in another session from where you are."
+        "Say \"disable tips\" to turn off tip-of-the-day across all sessions. Say \"enable tips\" to turn it back on. Both update every project at once."
     )
 
     local num_tips=${#tips[@]}
@@ -2990,6 +3055,156 @@ tip_of_day() {
         # Standalone --tip: no gate, just print.
         printf '%s\n' "${tips[$idx]}"
     fi
+}
+
+# Update TIP_OF_DAY in ~/.claude-mux/config. Creates the line if missing.
+set_tip_config() {
+    local value="$1"  # true or false
+    local config="$CLAUDE_MUX_CONFIG"
+    [[ ! -f "$config" ]] && return
+    if grep -q '^TIP_OF_DAY=' "$config" 2>/dev/null; then
+        sed -i '' "s/^TIP_OF_DAY=.*/TIP_OF_DAY=$value/" "$config"
+    else
+        printf '\nTIP_OF_DAY=%s\n' "$value" >> "$config"
+    fi
+}
+
+# Walk all known project dirs and call setup_claude_mux_permissions() on each.
+# This re-runs the idempotent permission+hook setup, which adds or removes the
+# tip hook based on the current TIP_OF_DAY value.
+update_all_project_hooks() {
+    discover_projects
+    local dirs=("$BASE_DIR")
+    dirs+=("${PROJECT_DIRS[@]}")
+    if [[ ${#HIDDEN_PROJECT_DIRS[@]} -gt 0 ]]; then
+        dirs+=("${HIDDEN_PROJECT_DIRS[@]}")
+    fi
+    local _dir _is_home
+    for _dir in "${dirs[@]}"; do
+        [[ ! -d "$_dir/.claude" ]] && continue
+        _is_home=false
+        [[ "$_dir" == "$BASE_DIR" ]] && _is_home=true
+        setup_claude_mux_permissions "$_dir" "$_is_home"
+    done
+}
+
+enable_tips() {
+    TIP_OF_DAY=true
+    set_tip_config "true"
+    update_all_project_hooks
+    echo "Tips enabled. The tip-of-the-day hook has been added to all projects."
+}
+
+disable_tips() {
+    TIP_OF_DAY=false
+    set_tip_config "false"
+    update_all_project_hooks
+    echo "Tips disabled. The tip-of-the-day hook has been removed from all projects."
+}
+
+# Remove all claude-mux artifacts: hooks, permissions, LaunchAgent, and optionally config.
+do_uninstall() {
+    echo "Uninstalling claude-mux..."
+    echo ""
+
+    # 1. Remove tip hooks from all projects
+    TIP_OF_DAY=false
+    discover_projects
+    local dirs=("$BASE_DIR")
+    dirs+=("${PROJECT_DIRS[@]}")
+    if [[ ${#HIDDEN_PROJECT_DIRS[@]} -gt 0 ]]; then
+        dirs+=("${HIDDEN_PROJECT_DIRS[@]}")
+    fi
+
+    local _dir _settings _count=0
+    for _dir in "${dirs[@]}"; do
+        _settings="$_dir/.claude/settings.local.json"
+        [[ ! -f "$_settings" ]] && continue
+        # Remove tip hook and claude-mux permission rules
+        if /usr/bin/python3 - "$_settings" 2>/dev/null <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+try:
+    with open(path) as f: d = json.load(f)
+except Exception: sys.exit(1)
+
+changed = False
+
+# Remove tip hooks
+hooks = d.get('hooks', {})
+stop_hooks = hooks.get('Stop', [])
+new_stop = [
+    entry for entry in stop_hooks
+    if not any(h.get('command', '').endswith('--tipotd') for h in entry.get('hooks', []))
+]
+if len(new_stop) != len(stop_hooks):
+    changed = True
+    if new_stop:
+        hooks['Stop'] = new_stop
+    else:
+        hooks.pop('Stop', None)
+    if not hooks:
+        d.pop('hooks', None)
+
+# Remove claude-mux permission rules
+perms = d.get('permissions', {})
+allow = perms.get('allow', [])
+new_allow = [r for r in allow if 'claude-mux' not in r]
+if len(new_allow) != len(allow):
+    changed = True
+    perms['allow'] = new_allow
+
+# Clean up empty structures
+if not perms.get('allow'):
+    perms.pop('allow', None)
+if not perms:
+    d.pop('permissions', None)
+
+if not changed:
+    sys.exit(0)
+
+if d:
+    with open(path, 'w') as f: json.dump(d, f, indent=2)
+else:
+    import os
+    os.remove(path)
+PYEOF
+        then
+            (( _count++ ))
+        fi
+    done
+    echo "  Cleaned settings.local.json in $_count project(s)"
+
+    # 2. Unload and remove LaunchAgent
+    local _plist="$HOME/Library/LaunchAgents/com.user.claude-mux.plist"
+    if [[ -f "$_plist" ]]; then
+        launchctl unload "$_plist" 2>/dev/null || true
+        rm -f "$_plist"
+        echo "  Removed LaunchAgent"
+    else
+        echo "  LaunchAgent not found (skipped)"
+    fi
+
+    # 3. Optionally remove config directory
+    echo ""
+    if [[ -t 0 && -t 1 ]]; then
+        printf "Remove %s? (config, templates, logs) [y/N]: " "$CLAUDE_MUX_DIR"
+        read -r _answer
+        case "${_answer:-n}" in
+            [Yy]|[Yy]es)
+                rm -rf "$CLAUDE_MUX_DIR"
+                echo "  Removed $CLAUDE_MUX_DIR"
+                ;;
+            *)
+                echo "  Kept $CLAUDE_MUX_DIR"
+                ;;
+        esac
+    else
+        echo "  Kept $CLAUDE_MUX_DIR (non-interactive; remove manually if desired)"
+    fi
+
+    echo ""
+    echo "claude-mux uninstalled. The claude-mux binary is still at $(command -v claude-mux 2>/dev/null || echo 'unknown') — remove it manually if desired."
 }
 
 save_template_command() {
@@ -3385,7 +3600,7 @@ check_for_update
 # Commands that don't need config: install, update, list-templates, send,
 # shutdown, autolaunch (LaunchAgent context — handled in autolaunch_dispatch).
 case "$COMMAND" in
-    install|update|list-templates|send|shutdown|autolaunch)
+    install|update|list-templates|send|shutdown|autolaunch|uninstall)
         # Skip config-required check; these can run without config
         ;;
     *)
@@ -3426,6 +3641,10 @@ case "$COMMAND" in
     list-all) status_claude_sessions true; exit 0 ;;
     list-templates) list_templates; exit 0 ;;
     tip)           tip_of_day; exit 0 ;;
+    tipotd)        tip_of_day; exit 0 ;;
+    enable-tips)   enable_tips; exit 0 ;;
+    disable-tips)  disable_tips; exit 0 ;;
+    uninstall)     do_uninstall; exit 0 ;;
     save-template) save_template_command "${SAVE_TEMPLATE_NAME:-}" "${SAVE_TEMPLATE_DIR:-}"; exit $? ;;
     rename)     rename_move_command "${RENAME_SRC:-}" "${RENAME_DST:-}" "rename"; exit $? ;;
     move)       rename_move_command "${RENAME_SRC:-}" "${RENAME_DST:-}" "move"; exit $? ;;

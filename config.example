@@ -48,8 +48,9 @@
 
 # ── Tips ─────────────────────────────────────────────────────────────────────
 
-# Show a tip at session start (once per day, first session only).
-# --tip always works regardless of this setting.
+# Show a tip once per day via Stop hook (first completed turn of the day).
+# When true, a Stop hook is registered in each project's settings.local.json.
+# Say "enable tips" or "disable tips" to toggle. --tip always works regardless.
 # Default: true
 #TIP_OF_DAY=true
 

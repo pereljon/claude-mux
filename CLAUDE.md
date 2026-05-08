@@ -67,6 +67,29 @@ Per-project state lives in the project folder, not in central config. State file
 - Truly session-runtime state → tmux user options (e.g. `@claude-mux-protected`).
 - Markers are for state that should travel with the project folder.
 
+## Tip-of-the-Day Stop Hook Lifecycle
+
+The tipotd Stop hook lives in each project's `.claude/settings.local.json` (highest precedence, safe from array-replace merge behavior in Claude Code's settings hierarchy). It calls `claude-mux --tipotd` on every turn; the script exits in ~6ms when the date matches (already shown today).
+
+**Add hook** (via `setup_claude_mux_permissions()` or `enable_tips()`):
+- `--install` (initial setup)
+- `-d` / session launch (`create_claude_session()`)
+- `-n` / new project (`create_new_project()` -> `create_claude_session()`)
+- `--restart` (relaunches session)
+- `launch_single_session()` (home session / LaunchAgent)
+- `--enable-tips` (explicit, walks all projects)
+
+**Remove hook** (via `remove_tip_hook()` or `disable_tips()`):
+- `--delete` (project being removed)
+- `--disable-tips` (explicit, walks all projects)
+- `--uninstall` (full teardown, walks all projects)
+
+**No hook action needed:**
+- `--shutdown` (session stops, project persists, hook stays for next launch)
+- `--hide` / `--show` (visibility only)
+- `--protect` / `--unprotect` (protection only)
+- `--rename` / `--move` (`.claude/settings.local.json` moves with the folder)
+
 ## Security Context
 
 Single-user tool on the user's own account. Threat model: accidental footguns (path traversal, injection via user-supplied args), not multi-user or adversarial scenarios.

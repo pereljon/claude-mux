@@ -4,6 +4,14 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.12.0] — 2026-05-06
+
+### Added
+- **`--tipotd`**: daily-gated tip command for use as a Stop hook. Exits in ~6ms on fast path (date already matches today). Falls through to print a tip once per day.
+- **Tip-of-the-day Stop hook**: registered in each project's `.claude/settings.local.json` so long-running sessions that never restart still see tips. Managed automatically on session create/restart.
+- **`--enable-tips` / `--disable-tips`**: register or remove the tip Stop hook across all known projects. Conversational triggers: "enable tips", "disable tips".
+- **`--uninstall`**: removes tip hooks and claude-mux permission rules from all projects, unloads the LaunchAgent, and optionally removes `~/.claude-mux/`.
+
 ## [1.11.1] — 2026-05-05
 
 ### Changed

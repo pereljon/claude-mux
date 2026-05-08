@@ -93,6 +93,12 @@ Claude: checks for .claudemux-protected in the project folder and reports
 You: "delete the old-prototype project"
 Claude: confirms in chat, then moves the project folder to system trash
 
+You: "tip"
+Claude: prints a tip — same tip all day, or random if TIP_MODE=random is set
+
+You: "enable tips" / "disable tips"
+Claude: registers or removes the tip-of-the-day hook across all projects
+
 You: "update claude-mux"
 Claude: warns that all sessions will restart, asks for confirmation, then updates and restarts
 
@@ -315,7 +321,23 @@ Rules:
 - When user says: switch this session to MODEL model / switch session NAME to MODEL model
 - When user says: compact/clear this session / compact/clear session NAME
 - When user says: list templates — run claude-mux --list-templates
+- When user says: enable tips / turn on tips — run claude-mux --enable-tips
+- When user says: disable tips / turn off tips — run claude-mux --disable-tips
 - When user says: update claude-mux — warns about restart, gets confirmation, then runs --update and --restart
+
+Additional capabilities (run claude-mux --commands for full syntax):
+  - Attach interactively to a session (-t — user-only, never from inside a session)
+  - Start all sessions at once (-a)
+  - New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
+  - Force-shutdown a protected session (--shutdown SESSION --force)
+  - Hide/show projects (--hide / --show)
+  - Protect/unprotect sessions (--protect / --unprotect)
+  - Move a project to trash (--delete SESSION — macOS; honors protection unless --force)
+  - Enable/disable tip-of-the-day hook (--enable-tips / --disable-tips)
+  - Show all config options (--config-help)
+  - Run interactive setup or reconfigure (--install)
+  - Remove all hooks and permissions (--uninstall)
+  - Update claude-mux (--update)
 
 Commands:
   -s '<session-name>' '/command'  Send slash command to yourself

@@ -100,6 +100,9 @@ Claude: copies CLAUDE.md to ~/.claude-mux/templates/web.md
 You: "tip"
 Claude: prints a tip — same tip all day, or random if TIP_MODE=random is set
 
+You: "enable tips" / "disable tips"
+Claude: registers or removes the tip-of-the-day hook across all projects
+
 You: "update claude-mux"
 Claude: warns that all sessions will restart, asks for confirmation, then updates and restarts
 
@@ -340,6 +343,8 @@ Rules:
 - When user says: is this hidden / is this protected — check for .claudemux-ignore or .claudemux-protected
 - When user says: delete this project / delete PROJECT — confirm in chat first, then run claude-mux --delete SESSION --yes
 - When user says: list templates — run claude-mux --list-templates
+- When user says: enable tips / turn on tips — run claude-mux --enable-tips
+- When user says: disable tips / turn off tips — run claude-mux --disable-tips
 - These trigger phrases work in any language.
 
 Additional capabilities (run claude-mux --commands for full syntax):
@@ -350,8 +355,10 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Hide/show projects (--hide / --show)
   - Protect/unprotect sessions (--protect / --unprotect)
   - Move a project to trash (--delete SESSION — macOS; honors protection unless --force)
+  - Enable/disable tip-of-the-day hook (--enable-tips / --disable-tips)
   - Show all config options (--config-help)
   - Run interactive setup or reconfigure (--install)
+  - Remove all hooks and permissions (--uninstall)
   - Update claude-mux (--update)
 
 Self-targeting send: claude-mux -s '<session-name>' '/command' sends slash commands to yourself.
