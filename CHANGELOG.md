@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.12.2] — 2026-05-08
+
+### Fixed
+- **Interactive install via curl pipe**: `do_install()` skipped all interactive prompts when piped via `curl | bash` because stdin is the pipe, not a TTY. Now falls back to `/dev/tty` for user input, matching the standard pattern used by other curl-piped installers.
+
 ## [1.12.1] — 2026-05-08
 
 ### Fixed
