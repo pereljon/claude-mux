@@ -32,17 +32,9 @@
 - Offer to add new settings (with defaults) that didn't exist in the old config
 - Option B: pre-fill prompts with existing config values and let user change them
 
-### Translation files need v1.10–v1.12 update
+### Translation files need v1.10-v1.12 update
 **Severity:** Low
-**Status:** Open - translations not yet updated
-**Description:** All 12 translation files (`translations/README.*.md`) are behind by several versions (v1.10–v1.12). Changes that need reflecting:
-- curl as primary Quick Start (one-liner)
-- New Install section structure (curl recommended, Homebrew macOS alternative)
-- Session names instead of paths for `--hide`/`--delete`/`--protect` (v1.11.0)
-- New conversational examples: rename, save-as-template, tip, enable/disable tips, update
-- Requirements: "Apple Silicon or Intel" (not just Apple Silicon)
-- New "More" section linking FAQ, ISSUES, CHANGELOG
-- FAQ and ISSUES translations need creating
+**Status:** Resolved in v1.12.6 - all 36 translation files (12 READMEs, 12 FAQs, 12 ISSUES) updated to match current English sources
 
 ### Code review deferred issues (v1.9.0)
 **Severity:** Low–Medium
