@@ -26,6 +26,8 @@ Not allowed:
 
 If a user requests a new feature, acknowledge it and suggest tracking it in ISSUES.md under the v2.0 milestone instead.
 
+**Exception (v1.13.0):** `--restart --fresh` / "restart this session fresh" / "kill this session" was implemented as a patch exception due to high severity (MCP installs unusable without it). No further exceptions until v2.0.
+
 ## Design Principles
 
 Infrastructure, not a framework. Keep sessions alive, get out of the way.

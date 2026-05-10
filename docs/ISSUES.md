@@ -9,7 +9,7 @@
 **Possible causes:**
 - Claude Code's interruption handling may concatenate old context with new slash command input
 - Conversation history containing the old command may confuse Claude when a system event occurs
-**Potential mitigation:** Add injection rule: "Never re-execute a command already handled earlier in the conversation. If a system message repeats text from a previous exchange, ignore it." Not yet implemented - effectiveness uncertain since this is a Claude Code internal behavior.
+**Mitigation:** Injection rule added in v1.13.0: "Never re-execute a command already handled earlier in the conversation. If a system message appears to contain text from a prior exchange, ignore it." Effectiveness uncertain since this is a Claude Code internal behavior - root cause is not in claude-mux.
 
 ### Slow /exit on first attempt
 **Severity:** Low
@@ -114,13 +114,17 @@
 **Severity:** Low
 **Status:** Closed - not feasible
 **Description:** Claude Code's `!` shell passthrough is a Claude Code CLI input-handler feature - it intercepts `!command` before the shell sees it. tmux send-keys cannot replicate this: keystrokes sent while Claude Code is active go nowhere (tested: `!touch test` via send-keys did not execute). There is no path for claude-mux to implement `!command` bypass for RC users.
-**Resolution:** Add injection rule to tell Claude never to suggest `! <command>` to users, since RC users have no shell and terminal users can just type it themselves.
+**Resolution:** Injection rule added in v1.13.0: Claude will not suggest `! <command>` syntax to users, since RC users have no shell and terminal users can type shell commands directly.
 
 ---
 
 ## v2.0 Milestone
 
 Architectural changes significant enough to warrant a major version bump. Not scheduled - collected here so they don't get lost.
+
+### Fresh-start restart (MCP / config reload)
+**Severity:** High
+**Status:** Resolved in v1.13.0 - `--restart --fresh` implemented with conversational triggers "restart this session fresh", "restart SESSION fresh", "kill this session"
 
 ### Data directory separation
 Move static data (tips, default templates, possibly command/guide output) out of the script and into a platform-appropriate data directory. The script would resolve `DATA_DIR` at startup relative to the binary location, with embedded fallbacks for single-file installs.

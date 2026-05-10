@@ -4,6 +4,19 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-05-10
+
+### Added
+- **Fresh-start restart**: `--restart SESSION --fresh` restarts a session without resuming the prior conversation. Useful after installing a new MCP or making global config changes that only take effect in a new Claude Code session.
+  - Conversational triggers: "restart this session fresh", "restart SESSION fresh", "kill this session"
+  - Works with `--restart` (named or all sessions) and `-d`
+  - Caller-last ordering preserved: when restarting from inside the target session, the background handoff also passes `--fresh`
+- **Tip #39**: teaches users the "restart this session fresh" / "kill this session" triggers
+
+### Fixed
+- **Injection: phantom replay mitigation**: Claude will no longer re-execute a command that was already handled earlier in the conversation when a system message appears to repeat prior exchange text
+- **Injection: suppress `! <command>` suggestions**: Claude will not suggest the `!` shell passthrough syntax, which Remote Control users cannot use and terminal users do not need
+
 ## [1.12.6] - 2026-05-08
 
 ### Fixed

@@ -168,7 +168,7 @@ If no `.gitignore` exists, creates one with common exclusions (secrets, credenti
 
 If `DEFAULT_PERMISSION_MODE` is non-empty, writes or merges `permissions.defaultMode` into `$dir/.claude/settings.local.json` using Python 3 for safe JSON merge. Logs a warning and skips on JSON parse/write failure.
 
-#### create_claude_session(session_name, working_dir, [mode_override])
+#### create_claude_session(session_name, working_dir, [mode_override], [fresh_start])
 
 Skips if a tmux session with that name already exists AND Claude is running in it. If the session exists but Claude has exited, relaunches Claude into the existing session.
 
@@ -176,6 +176,8 @@ Optional third argument `mode_override` overrides the permission mode for the la
 - `dangerously-skip-permissions` → uses `--dangerously-skip-permissions` flag
 - Any other value → uses `--permission-mode <value>`
 - Empty (default) → uses `--permission-mode auto`
+
+Optional fourth argument `fresh_start` (default `false`): when `true`, omits `-c` from the Claude launch command so Claude Code starts a new conversation instead of resuming the last one. Used by `--restart --fresh`.
 
 Builds a system prompt via `build_system_prompt(session_name)` and passes it via `--append-system-prompt`. The prompt has a header, rules section, and commands section.
 
@@ -204,7 +206,7 @@ claude-mux --tip            → print a tip (standalone; no daily gate)
 - Use claude-mux for ALL session management — never raw tmux/ls commands
 - When user says "help", run `claude-mux --guide` and print the output verbatim
 - When user says "status", report session name, current model, current permission mode, context estimate, then run `-l`
-- Trigger rules for each conversational phrase (list/start/stop/restart/switch/compact/clear/list templates/save-as-template/rename/move/update/hide/show/protect/unprotect/delete/tip) map to their corresponding claude-mux commands
+- Trigger rules for each conversational phrase (list/start/stop/restart/restart-fresh/kill/switch/compact/clear/list templates/save-as-template/rename/move/update/hide/show/protect/unprotect/delete/tip) map to their corresponding claude-mux commands
 - "update claude-mux": warn user that all sessions will restart, get confirmation, then run `--update` followed by `--restart`
 - "save this as a template named NAME": `--save-template NAME` (defaults to current dir)
 - "rename this project to NAME": `--rename . NAME`
