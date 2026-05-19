@@ -100,6 +100,24 @@ Conversation history is managed by Claude Code itself, stored under `~/.claude/p
 
 The update check and `--update` command hardcode `pereljon/claude-mux` as the GitHub repo. If you fork it, update checks will still compare against the upstream release, and `--update` will overwrite your fork's binary with upstream. Set `UPDATE_CHECK=false` in `~/.claude-mux/config` to disable, or change the repo URL in the `check_for_update()` and `do_update()` functions in the script.
 
+## Why don't running sessions pick up changes after `brew upgrade`?
+
+claude-mux is a shell script, not a compiled binary. Any new `claude-mux` command after `brew upgrade` immediately uses the updated script - there is nothing cached in memory.
+
+The issue is the injection prompt. Each session has a system prompt baked in at creation time (via `--append-system-prompt`). Running sessions keep the old prompt until restarted, regardless of what version is on disk.
+
+After upgrading, restart sessions to pick up the updated injection:
+- Say **"restart all sessions"** inside any running session, or
+- Run `claude-mux --update` (which upgrades and restarts automatically)
+
+Avoid running `brew upgrade claude-mux` directly from a terminal and skipping the restart step - sessions will be running with a mismatched injection prompt.
+
+## Why does Remote Control disconnect when a session restarts?
+
+RC connections are tied to the tmux session process. When a session is restarted (via `--restart`, `--update`, or a crash), the session process dies and the RC connection drops.
+
+The session comes back on its own within ~5-10 seconds. Just reconnect RC manually after that. This is expected behavior, not a bug.
+
 ## How do I install via Homebrew?
 
 ```bash

@@ -63,6 +63,9 @@ These affect how code changes should be made. Full architecture is in `implentat
 - **Output display tags**: listing commands wrap output in `<assistant-must-display>` XML tags when stdout is not a TTY
 - **Caller-last restart ordering**: `--restart` (all) from inside a session restarts the calling session last
 - **Home session**: session named `home` in `$BASE_DIR`, protected by default (via `$BASE_DIR/.claudemux-protected` marker, created by `--install`), requires `--force` to shut down
+- **LaunchAgent scope**: the LaunchAgent only manages the `home` session - it checks if `home` is running and starts it if not. It does not start, restart, or monitor any other sessions.
+- **Script, not binary**: claude-mux is a shell script, not a compiled binary. Every invocation reads the script fresh from disk - there is no "stale binary in memory". After `brew upgrade claude-mux`, any new `claude-mux` command immediately uses the updated script. However, running sessions have the injection prompt baked in at creation time (via `--append-system-prompt`). Sessions won't pick up injection changes until restarted. After an upgrade, say "restart all sessions" or run `--update` (which calls `--restart` automatically).
+- **Remote Control reconnect**: RC connections are tied to the tmux session. When a session is restarted (via `--restart`, `--update`, or crash recovery), the RC connection drops and must be manually reconnected after ~5-10 seconds. This is expected behavior, not a bug.
 - **Version injection**: `get_version_prompt_lines()` reads `~/.claude-mux/.update-check`; if a newer version is cached, it appends an update note telling Claude to notify the user and suggest "update claude-mux"
 - **Session status**: `>` prefix marks the calling session (via `$TMUX_PANE`); `protected` status for protected+running sessions; `stopped` for protected+not-running
 

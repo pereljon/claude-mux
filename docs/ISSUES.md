@@ -136,6 +136,18 @@ Move static data (tips, default templates, possibly command/guide output) out of
 
 Trigger: when the embedded data (tips, default templates) grows large enough to make the script hard to read, or when default templates need to ship via brew independently of script releases.
 
+### Show model on session start
+Display the active model as part of the session-ready output so users know which model they're in without having to ask.
+
+**Proposed format:** `Ready with Opus 4.7 [1M]` or similar - model name plus context window size.
+**Design constraint:** The "Ready?" trigger response must remain exactly `Session ready!` (Remote Control detects that string). Model info would need to come from the launch side (e.g. printed to the pane before or after the ready handshake) or as a second message following the ready line.
+
+### Warn before restart in --update and RC
+
+When `--update` or a "restart all sessions" command is about to restart sessions, print a message explaining why - e.g. "Restarting sessions to apply updated injection prompt..." - so users understand the restart is expected and know to reconnect Remote Control.
+
+Also relevant: RC connections drop silently on restart with no feedback. A brief "Session restarting, reconnect RC in ~10s" message before the restart would reduce confusion.
+
 ### Language / runtime reconsideration
 The monolithic bash script is the right call at current scope. If claude-mux grows significantly - project rename/move/copy operations, a relay layer, cross-platform packaging, a data directory - bash starts fighting back. At that point, rewriting the session management core in Go or another typed language (with bash as a thin CLI wrapper) is worth evaluating.
 
