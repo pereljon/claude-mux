@@ -148,6 +148,18 @@ When `--update` or a "restart all sessions" command is about to restart sessions
 
 Also relevant: RC connections drop silently on restart with no feedback. A brief "Session restarting, reconnect RC in ~10s" message before the restart would reduce confusion.
 
+### Agent teams compatibility
+
+Claude Code v2.1.32+ includes experimental agent teams (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). Since claude-mux sessions run inside tmux, `teammateMode` auto-detects tmux and defaults to split-pane mode - no extra config needed. That part works for free.
+
+Known friction points to investigate and document:
+
+- **Unmanaged teammate sessions**: teammates are spawned by Claude Code directly, not by claude-mux. They don't get the claude-mux injection (`--append-system-prompt`), don't appear in `claude-mux -l`, and aren't accessible via RC through the normal session list.
+- **Orphaned sessions on restart**: if `--restart` is called on a lead session with active teammates, it's unclear whether Claude Code cleans up teammates first or leaves orphaned tmux sessions. Needs testing.
+- **RC visibility**: teammates may not be launched with `--remote-control`, so they may not appear in the mobile app. Needs verification.
+
+Design posture: don't interfere with agent team lifecycle - that's Claude Code's domain. Document the known behavior so users know what to expect. The "infrastructure, not a framework" principle applies here.
+
 ### Language / runtime reconsideration
 The monolithic bash script is the right call at current scope. If claude-mux grows significantly - project rename/move/copy operations, a relay layer, cross-platform packaging, a data directory - bash starts fighting back. At that point, rewriting the session management core in Go or another typed language (with bash as a thin CLI wrapper) is worth evaluating.
 

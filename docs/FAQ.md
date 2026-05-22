@@ -100,6 +100,12 @@ Conversation history is managed by Claude Code itself, stored under `~/.claude/p
 
 The update check and `--update` command hardcode `pereljon/claude-mux` as the GitHub repo. If you fork it, update checks will still compare against the upstream release, and `--update` will overwrite your fork's binary with upstream. Set `UPDATE_CHECK=false` in `~/.claude-mux/config` to disable, or change the repo URL in the `check_for_update()` and `do_update()` functions in the script.
 
+## How do I access my project files from my phone?
+
+Remote Control gives you access to the session - you can talk to Claude from the Claude mobile app from anywhere. But files Claude creates or modifies stay on your desktop.
+
+[Resilio Sync](docs/resilio-sync-guide.md) is a peer-to-peer sync tool that complements this well. Sync your Claude projects folder to your mobile device and you can read outputs, open files, and review notes alongside the RC session - no cloud service required. It has native apps for iOS, Android, macOS, Windows, and Linux. Syncthing is an open-source alternative but has no native iOS app.
+
 ## Why don't running sessions pick up changes after `brew upgrade`?
 
 claude-mux is a shell script, not a compiled binary. Any new `claude-mux` command after `brew upgrade` immediately uses the updated script - there is nothing cached in memory.
