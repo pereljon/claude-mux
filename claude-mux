@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.13.0"
+VERSION="1.13.1"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -206,7 +206,10 @@ Self-targeting (works inside sessions):
   --delete SESSION          Move project folder to system trash (macOS only).
                            --force overrides protection; --yes skips prompt.
   --rename SESSION NAME     Rename project directory, migrate history and homunculus
-  --move SESSION PATH       Move project into PATH parent, migrate history and homunculus
+  --move SESSION PARENT_DIR Move project into PARENT_DIR (the destination's parent),
+                           migrate history and homunculus. If PARENT_DIR's basename
+                           matches SESSION, the trailing component is stripped (so
+                           both "/path/to" and "/path/to/SESSION" work).
                            Both: --force overrides protection; --dry-run previews steps
   --tip                    Print a tip (standalone; no daily gate)
   --tipotd                 Print a tip (daily-gated; for Stop hook use)
@@ -1427,7 +1430,7 @@ Rules:
 - Always use --no-attach with -d and -n — attach is interactive only
 - --shutdown and --restart never attach — safe to run from inside a session; do NOT add --no-attach to these commands
 - Always print command output verbatim in your response text — never run a command silently or rely on tool output being visible; if a command fails, report the error
-- When command output contains <assistant-must-display> tags, you MUST include the COMPLETE content between those tags verbatim in your response. Never summarize, truncate, or omit any lines. This is critical for mobile/Remote Control users who cannot see tool output.
+- When command output contains <assistant-must-display> tags, output every single line between the tags verbatim. Do NOT collapse, summarize, omit, or abbreviate ranges of rows — especially in lists or tables where consecutive rows share a parent directory or status (e.g. \"5-19 idle (15 work sessions)\" is forbidden; emit all 15 rows individually). The output may include a row-count footer like \"<!-- N rows above. Output must contain all N verbatim. -->\"; treat that as a check, not part of the display. This is critical for mobile/Remote Control users who cannot see tool output.
 - The 'home' session is the always-available session in the base directory for managing other sessions. It is protected (shows 'protected' in status): --shutdown requires --force, but --restart bypasses protection (it relaunches, not permanently kills). Protection is driven by the .claudemux-protected marker in the session's working directory.
 - Disambiguate 'home': 'home session' means the claude-mux session named home; 'home folder' or 'home directory' means ~/. If context is ambiguous, ask which the user means.
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
@@ -1463,7 +1466,7 @@ Rules:
 - When user says: list templates — run claude-mux --list-templates
 - When user says: save this as a template named NAME / make a template from this project called NAME — run claude-mux --save-template NAME (no DIR arg needed; defaults to current project). Confirm with the template filename.
 - When user says: rename this project to NAME — run claude-mux --rename CURRENT_SESSION NAME (where CURRENT_SESSION is this tmux session name)
-- When user says: move this project to PATH — run claude-mux --move CURRENT_SESSION PATH (where CURRENT_SESSION is this tmux session name)
+- When user says: move this project to PATH — run claude-mux --move CURRENT_SESSION PARENT_DIR where PARENT_DIR is the destination's PARENT directory (the existing folder the project will be moved INTO), not the new full project path. The command also accepts the full destination path (PARENT_DIR/SESSION) and strips the trailing session name automatically.
 - When user says: tip / tip of the day — run claude-mux --tip and display the output. Tips are in English; render in the user's conversation language.
 - When user says: enable tips / turn on tips — run claude-mux --enable-tips
 - When user says: disable tips / turn off tips — run claude-mux --disable-tips
@@ -1880,6 +1883,13 @@ status_claude_sessions() {
     [[ $unmanaged -gt 0 ]] && echo "($unmanaged non-managed tmux sessions hidden)"
     if [[ "$show_idle" == "true" && "${LIST_HIDDEN_MODE:-none}" == "none" && ${#HIDDEN_PROJECT_DIRS[@]} -gt 0 ]]; then
         echo "(${#HIDDEN_PROJECT_DIRS[@]} hidden projects — use --include-hidden or --hidden to show)"
+    fi
+    # Row-count footer (non-TTY only): paired with assistant-must-display tags so
+    # the model can self-check that no rows were collapsed or summarized.
+    if [[ ! -t 1 && -n "$sorted_rows" ]]; then
+        local _total
+        _total=$(printf '%s' "$sorted_rows" | grep -cv '^$')
+        echo "<!-- ${_total} rows above. Output must contain all ${_total} verbatim. -->"
     fi
     echo_hint_end
     return 0
@@ -3351,19 +3361,24 @@ rename_move_command() {
         fi
         dst_abs="$(dirname "$src_abs")/$dst_arg"
     else
-        # Destination for --move is a directory path, not a session name
-        local dst_parent
-        if [[ "$dst_arg" = /* ]]; then
-            dst_parent="$dst_arg"
-        else
-            dst_parent=$(cd "$dst_arg" 2>/dev/null && pwd) || dst_parent="$dst_arg"
+        # Destination for --move is the parent directory the project moves INTO.
+        # Smart detection: if the user passed the full destination path
+        # (PARENT_DIR/SESSION) instead of just PARENT_DIR, strip the trailing
+        # SESSION component so both forms work.
+        local src_basename
+        src_basename=$(basename "$src_abs")
+        local dst_parent="$dst_arg"
+        if [[ "$(basename "$dst_parent")" == "$src_basename" && ! -d "$dst_parent" ]]; then
+            # Looks like a full destination path; use its parent
+            dst_parent=$(dirname "$dst_parent")
         fi
         if [[ ! -d "$dst_parent" ]]; then
             echo "ERROR: Destination parent '$dst_parent' is not a directory" >&2
+            echo "Hint: --move expects the PARENT directory the project moves into (must already exist), not the new full project path." >&2
             return 1
         fi
         dst_parent=$(cd "$dst_parent" && pwd -P)
-        dst_abs="$dst_parent/$(basename "$src_abs")"
+        dst_abs="$dst_parent/$src_basename"
     fi
 
     # Guard: destination must not exist

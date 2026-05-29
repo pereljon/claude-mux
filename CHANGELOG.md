@@ -4,6 +4,13 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-05-29
+
+### Fixed
+- **`--move` smart destination detection**: previously `--move SESSION /path/to/SESSION` errored because the command only accepted the parent directory. The command now also accepts the full destination path and strips the trailing session name when its basename matches `SESSION`. The error message now hints at the expected form when the parent does not exist.
+- **`--move` injection clarification**: trigger rule and CLI help now explicitly state that the path argument is the destination's PARENT directory (must already exist), not the new full project path.
+- **Listing output not summarized**: `-l` and `-L` now emit a row-count footer like `<!-- N rows above. Output must contain all N verbatim. -->` inside the `<assistant-must-display>` block, and the injection rule explicitly forbids collapsing visually-similar consecutive rows (e.g. multiple sessions in the same parent directory). Prevents Claude from rendering ranges like `"35-49 idle (15 work sessions)"`.
+
 ## [1.13.0] - 2026-05-10
 
 ### Added
