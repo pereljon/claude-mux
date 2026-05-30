@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.13.2] - 2026-05-30
+
+### Fixed
+- **Injection: silent resume**: after a resume/compaction continuation with no concrete pending action, Claude no longer emits filler text like "No response requested." The `ready` trigger rule was also tightened to explicitly forbid any additional turn after "Session ready!" until the user sends a new message.
+
 ## [1.13.1] - 2026-05-29
 
 ### Fixed

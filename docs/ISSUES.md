@@ -160,6 +160,35 @@ Known friction points to investigate and document:
 
 Design posture: don't interfere with agent team lifecycle - that's Claude Code's domain. Document the known behavior so users know what to expect. The "infrastructure, not a framework" principle applies here.
 
+### Auto-restore running sessions after reboot
+
+Persist running-session state to a per-project marker file so the LaunchAgent can restore the user's working set after a reboot or crash.
+
+**Marker:** `.claudemux-running` in each project folder.
+
+**Lifecycle:**
+- On session start (`-d`, `-n`, `--restart`): write `.claudemux-running` first, then start tmux/Claude.
+- On `--shutdown`: remove `.claudemux-running` first, then kill tmux. Order matters - prevents a race where a concurrent `--restore-autostart` could relaunch a session that's mid-shutdown.
+- Survives crash, reboot, SIGKILL - that persistence is the whole point.
+- `home` folder gets no marker; LaunchAgent always starts home.
+- The marker matches what `claude-mux -l` reports as "running" - single concept, single name.
+
+**Restore flow:**
+- Extend `--autolaunch` (the flag the LaunchAgent already calls). After ensuring `home` is up, walk `PROJECT_DIRS` for `.claudemux-running` markers and launch any whose tmux session isn't already alive.
+- Pure bash loop in the script - no involvement from home's Claude turn, no injection delays, no token cost.
+- Because the LaunchAgent re-fires `--autolaunch` on `KeepAlive` (every `ThrottleInterval`, currently 60s), the same loop self-heals mid-day crashes: any tracked session that dies comes back on the next tick. Boot recovery and runtime watchdog from a single code path.
+
+**Behavior change to call out in release notes:** `tmux kill-session` on a claude-mux project will now be auto-resurrected within ~60s as long as the marker is present. To truly stop a session, use `claude-mux --shutdown` (removes marker first, then kills tmux).
+
+**Default-on, no opt-out (initial):** auto-restore is standard behavior. If user feedback warrants it later, add an `AUTORESTORE=true/false` config var as a small follow-up - not in the v2.0 scope.
+
+**Implementation notes:**
+- **Hidden and protected markers are orthogonal to the restore loop.** It walks for `.claudemux-running` and starts what it finds. `.claudemux-ignore` and `.claudemux-protected` persist in the project folder alongside the running marker - hidden sessions come back hidden, protected sessions come back protected. Visibility and protection are about how the session is listed and shut down, not whether it should be alive.
+- **First-time install backfill**: on upgrade to the version that adds this feature, scan tmux for already-running claude-mux sessions and write markers so the very first reboot doesn't lose them.
+- **Auto-gitignore**: add `.claudemux-running` via `ensure_gitignore_entry()` like other marker files.
+
+**Invariant:** marker present ⇒ session should be alive. The only correct way to clear that bit is `claude-mux --shutdown`.
+
 ### Language / runtime reconsideration
 The monolithic bash script is the right call at current scope. If claude-mux grows significantly - project rename/move/copy operations, a relay layer, cross-platform packaging, a data directory - bash starts fighting back. At that point, rewriting the session management core in Go or another typed language (with bash as a thin CLI wrapper) is worth evaluating.
 

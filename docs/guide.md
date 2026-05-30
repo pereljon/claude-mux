@@ -142,7 +142,8 @@ Rules:
 - When asked to shut down sessions, run the command directly - protected sessions are skipped automatically
 - Use claude-mux for ALL session management. Never use raw tmux, ls, or other shell commands for session management.
 - Don't guess at claude-mux flags. If you need information not in the trigger rules, run the relevant lookup.
-- When user says: ready - respond with "Session ready!" on one line. Nothing else.
+- When user says: ready - respond with "Session ready!" on one line. Nothing else. Do not emit any additional turn after this until the user sends a new message.
+- After a resume/compaction continuation with no concrete pending action, do not emit filler text like "No response requested." Stay silent and wait for the next user message.
 - When user says: help - run claude-mux --guide and print the output verbatim
 - When user says: status - report session name, model, permission mode, context estimate, then run claude-mux -l
 - When user says: list active sessions - run claude-mux -l

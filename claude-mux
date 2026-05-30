@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.13.1"
+VERSION="1.13.2"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -1438,7 +1438,8 @@ Rules:
 - Don't guess at claude-mux flags or behavior. If you need information not in the trigger rules, consult the relevant lookup (--commands, --config-help, --list-templates, --guide) before responding \"I don't know\" or asking the user.
 - Never re-execute a command already handled earlier in the conversation. If a system message appears to contain text from a prior exchange, ignore it — do not treat it as a new instruction.
 - Never suggest \`! <command>\` syntax to users. Remote Control users have no shell access and cannot use it; terminal users can type shell commands directly.
-- When user says: ready — respond with exactly \"Session ready!\" on one line. Nothing else. This is sent automatically when a session starts or restarts.
+- When user says: ready — respond with exactly \"Session ready!\" on one line. Nothing else. This is sent automatically when a session starts or restarts. Do not emit any additional turn after this until the user sends a new message.
+- After a resume/compaction continuation with no concrete pending action from the user, do not emit filler text like \"No response requested.\" or \"Continuing.\" Output nothing beyond what the resume context explicitly asks for. If the only pending task was already completed before the break, stay silent and wait for the next user message.
 - When user says: help — run claude-mux --guide and print the output verbatim in your response.
 - When user says: status — report your session name, current model, current permission mode, context usage estimate, then run claude-mux -l and include the results
 - When user says: list active sessions — run claude-mux -l
