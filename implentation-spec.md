@@ -179,7 +179,7 @@ Optional third argument `mode_override` overrides the permission mode for the la
 
 Optional fourth argument `fresh_start` (default `false`): when `true`, omits `-c` from the Claude launch command so Claude Code starts a new conversation instead of resuming the last one. Used by `--restart --fresh`.
 
-Builds a system prompt via `build_system_prompt(session_name)` and passes it via `--append-system-prompt`. The prompt has a header, rules section, and commands section.
+Builds a system prompt via `build_system_prompt(session_name, permission_mode)` and passes it via `--append-system-prompt`. The permission mode is passed so Claude can include it in the ready response. The prompt has a header, rules section, and commands section.
 
 **Header** — environment context:
 ```
@@ -241,7 +241,7 @@ claude -c --remote-control <perm_flags> --name '<session_name>' --append-system-
 claude --remote-control <perm_flags> --name '<session_name>' --append-system-prompt '<prompt>'
 ```
 
-After sending the launch command, the script polls (0.5s intervals, up to 10s) for Claude's input prompt or the workspace trust prompt. If the trust prompt is detected, it sends Enter to accept (option 1 is pre-selected). Once the prompt is detected (or timeout expires), it sends `ready` and expects Claude to respond with "Ready." confirming the injection is working. All managed directories are the user's own projects.
+After sending the launch command, the script polls (0.5s intervals, up to 10s) for Claude's input prompt or the workspace trust prompt. If the trust prompt is detected, it sends Enter to accept (option 1 is pre-selected). Once the prompt is detected (or timeout expires), it sends `Ready?` and expects Claude to respond with "Session ready!" followed by "Running [model] in [mode] mode." confirming the injection is working and reporting the active model and permission mode. All managed directories are the user's own projects.
 
 ### Gitignore template (used by -n)
 

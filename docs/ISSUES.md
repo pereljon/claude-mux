@@ -2,6 +2,14 @@
 
 ## Open
 
+### Permission mode lost on `--restart SESSION`
+**Severity:** Low
+**Status:** Open - pre-existing, now visible via v1.14.0 ready response
+**Description:** When a named session is restarted (`--restart SESSION`), the permission mode is always reset to `auto` (the default). If the session was originally launched in `bypassPermissions` or another non-default mode, that mode is silently lost. The v1.14.0 ready response ("Running X in auto mode.") makes this visible where it was previously silent.
+**Root cause:** `create_claude_session` takes a `mode_override` parameter, but the restart path always passes `""`, which defaults to `auto`. The actual mode set via `--permission-mode` in settings.json is not read back at restart time.
+**Workaround:** Re-apply the desired mode with "switch this session to bypassPermissions mode" after restart, or use `--permission-mode` with `--restart`.
+**Fix path:** Requires v2.x session state awareness — store the effective mode (e.g. as a tmux user option `@claude-mux-mode`) and read it back during restart.
+
 ### Phantom message replay causes unintended actions
 **Severity:** High
 **Status:** Open - cannot fully fix from claude-mux side
@@ -124,7 +132,9 @@ Small UX work pulled out of the v2.0 milestone to ship under the lifted feature 
 
 ### v1.14.0 - Launch and restart transparency
 
-Two coherent small wins, both about telling the user what's happening at session boundaries. Branch: `v1.14-transparency`.
+**Status: Implemented. Pending code review, commit, push, release.**
+
+Two coherent small wins, both about telling the user what's happening at session boundaries.
 
 **1. Show model on session start.** Extend the injection so Claude's `Session ready!` response also reports the model and permission mode:
 

@@ -49,7 +49,7 @@ These affect how code changes should be made. Full architecture is in `implentat
 
 - **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name for self-referencing slash commands via `send-keys`
 - **Multi-coder symlinks**: `AGENTS.md`/`GEMINI.md` created as symlinks to `CLAUDE.md`. Configurable via `MULTI_CODER_FILES`.
-- **Ready trigger**: sends `Ready?` after Claude loads; expects "Session ready!" response to confirm session is alive
+- **Ready trigger**: sends `Ready?` after Claude loads; Claude responds with "Session ready!" plus a second line "Running [model] in [mode] mode." — the injection passes the permission mode string at launch so Claude can report it accurately
 - **Output display tags**: listing commands wrap output in `<assistant-must-display>` XML tags when stdout is not a TTY
 - **Caller-last restart ordering**: `--restart` (all) from inside a session restarts the calling session last
 - **Home session**: session named `home` in `$BASE_DIR`, protected by default (via `$BASE_DIR/.claudemux-protected` marker, created by `--install`), requires `--force` to shut down

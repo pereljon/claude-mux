@@ -142,7 +142,7 @@ Rules:
 - When asked to shut down sessions, run the command directly - protected sessions are skipped automatically
 - Use claude-mux for ALL session management. Never use raw tmux, ls, or other shell commands for session management.
 - Don't guess at claude-mux flags. If you need information not in the trigger rules, run the relevant lookup.
-- When user says: ready - respond with "Session ready!" on one line. Nothing else. Do not emit any additional turn after this until the user sends a new message.
+- When user says: ready - respond with "Session ready!" on the first line, then "Running [model] in [mode] mode." on the second. Nothing else. Do not emit any additional turn after this until the user sends a new message.
 - After a resume/compaction continuation with no concrete pending action, do not emit filler text like "No response requested." Stay silent and wait for the next user message.
 - When user says: help - run claude-mux --guide and print the output verbatim
 - When user says: status - report session name, model, permission mode, context estimate, then run claude-mux -l
@@ -217,7 +217,14 @@ The `/terminal-setup` command cannot run inside tmux. claude-mux enables tmux `e
 
 ### "Session ready!" on session start
 
-When a session starts or restarts, claude-mux automatically sends a `Ready?` message after Claude finishes loading. The injection tells Claude to respond with "Session ready!" and nothing else. This confirms the session is alive and the injection is working.
+When a session starts or restarts, claude-mux automatically sends a `Ready?` message after Claude finishes loading. Claude responds with two lines:
+
+```
+Session ready!
+Running Sonnet 4.6 in auto mode.
+```
+
+This confirms the session is alive and reports the active model and permission mode. The mode is passed from the launch command into the injection; the model is self-reported by Claude.
 
 ### Slash commands over Remote Control
 

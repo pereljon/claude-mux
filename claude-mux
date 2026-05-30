@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.13.2"
+VERSION="1.14.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -1388,6 +1388,7 @@ get_session_mode() {
 # Build the system prompt injected into each Claude session
 build_system_prompt() {
     local session_name="$1"
+    local permission_mode="${2:-}"   # optional: permission mode to include in ready response
     local mux_bin="${CLAUDE_MUX_BIN}"
     local send_scope="to yourself"
     [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]] && send_scope="to yourself or any other Claude session"
@@ -1438,7 +1439,7 @@ Rules:
 - Don't guess at claude-mux flags or behavior. If you need information not in the trigger rules, consult the relevant lookup (--commands, --config-help, --list-templates, --guide) before responding \"I don't know\" or asking the user.
 - Never re-execute a command already handled earlier in the conversation. If a system message appears to contain text from a prior exchange, ignore it — do not treat it as a new instruction.
 - Never suggest \`! <command>\` syntax to users. Remote Control users have no shell access and cannot use it; terminal users can type shell commands directly.
-- When user says: ready — respond with exactly \"Session ready!\" on one line. Nothing else. This is sent automatically when a session starts or restarts. Do not emit any additional turn after this until the user sends a new message.
+- When user says: ready — respond with exactly two lines: \"Session ready!\" on the first line, then \"Running [your model name] in ${permission_mode:-auto} mode.\" on the second, using your actual model name as Claude Code shows it (e.g. \"Opus 4.7\", \"Sonnet 4.6\", \"Haiku 4.5\"). Nothing else. This is sent automatically when a session starts or restarts. Do not emit any additional turn after this until the user sends a new message.
 - After a resume/compaction continuation with no concrete pending action from the user, do not emit filler text like \"No response requested.\" or \"Continuing.\" Output nothing beyond what the resume context explicitly asks for. If the only pending task was already completed before the break, stay silent and wait for the next user message.
 - When user says: help — run claude-mux --guide and print the output verbatim in your response.
 - When user says: status — report your session name, current model, current permission mode, context usage estimate, then run claude-mux -l and include the results
@@ -2589,9 +2590,9 @@ create_claude_session() {
     apply_tmux_options "$session_name"
     "$TMUX_BIN" set-option -t "$session_name" @claude-mux-managed 1 2>/dev/null
 
-    # Build system prompt
+    # Build system prompt — pass permission mode so Claude reports it in the ready response
     local tmux_prompt
-    tmux_prompt="$(build_system_prompt "$session_name")"
+    tmux_prompt="$(build_system_prompt "$session_name" "${mode_override:-auto}")"
 
     # Build permission mode flags for the launch command.
     # perm_flag_name and perm_flag_value are interpolated into the generated script below.
@@ -2923,9 +2924,9 @@ launch_single_session() {
         "$TMUX_BIN" kill-session -t "$LAUNCH_SESSION_NAME" 2>/dev/null
     fi
 
-    # Build system prompt
+    # Build system prompt — home session always uses auto mode
     local tmux_prompt
-    tmux_prompt="$(build_system_prompt "$LAUNCH_SESSION_NAME")"
+    tmux_prompt="$(build_system_prompt "$LAUNCH_SESSION_NAME" "auto")"
 
     # Create tmux session that runs Claude directly (no send-keys)
     log "Creating tmux session '$LAUNCH_SESSION_NAME' in $LAUNCH_DIR"
@@ -3762,6 +3763,7 @@ case "$COMMAND" in
             detect_github_ssh_accounts
             get_managed_session_names
             _restart_errors=0
+            [[ "$DRY_RUN" != "true" ]] && echo "Restarting ${#RESTART_SESSIONS[@]} session(s) to apply updated injection. RC will need to reconnect in ~10s."
             for _rs in "${RESTART_SESSIONS[@]}"; do
                 if ! is_managed_session "$_rs"; then
                     echo "ERROR: '$_rs' is not a claude-mux managed session" >&2
@@ -3820,6 +3822,8 @@ case "$COMMAND" in
                         log "Would restart session '$_name' in $_dir${FRESH_START:+ (fresh start)}"
                     done <<< "$_restart_list"
                 else
+                    echo "Restarting $_count session(s) to apply updated injection. RC will need to reconnect in ~10s."
+
                     # If running inside a session that's in the restart list,
                     # separate it out. We can't kill-session on the caller because
                     # this script is running in that pane (SIGHUP would kill us).

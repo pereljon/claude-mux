@@ -4,6 +4,20 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-05-30
+
+### Added
+- **Session start transparency**: Claude now reports its model and permission mode in the ready response:
+  ```
+  Session ready!
+  Running Sonnet 4.6 in auto mode.
+  ```
+  The permission mode is passed from the launch command into the injection so Claude can report it accurately. Claude self-reports its model name.
+- **Restart warning**: `--restart` and `--restart SESSION` now print a summary line before tearing down sessions, noting that RC connections will need to reconnect:
+  ```
+  Restarting 3 session(s) to apply updated injection. RC will need to reconnect in ~10s.
+  ```
+
 ## [1.13.2] - 2026-05-30
 
 ### Fixed
