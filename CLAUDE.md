@@ -10,23 +10,13 @@ This is an open-source project with external users. Treat it accordingly: safety
 
 ## Feature Freeze
 
-**Status: ACTIVE** -- No new features until v2.0 work begins.
+**Status: LIFTED** as of 2026-05-30. v2.0 planning and implementation work has begun. Patches in the v1.14.x range and v2.x minors are in scope.
 
-Allowed:
-- Bug fixes
-- Documentation updates
-- Translation updates
-- Security fixes
+Sequencing is tracked in `docs/ISSUES.md`:
+- **Planned Patches** section: small UX work shipping as v1.14.x minors before v2.0.
+- **v2.0 Milestone** section: architectural changes split across v2.0 ("Self-healing + situational awareness"), v2.1 ("Context discipline"), v2.2 ("Agent network").
 
-Not allowed:
-- New CLI flags or commands
-- New config variables
-- New conversational triggers
-- New functionality of any kind
-
-If a user requests a new feature, acknowledge it and suggest tracking it in ISSUES.md under the v2.0 milestone instead.
-
-**Exception (v1.13.0):** `--restart --fresh` / "restart this session fresh" / "kill this session" was implemented as a patch exception due to high severity (MCP installs unusable without it). No further exceptions until v2.0.
+**Prior exception (v1.13.0):** `--restart --fresh` / "restart this session fresh" / "kill this session" was shipped under the previous freeze due to high severity (MCP installs unusable without it).
 
 ## Design Principles
 

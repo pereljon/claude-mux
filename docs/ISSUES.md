@@ -118,13 +118,47 @@
 
 ---
 
+## Planned Patches
+
+Small UX work pulled out of the v2.0 milestone to ship under the lifted feature freeze. Each patch is bumped as a minor (x.Y.0) since they add new behavior, not bug fixes.
+
+### v1.14.0 - Launch and restart transparency
+
+Two coherent small wins, both about telling the user what's happening at session boundaries. Branch: `v1.14-transparency`.
+
+**1. Show model on session start.** Extend the injection so Claude's `Session ready!` response also reports the model and permission mode:
+
+```
+Session ready!
+Running Opus 4.7 in default mode
+```
+
+claude-mux already passes `--model` on the launch line (claude-mux:2629, :2958). Pass that value into the injection at launch so Claude knows what to report. No interaction with RC: the `--remote-control` flag is what makes a session discoverable to RC, not pane text — earlier claims about "RC detects the `Session ready!` string" were wrong.
+
+**2. Warn before restart in `--update` and `--restart`.** Before tearing down sessions, print a short message explaining why and noting RC needs to reconnect:
+
+```
+Restarting 5 session(s) to apply updated injection. RC will need to reconnect in ~10s.
+```
+
+One summary line at the start of the restart sweep, not per-session.
+
+**Out of scope:** mid-tick warnings, status pages, model badges in `-l` — deferred to v2.0/v2.1.
+
+**Implementation order:**
+
+1. Implement "Warn before restart" first (smaller, pure string output in two existing functions).
+2. Implement "Show model on session start" second (needs the model value plumbed into the injection at launch).
+3. Test: restart cycles, single session vs `--restart` all, `--update` flow, RC reconnect notice, injection update.
+4. CHANGELOG, VERSION bump to `1.14.0`, doc-updater for user-facing changes.
+5. Code review (minor bump → review all functions added/modified per CLAUDE.md).
+6. Commit / push / release.
+
+---
+
 ## v2.0 Milestone
 
-Architectural changes significant enough to warrant a major version bump. Not scheduled - collected here so they don't get lost.
-
-### Fresh-start restart (MCP / config reload)
-**Severity:** High
-**Status:** Resolved in v1.13.0 - `--restart --fresh` implemented with conversational triggers "restart this session fresh", "restart SESSION fresh", "kill this session"
+Architectural changes significant enough to warrant a major version bump. Sequenced into three minors (v2.0, v2.1, v2.2). Not scheduled.
 
 ### Data directory separation
 Move static data (tips, default templates, possibly command/guide output) out of the script and into a platform-appropriate data directory. The script would resolve `DATA_DIR` at startup relative to the binary location, with embedded fallbacks for single-file installs.
@@ -136,19 +170,9 @@ Move static data (tips, default templates, possibly command/guide output) out of
 
 Trigger: when the embedded data (tips, default templates) grows large enough to make the script hard to read, or when default templates need to ship via brew independently of script releases.
 
-### Show model on session start
-Display the active model as part of the session-ready output so users know which model they're in without having to ask.
+### Agent teams compatibility (investigation)
 
-**Proposed format:** `Ready with Opus 4.7 [1M]` or similar - model name plus context window size.
-**Design constraint:** The "Ready?" trigger response must remain exactly `Session ready!` (Remote Control detects that string). Model info would need to come from the launch side (e.g. printed to the pane before or after the ready handshake) or as a second message following the ready line.
-
-### Warn before restart in --update and RC
-
-When `--update` or a "restart all sessions" command is about to restart sessions, print a message explaining why - e.g. "Restarting sessions to apply updated injection prompt..." - so users understand the restart is expected and know to reconnect Remote Control.
-
-Also relevant: RC connections drop silently on restart with no feedback. A brief "Session restarting, reconnect RC in ~10s" message before the restart would reduce confusion.
-
-### Agent teams compatibility
+Investigation task, not an implementation feature. Goal: test the friction points below, document findings, decide whether any claude-mux change is warranted.
 
 Claude Code v2.1.32+ includes experimental agent teams (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`). Since claude-mux sessions run inside tmux, `teammateMode` auto-detects tmux and defaults to split-pane mode - no extra config needed. That part works for free.
 
@@ -177,6 +201,8 @@ Persist running-session state to a per-project marker file so the LaunchAgent ca
 - Extend `--autolaunch` (the flag the LaunchAgent already calls). After ensuring `home` is up, walk `PROJECT_DIRS` for `.claudemux-running` markers and launch any whose tmux session isn't already alive.
 - Pure bash loop in the script - no involvement from home's Claude turn, no injection delays, no token cost.
 - Because the LaunchAgent re-fires `--autolaunch` on `KeepAlive` (every `ThrottleInterval`, currently 60s), the same loop self-heals mid-day crashes: any tracked session that dies comes back on the next tick. Boot recovery and runtime watchdog from a single code path.
+
+**Shared infrastructure note:** the `--autolaunch` tick is also the natural home for **Claude Code binary upgrade detection** and **zombie-session detection** below. Implement this one first; the others bolt on as additional passes inside the same loop.
 
 **Behavior change to call out in release notes:** `tmux kill-session` on a claude-mux project will now be auto-resurrected within ~60s as long as the marker is present. To truly stop a session, use `claude-mux --shutdown` (removes marker first, then kills tmux).
 
@@ -207,6 +233,8 @@ Show model and permission mode alongside each session in `claude-mux -l` and `-L
 claude-mux has no awareness of `claude` binary upgrades. `--update` handles claude-mux itself (script + injection) and triggers `--restart` to refresh injection. The `claude` binary is upgraded out-of-band (`brew upgrade claude`, npm, curl installer). Running sessions hold a `claude` process spawned from whichever binary was on PATH at launch time, so they keep running the old binary until restarted. New sessions pick up the new binary because PATH resolves at exec time.
 
 **Same shape as the claude-mux injection-staleness problem, but for the dependency.**
+
+**Shared infrastructure:** rides on the `--autolaunch` tick added by **Auto-restore running sessions after reboot** above. Implement after that, as an additional pass in the same loop.
 
 **Possible mechanisms:**
 
@@ -284,6 +312,63 @@ Teach Claude:
 
 A periodic LaunchAgent tick was discussed alongside this. The auto-restore self-heal loop (KeepAlive + `--autolaunch` every 60s) already provides that cadence. Residual ideas — zombie-session detection (tmux pane alive, claude process dead), `.update-check` refresh, log rotation — should be a separate ISSUES.md entry, not folded in here.
 
+### Zombie session detection
+
+The tmux session is alive but the `claude` process inside it has died. Currently no recovery without manual `--restart`. The session shows as "running" in `-l` but is functionally dead — RC connects but nothing responds.
+
+**Detection:** during the `--autolaunch` tick (see Auto-restore above), for each tmux session marked claude-mux-managed, check whether `claude` is still in the process tree. If not, the pane is a zombie.
+
+**Action:** restart the session automatically (same path the auto-restore loop uses). The `.claudemux-running` marker is already present, so the existing restart logic applies.
+
+**Shared infrastructure:** rides on the `--autolaunch` tick added by **Auto-restore running sessions after reboot**.
+
+**Adjacent residual ideas (housekeeping, lower priority):** `.update-check` cache refresh, log rotation.
+
+### Ready handshake during compact/resume
+
+The startup poller (`create_claude_session`, claude-mux:2645-2682) treats "prompt symbol drawn" as "ready to receive input." That's wrong during `claude -c` resume when the transcript is large enough to trigger auto-compaction or a continuation summary — the `❯` is visible but Claude is busy processing context. `"Ready?"` lands at the wrong time, either getting queued into the wrong turn or interrupting the compact mid-process.
+
+The injection rule added in v1.13.2 ("After a resume/compaction continuation, stay silent") mitigates the symptom; the timing bug remains.
+
+**Fix:**
+
+1. After detecting the prompt symbol, check for busy indicators in the pane: `Compacting`, `Summarizing`, spinner glyphs (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`), or a non-empty status line above the input box.
+2. If busy → keep polling. Extend the timeout (current 10s is far too short for compaction; allow ~120s).
+3. Send `"Ready?"` only when the pane is at the prompt **and** not busy.
+4. Never auto-confirm or auto-press anything during the busy window — just wait it out.
+
+**Shared infrastructure:** the busy check is the same `tmux capture-pane` pass already in use, so this bolts onto the existing poller without new dependencies. Also overlaps with the `--autolaunch` tick used by auto-restore, binary detection, and zombie detection.
+
+**Open questions:**
+- What's the exhaustive list of busy indicators across Claude Code versions? Need to capture-pane samples during compact, summarize, and long tool runs to confirm.
+- Should we surface "session compacting at startup" in `-l` so the user knows why a session isn't immediately responsive?
+
+### Session handoff / brief workflow
+
+**Status:** Initial sketch. Full functionality still needs to be worked through — sub-features below are starting points, not final design.
+
+claude-mux defaults to `claude -c` on every session start and restart. That's the exact pattern argued against in ["Stop Resuming Long Sessions: Brief Injection"](https://claudecodefornoncoders.substack.com/p/stop-resuming-long-sessions-brief): resuming a long transcript floods the model with stale tool output (directory listings, file contents, command results that no longer match disk) and dilutes attention across past back-and-forth. The article recommends ending the session, writing a 5-7 line brief (branch state, key decisions, active constraints, files modified, next steps), and starting fresh with the brief as the only context.
+
+We added `--restart --fresh` in v1.13.0 as the escape hatch, but it requires the user to know about it and ask. The brief workflow makes the article's pattern the easy path.
+
+**Sub-features (cluster, implement together):**
+
+1. **Brief-on-shutdown.** On graceful shutdown (not crash), `-s` Claude with a prompt to write a 5-7 line handoff to `.claudemux-brief` in the project folder. Marker-file convention; auto-gitignored.
+2. **Brief-injection on resume.** On next session start, if `.claudemux-brief` exists, inject it as an addendum to the system prompt. User can still say "resume the full conversation" to fall back to standard `-c`.
+3. **Transcript size warning.** During `--autolaunch` tick (shared infra with auto-restore/zombie/binary-detection), check `~/.claude/projects/<encoded>/*.jsonl` size. Over a threshold (10MB? 25MB? TBD), surface in `-l` as a badge and inject a conversational note suggesting `restart this session fresh` or the brief workflow.
+4. **`--restart --brief` shortcut.** One command: prompt for brief, shutdown, restart fresh with brief injected. The user-facing verb that makes the right handoff pattern trivial.
+
+**Open questions to resolve before implementing:**
+- Default behavior: opt-in (config flag) or always-on for shutdowns? Article suggests always-on is the right call but users may want the old `-c` behavior for short same-day sessions.
+- Brief format: prose? structured (YAML/JSON)? Claude-authored or template-driven?
+- What about crash recovery — no chance to write a brief. Fall back to `-c` and warn?
+- Multiple briefs over time: keep history, or each brief overwrites the last? If history, where does old briefs go (`.claudemux-briefs/`)?
+- Interaction with the auto-restore loop: when LaunchAgent restarts a session that died unexpectedly, should it use the last brief or `-c`?
+- Interaction with `--restart --fresh`: same thing, or different (fresh = no brief either)?
+- Does the brief replace conversation history or supplement it?
+
+**Why this matters:** the "Ready handshake during compact/resume" item above is downstream of this. Long transcripts → auto-compact at startup → ready handshake misfires. Solving the root cause (don't resume the giant transcript) eliminates the symptom. Article's framing: "The transcript is a tool, not a context."
+
 ### Memory management from sessions
 
 Conversational triggers and/or CLI flags for managing Claude Code's per-project memory (`~/.claude/projects/*/memory/`) from within claude-mux sessions. Memory files accumulate and go stale; there's no easy way to see what Claude "remembers" about a project, clean up outdated entries, or review memories across projects without browsing the filesystem.
@@ -308,12 +393,24 @@ Conversational triggers and/or CLI flags for managing Claude Code's per-project 
 
 **How to apply:** Not yet scoped for a specific release. Consider alongside other v2.0 features.
 
+---
+
+## Open Questions
+
+Not features. Long-running design questions to revisit periodically.
+
 ### Language / runtime reconsideration
 The monolithic bash script is the right call at current scope. If claude-mux grows significantly - project rename/move/copy operations, a relay layer, cross-platform packaging, a data directory - bash starts fighting back. At that point, rewriting the session management core in Go or another typed language (with bash as a thin CLI wrapper) is worth evaluating.
+
+Trigger to re-evaluate: when any single bash function exceeds ~150 lines of branching logic, when cross-platform packaging needs more than `uname -s` dispatch, or when the script as a whole crosses ~5000 lines.
 
 ---
 
 ## Resolved
+
+### Fresh-start restart (MCP / config reload)
+**Resolved in:** v1.13.0 - `--restart --fresh` implemented with conversational triggers "restart this session fresh", "restart SESSION fresh", "kill this session"
+
 
 ### Claude ignores injection and claims it cannot run slash commands
 **Resolved in:** v1.2.0 (injection updated)
