@@ -189,6 +189,125 @@ Persist running-session state to a per-project marker file so the LaunchAgent ca
 
 **Invariant:** marker present ⇒ session should be alive. The only correct way to clear that bit is `claude-mux --shutdown`.
 
+### Model/mode columns in session listings
+
+Show model and permission mode alongside each session in `claude-mux -l` and `-L`. `status` already reports model/mode for the current session (self-reported), but the listing commands show nothing per-session. Users managing multiple sessions want this at a glance.
+
+**Possible format:** one-letter codes like `O/P` (Opus/Plan), `H/D` (Haiku/Default), `S/B` (Sonnet/Bypass). Letter collisions need resolution (D=default, A=acceptEdits, P=plan, B=bypass — maybe Y for yolo/bypass).
+
+**Open questions:**
+- **Data source.** Claude Code doesn't expose model/mode externally. Options: (1) query each running session via send-keys (slow, fragile), (2) cache what claude-mux sets via `-s` commands (can drift if user changes manually), (3) read Claude Code internal state files if they exist.
+- Stopped sessions: show last-known model/mode or blank?
+- Performance: querying N sessions adds latency. Caching avoids this but introduces staleness.
+
+**How to apply:** Evaluate during v2.0 planning. May need Claude Code to expose session metadata before this is practical.
+
+### Claude Code binary upgrade detection
+
+claude-mux has no awareness of `claude` binary upgrades. `--update` handles claude-mux itself (script + injection) and triggers `--restart` to refresh injection. The `claude` binary is upgraded out-of-band (`brew upgrade claude`, npm, curl installer). Running sessions hold a `claude` process spawned from whichever binary was on PATH at launch time, so they keep running the old binary until restarted. New sessions pick up the new binary because PATH resolves at exec time.
+
+**Same shape as the claude-mux injection-staleness problem, but for the dependency.**
+
+**Possible mechanisms:**
+
+- **Detect on `--autolaunch` tick.** Compare each session's `claude` PID's executable path/mtime against `command -v claude`. If a session is running an older binary, surface in `-l` as a "stale" badge.
+- **Conversational notice.** On detection, inject a one-shot note: *"Claude Code was upgraded since this session started; say 'restart this session' to load the new binary."*
+- **Extend `--update`.** Detect `brew outdated claude` (or equivalent for npm/curl installs) and offer to upgrade both together with a single restart sweep.
+
+**Adjacent but distinct** from "Warn before restart in `--update` and RC" — that item is about explaining *our* restarts; this is about detecting an external dependency upgrade.
+
+**Open questions:**
+- Detection across install methods: brew is easy (`brew outdated`), npm-global and curl installs need a different probe (mtime on the resolved binary?).
+- Should detection be opt-in or always-on? Cheap if it's just an mtime compare on each `--autolaunch` tick.
+- Behavior when the user upgrades while a session is mid-task: notify but don't auto-restart.
+
+### Inter-agent messaging
+
+Formalize session-to-session communication. claude-mux sessions are already persistent, project-bound agents and `-s` is a de facto message bus — but `-s` currently hard-rejects non-slash input, so true inter-agent messaging is blocked. A dedicated command + an authorization marker turns the existing infrastructure into a lightweight agent network.
+
+Contrast with Claude Code agent teams: those are ephemeral and task-scoped. claude-mux sessions are long-lived and independent, coordinating ad-hoc — a different shape, not a competitor.
+
+**New command: `--message`**
+
+```
+claude-mux --message TARGET_SESSION 'natural language text'
+```
+
+- **Sender attribution** baked in: receiver sees `[from: home] ...` so it can route a reply via its own `--message home '...'`.
+- **Escaping** handled properly rather than relying on `send-keys -l` by accident.
+- **Delivery gate**: wait for the target's `Session ready!` handshake before injecting. No mid-tool-call interruptions.
+- **Auto-start always.** If TARGET is not running, claude-mux starts it, waits for ready, then delivers. No `--start` flag. Safety net is the existing managed-session check: unknown session name → error.
+- **No queue.** First message to an unauthorized target is lost; sender must resend after approval. Avoids stale-delivery, hidden state, ambiguous timing.
+
+**Authorization: `.claudemux-authorized` marker**
+
+Per-project file listing who can send TO that session:
+
+```
+# client-acme/.claudemux-authorized
+home
+api-server
+```
+
+Matches the existing marker-file philosophy (`.claudemux-protected`, `.claudemux-ignore`, `.claudemux-running`). Auto-gitignored via the `.claudemux-*` pattern. Travels with the project folder, no central registry.
+
+**Direction model: per-direction, no auto-bidirectional**
+
+- Each direction requires its own explicit approval from the **receiving** side.
+- For home ↔ api-server to coordinate, two approvals are needed (one each direction).
+- **Why not bidirectional-by-default?** Asymmetric privilege is real: a session with sensitive context wants to receive directives without exposing itself for queries back. Information leakage matters.
+- Approval is always granted by the receiver, never the sender.
+
+**Unauthorized-send flow**
+
+1. `home` runs `claude-mux --message client-acme 'check auth status'`
+2. claude-mux sees `home` is not in `client-acme/.claudemux-authorized`
+3. claude-mux delivers a notice to `client-acme`: *"Session 'home' is requesting permission to send messages. To allow: 'allow messages from home'"*
+4. claude-mux returns to `home`: *"Authorization required. Approval request sent to client-acme."*
+5. `home`'s Claude tells the user: *"Switch to client-acme, approve, then I'll retry."*
+6. User in `client-acme` says "allow messages from home" → triggers `claude-mux --authorize home` → appends to `client-acme/.claudemux-authorized`
+7. User returns to `home`, says "try again" → delivery succeeds.
+
+**`-s` (slash commands) and `--message`: same authorization gate**
+
+Two commands, same auth model. Cross-session `-s` (e.g. `/clear`, `/model opus`, `/compact`) requires the target to authorize the sender, exactly like `--message`. `/clear` can destroy work and `/model` changes behavior — they need the same gate as natural language. The same `.claudemux-authorized` file governs both. Self-sends (`-s` to your own session) remain unrestricted.
+
+**Injection changes**
+
+Teach Claude:
+- It is part of a network of named, addressable agents.
+- It can send to a peer with `claude-mux --message NAME 'text'`.
+- Incoming messages prefixed with `[from: NAME]` came from another agent, not the user. A reply goes back via `--message NAME 'text'`.
+- If `--message` returns "authorization required," tell the user to switch to the target session and approve.
+
+**Related (parked separately)**
+
+A periodic LaunchAgent tick was discussed alongside this. The auto-restore self-heal loop (KeepAlive + `--autolaunch` every 60s) already provides that cadence. Residual ideas — zombie-session detection (tmux pane alive, claude process dead), `.update-check` refresh, log rotation — should be a separate ISSUES.md entry, not folded in here.
+
+### Memory management from sessions
+
+Conversational triggers and/or CLI flags for managing Claude Code's per-project memory (`~/.claude/projects/*/memory/`) from within claude-mux sessions. Memory files accumulate and go stale; there's no easy way to see what Claude "remembers" about a project, clean up outdated entries, or review memories across projects without browsing the filesystem.
+
+**Potential scope:**
+- List memories for the current project (or all projects)
+- View a specific memory file
+- Delete or update stale memories
+- Search across memories
+- Triggers: "show my memories", "what do you remember about this project"
+- CLI: `claude-mux --memories`, `claude-mux --memories PROJECT`
+
+**Automated memory review:**
+- Run review/optimization on some event (session start, restart, compact, periodic schedule)
+- Claude reviews its own memories for staleness, duplicates, contradictions, outdated project state
+- Purge memories no longer relevant (shipped features, resolved decisions)
+- Consolidate overlapping memories
+- Implementation: PostToolUse on compact, Stop hook, or conversational trigger ("review memories")
+
+**Obsidian / auto-tagging (further out):**
+- Auto-tag CLAUDE.md, memory files, or other project MD with metadata that Obsidian (or similar indexers) can consume. Mechanism and value TBD.
+
+**How to apply:** Not yet scoped for a specific release. Consider alongside other v2.0 features.
+
 ### Language / runtime reconsideration
 The monolithic bash script is the right call at current scope. If claude-mux grows significantly - project rename/move/copy operations, a relay layer, cross-platform packaging, a data directory - bash starts fighting back. At that point, rewriting the session management core in Go or another typed language (with bash as a thin CLI wrapper) is worth evaluating.
 
