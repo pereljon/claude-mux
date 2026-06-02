@@ -42,10 +42,12 @@ Infrastructure, not a framework. Keep sessions alive, get out of the way.
 | `docs/INSTALL.md` | Full installation guide (curl, Homebrew, manual, uninstall) |
 | `docs/FAQ.md` | Common questions about claude-mux |
 | `docs/ISSUES.md` | Open bugs, planned features, resolved issues |
+| `docs/CODEMAP.md` | Function index, config vars, dispatch table, marker file registry — for locating things in the script |
+| `docs/SKELETON.md` | Pseudo-code showing script structure, logic flow, and key invariants — for understanding how the script works |
 
 ## Non-Obvious Behaviors
 
-These affect how code changes should be made. Full architecture is in `implentation-spec.md`.
+These affect how code changes should be made. Full architecture is in `implentation-spec.md`. Line numbers cited here are approximate — `docs/CODEMAP.md` has the authoritative function index with current line ranges.
 
 - **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name for self-referencing slash commands via `send-keys`
 - **Multi-coder symlinks**: `AGENTS.md`/`GEMINI.md` created as symlinks to `CLAUDE.md`. Configurable via `MULTI_CODER_FILES`.
@@ -119,6 +121,7 @@ Single-user tool on the user's own account. Threat model: accidental footguns (p
 
 ## Working Rules
 
+- **Consult docs before coding**: before writing any code or starting a debug session, read `docs/SKELETON.md` to understand the logic flow and `docs/CODEMAP.md` to locate the relevant functions. Don't grep blind.
 - **Questions vs. implementation**: answer questions as questions. Don't start coding until explicitly asked.
 - **No speculation as fact**: distinguish what you know from what you're guessing. Say "I'm not sure" when you can't verify.
 - **No LLM-stereotype writing** in human-facing content: no "delve", "leverage", "streamline", "excited to share". Write like a developer.
@@ -135,6 +138,8 @@ Commands that attach (`-t`, `-d`/`-n` without `--no-attach`) are user-only -- ne
 
 Edit the repo copy (`claude-mux`), not the installed copy (`~/bin/claude-mux`). Deploy after commit: `cp claude-mux ~/bin/`
 
+Before coding any change: read `docs/SKELETON.md` to understand the logic flow and identify what's affected, then read `docs/CODEMAP.md` to locate the specific functions and their line ranges. Don't start editing until you know the scope.
+
 ### Code Review Before Release
 
 Required scope depends on version bump:
@@ -143,7 +148,7 @@ Required scope depends on version bump:
 - **Minor (x.Y.0)**: review all functions added or modified in the release
 - **Major (X.0.0)**: full code review of the entire script
 
-Use the `superpowers:code-reviewer` agent. Address CRITICAL and HIGH issues before committing.
+Use `docs/SKELETON.md` to understand the impact on logic flows and `docs/CODEMAP.md` to identify which functions changed and what calls them. Use the `superpowers:code-reviewer` agent. Address CRITICAL and HIGH issues before committing.
 
 ## Git Approvals
 
@@ -163,6 +168,8 @@ After a release completes, compact the session: `claude-mux -s SESSION_NAME '/co
 
 Before coding a new feature or change, review with the user: happy path, edge cases, flag conflicts, config migration, injection prompt updates, display changes. Get confirmation before writing code.
 
+When debugging: read `docs/SKELETON.md` first to trace the logic path of the failing behavior, then use `docs/CODEMAP.md` to jump to the relevant functions.
+
 ## Change Checklist
 
 **GATE: Do NOT suggest commit, push, or release until every item below has been checked and all affected files are updated.** This is not optional - it is a prerequisite before proposing any git operation.
@@ -176,6 +183,8 @@ After any code change, check whether these need updating:
 - `CLAUDE.md` (if key behaviors changed)
 - **Injection prompt** in both `create_claude_session` and `launch_single_session`
 - **Session System Prompt** section in README (must match injection)
+- `docs/CODEMAP.md` (new/renamed/removed functions, new dispatch cases, new config vars, significant line range shifts)
+- `docs/SKELETON.md` (logic flow changes: new conditions, changed call sequences, new control paths)
 - `ISSUES.md` (new bugs, resolved entries)
 - `CHANGELOG.md` (new features, fixes, removals per release)
 - `VERSION=` bump if needed (semver: patch/minor/major)

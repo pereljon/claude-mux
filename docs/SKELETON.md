@@ -1,0 +1,535 @@
+# claude-mux Script Skeleton
+
+Pseudo-code showing the structure and logic of `claude-mux`. Use this to understand how the script works, trace a bug, or reason about the impact of a change. For function locations and config var details, see `docs/CODEMAP.md`.
+
+## How to Use
+
+- **Tracing a bug**: find the relevant section (Top-Level Structure, Main Dispatch, or a function section), follow the pseudo-code to identify which condition or path is wrong, then use `docs/CODEMAP.md` to jump to the exact line.
+- **Assessing impact of a change**: read the section for the function you're modifying, check what it calls and what calls it, look for shared state (globals like `FORCE`, `FRESH_START`, `MANAGED_SESSIONS`).
+- **Don't use this for line numbers** - use `docs/CODEMAP.md` for that. This file describes logic, not locations.
+
+## How to Maintain
+
+Update this file when:
+- A **condition or branch** is added or removed within a function
+- The **call sequence** between functions changes (e.g. a new function is called before an existing one)
+- A **timing value** changes (poll intervals, sleep durations, retry counts)
+- A **new command** is added to the dispatch
+- **Control flow** changes in the pre-dispatch section (step 9)
+
+Do **not** update line numbers here - those belong in `docs/CODEMAP.md`.
+
+### Non-Obvious Script Structure
+
+The script has executable code **interspersed between function definitions**, not just at the top and bottom. There are two pre-dispatch blocks that are easy to miss:
+
+1. **Lines ~1518-1594** (immediately after `attach_to_session()` is defined): handles the `attach` immediate dispatch, resolves `LAUNCH_DIR`/`HOME_LAUNCH`, resolves `NEW_PROJECT_DIR`, applies the autolaunch boot delay, and validates `TMUX_BIN`/`CLAUDE_BIN`. This runs as function definitions above it are parsed.
+2. **Lines ~3668-3704** (after all function definitions, before the main `case` block): calls `check_for_update()` and handles the first-run config check.
+
+When verifying this file against the script, read the entire file top-to-bottom - don't assume all executable code is at the bottom after all `function() { }` blocks.
+
+---
+
+## Top-Level Structure
+
+```
+#!/bin/bash
+
+# 1. Set defaults (overridable via config)
+VERSION="x.y.z"
+BASE_DIR, LOG_DIR, DEFAULT_PERMISSION_MODE, TMUX_*, TIP_OF_DAY, ...
+
+# 2. Initialize flag-state vars
+COMMAND="launch"
+COMMAND_SET=false
+LAUNCH_DIR, RESTART_SESSIONS[], FRESH_START, ...
+
+# 3. Define all functions (guide, log, do_install, create_claude_session, ...)
+
+# 4. Parse args
+while args remain:
+    case arg:
+        --restart  → COMMAND=restart, collect session names
+        -d DIR     → COMMAND=launch, LAUNCH_DIR=DIR
+        -n DIR     → COMMAND=new, NEW_PROJECT_DIR=DIR
+        --shutdown → COMMAND=shutdown, collect session names
+        --fresh    → FRESH_START=true
+        ...
+    set_command() enforces: only one command flag allowed
+
+# 5. Validate flag combinations
+    -p, --no-template, --no-git only valid with -n
+    --no-attach only valid with -d or -n
+    --force only valid with --shutdown, --delete, --save-template, --rename, --move
+    --fresh only valid with --restart or -d
+
+# 6. Fast-exit: tipotd daily gate
+    if COMMAND == "tipotd":
+        read ~/.claude-mux/.tip-date
+        if date matches today → exit 0   # done in ~6ms, before config loads
+        else → write today's date, fall through
+
+# 7. Load user config
+    source ~/.claude-mux/config   # overrides defaults
+    backward compat: LAUNCHAGENT_ENABLED=true → LAUNCHAGENT_MODE=home
+    validate: LAUNCHAGENT_MODE, DEFAULT_PERMISSION_MODE, HOME_SESSION_MODEL, numeric vars
+
+# 8. Resolve runtime constants
+    LOG_FILE, TMUX_BIN, CLAUDE_BIN, CLAUDE_MUX_BIN
+
+# 9. Pre-dispatch (runs between function definitions and main dispatch)
+
+    # Attach is handled immediately after attach_to_session() is defined
+    # (line ~1518) — not in the main case block below.
+    if COMMAND == "attach":
+        attach_to_session(TARGET_SESSION)   # exits or falls through to tmux
+
+    # Resolve launch directory and detect home session
+    if COMMAND == "launch":
+        resolve LAUNCH_DIR to absolute path
+        if LAUNCH_DIR == BASE_DIR:
+            HOME_LAUNCH=true, LAUNCH_SESSION_NAME="home"
+        else:
+            LAUNCH_SESSION_NAME = sanitize(basename(LAUNCH_DIR))
+
+    # Resolve new-project directory and derive session name
+    if COMMAND == "new":
+        resolve NEW_PROJECT_DIR to absolute path
+        NEW_SESSION_NAME = sanitize(basename(NEW_PROJECT_DIR))
+
+    # Autolaunch boot delay — avoid races on initial login
+    if COMMAND == "autolaunch":
+        uptime=$(sysctl kern.boottime)
+        if uptime <= 45s → sleep 45   # let system services initialize
+
+    # Dependency check
+    if TMUX_BIN missing or not executable → error, exit 1
+    if CLAUDE_BIN missing or not executable → error, exit 1
+
+    check_for_update()   # non-blocking, TTY-only, cached daily
+
+    if no config and command needs it:
+        if TTY → prompt "run setup now?"
+        else   → error, exit 1
+
+# 10. Main dispatch
+    case COMMAND: → (see dispatch section below)
+```
+
+---
+
+## Main Dispatch
+
+```
+case COMMAND:
+
+  launch    → launch_single_session()
+  new       → create_new_project()
+  list      → status_claude_sessions()
+  list-all  → status_claude_sessions(show_all=true)
+  start     → start_sessions()
+  # attach is handled in pre-dispatch (step 9), not here
+  update    → do_update()
+  install   → do_install()
+  autolaunch → autolaunch_dispatch()
+  uninstall → do_uninstall()
+  tip/tipotd → tip_of_day()
+  enable-tips  → enable_tips()
+  disable-tips → disable_tips()
+  list-templates → list_templates()
+  save-template  → save_template_command(name, dir)
+  rename    → rename_move_command(src, dst, "rename")
+  move      → rename_move_command(src, dst, "move")
+  hide      → hide_command(session)
+  show      → show_command(session)
+  protect   → protect_command(session)
+  unprotect → unprotect_command(session)
+  delete    → delete_command(session, force, yes)
+  getmode   → get_session_mode(session)
+
+  send:
+    validate: session is managed, session is running, command starts with /
+    tmux send-keys session command + Enter
+
+  shutdown:
+    shutdown_claude_sessions()   # skips protected unless FORCE=true
+
+  setmode:
+    validate mode in whitelist
+    for each session:
+      if bypassPermissions:
+        check pane for current mode indicator
+        send Shift+Tab × N  (1 if plan, 2 if acceptEdits, 3 otherwise)
+        verify via capture-pane
+        if not confirmed → fallback to restart with bypassPermissions mode
+      else:
+        shutdown_single_session(session)
+        create_claude_session(session, dir, SETMODE_VALUE)
+
+  restart:
+    FORCE=true   # restarts bypass protection by design
+
+    if named sessions (RESTART_SESSIONS not empty):
+      print "Restarting N session(s) to apply updated injection..."
+      for each session:
+        validate: is managed session
+        get working dir from tmux
+        shutdown_single_session(session)
+        create_claude_session(session, dir, "", FRESH_START)
+
+    else (full restart):
+      snapshot: for each managed session where claude is running
+        record name + working dir
+
+      if nothing running → done
+
+      print "Restarting N session(s) to apply updated injection..."
+
+      if running inside tmux → identify caller session, separate from list
+
+      shutdown_claude_sessions()
+      detect_github_ssh_accounts()
+      for each non-caller session:
+        create_claude_session(name, dir, "", FRESH_START)
+
+      if caller session exists:
+        background subshell:
+          sleep 1
+          send /exit to caller pane + Enter
+          wait up to 10s for claude to exit
+          tmux kill-session caller
+          claude-mux -d caller_dir [--fresh]
+        disown subshell   # prevent SIGHUP when caller session dies
+```
+
+---
+
+## create_claude_session(name, dir, mode, fresh)
+
+Core launcher for all regular sessions (`-d`, `-n`, `--restart`).
+
+```
+# Collision guard
+if tmux session exists:
+  if not @claude-mux-managed:
+    if claude is running → warn, claim (v1.8 upgrade path)
+    else → error: session in use by something else, refuse
+  if claude is running → skip (already alive, nothing to do)
+  else → log "exists but claude not running, relaunching"
+else:
+  tmux new-session -d -s name -c dir
+
+apply_tmux_options(name)
+set @claude-mux-managed = 1
+
+# Build injection
+prompt = build_system_prompt(name, mode or "auto")
+
+# Build launch command flags
+perm_flag = "--permission-mode " + (mode or "auto")
+resume_flag = "-c"  (omit if fresh=true)
+
+# Write temp files (600 perms, cleaned up by trap on exit)
+write prompt → /tmp/claude-prompt-XXXXX
+write launch script → /tmp/claude-launch-XXXXX:
+  #!/bin/bash
+  trap cleanup EXIT
+  _prompt=$(cat prompt_file)
+  claude {resume} --remote-control {perm} \
+    --allow-dangerously-skip-permissions \
+    --name name --append-system-prompt "$_prompt"
+  || claude (same, without -c on retry)
+
+tmux send-keys name "bash launch_script" + Enter
+
+# Ready poller: poll pane every 0.5s, up to 10s (20 iterations)
+ready = false
+for i in 1..20:
+  sleep 0.5
+  pane = tmux capture-pane
+
+  if pane contains "Yes, I trust this folder":
+    send Enter          # auto-accept workspace trust prompt
+    sleep 2
+    continue            # don't break: bypassPermissions warning may follow
+
+  if pane contains "Yes, I accept":
+    send Down           # move from "No, exit" to "Yes, I accept"
+    sleep 1             # wait for UI to register selection
+    send Enter
+    sleep 2
+    ready = true
+    break
+
+  if pane matches /^❯|^> /:
+    ready = true
+    break
+
+send "Ready?" + Enter   # whether ready=true or timeout (always send)
+
+# Tip delivery (background, non-blocking)
+tip = tip_of_day(--session)
+if tip not empty:
+  background: sleep 5, send-keys tip + Enter
+
+# Protection
+if .claudemux-protected exists in dir:
+  set @claude-mux-protected = 1 on session
+```
+
+---
+
+## launch_single_session()
+
+Home session path, used by LaunchAgent and `-d` with HOME_LAUNCH=true. No ready poller.
+
+```
+# Read globals: LAUNCH_DIR, LAUNCH_SESSION_NAME, HOME_LAUNCH, FRESH_START
+
+if tmux session exists:
+  if not @claude-mux-managed → warn, refuse
+  if claude is running → skip
+  else → tmux kill-session, fall through to create
+
+prompt = build_system_prompt(LAUNCH_SESSION_NAME, "auto")
+
+model_flag = ""
+if HOME_LAUNCH and HOME_SESSION_MODEL set:
+  model_flag = "--model " + HOME_SESSION_MODEL
+
+resume_flag = "-c"  (omit if FRESH_START=true)
+
+write prompt → tmp file
+write launch script → tmp file:
+  claude {resume} --remote-control --permission-mode auto \
+    --allow-dangerously-skip-permissions {model_flag} \
+    --name session --append-system-prompt "$prompt"
+
+# Direct launch (not via send-keys)
+tmux new-session -d -s name -c dir "bash launch_script"
+
+set @claude-mux-managed = 1
+
+if .claudemux-protected exists in dir:
+  set @claude-mux-protected = 1
+```
+
+---
+
+## build_system_prompt(session_name, permission_mode)
+
+```
+if session_name == "home":
+  home_line = "This is the home session: always-on, protected by default..."
+  home_management = rules for editing config, templates, markers
+
+version_lines = get_version_prompt_lines()
+  → "claude-mux version: X.Y.Z"
+  → if update cached: "Update available: X.Y.Z. Tell user, suggest 'update claude-mux'."
+
+detect_github_ssh_accounts() → GITHUB_SSH_INFO
+
+assemble and return prompt:
+  "You are running inside tmux session 'NAME'. claude-mux path: PATH
+   {version_lines}
+   {home_line if home}
+   {home_management if home}
+
+   Reference lookups: --guide, --commands, --config-help, --list-templates, --tip
+
+   Rules:
+   - always use absolute claude-mux path
+   - always use --no-attach with -d and -n
+   - when user says: ready → 'Session ready!\nRunning [model] in {permission_mode} mode.'
+   - when user says: help → run --guide, print verbatim
+   - when user says: status → report session, model, mode, context, run -l
+   - when user says: restart this session → run --restart SESSION
+   - ... (40+ trigger rules total)
+
+   Additional capabilities: (compressed feature list)
+
+   Self-targeting send: claude-mux -s 'NAME' '/command'
+   {GITHUB_SSH_INFO}"
+```
+
+---
+
+## create_new_project()
+
+```
+# Read globals: NEW_PROJECT_DIR, NEW_CREATE_PARENTS, NO_GIT, NO_TEMPLATE,
+#               NO_MULTI_CODER, NO_PERMISSION_MODE, TEMPLATE_NAME
+
+validate: dir does not exist, or exists and is empty
+if NEW_CREATE_PARENTS: mkdir -p
+else: mkdir (parent must exist)
+
+if not NO_GIT:
+  ensure_git_repo(dir)    # git init if not already a repo
+  setup_gitignore(dir)    # create/update .gitignore with .claudemux-* entry
+
+if not NO_TEMPLATE:
+  apply_template(TEMPLATE_NAME or DEFAULT_TEMPLATE, dir)
+    # copies template file to dir/CLAUDE.md
+
+if not NO_MULTI_CODER:
+  setup_multi_coder_files(dir)
+    # create AGENTS.md, GEMINI.md as symlinks to CLAUDE.md
+
+if not NO_PERMISSION_MODE:
+  setup_default_mode(dir)
+    # write permissions.defaultMode to .claude/settings.local.json
+
+setup_claude_mux_permissions(dir)
+  # add claude-mux to .claude/settings.local.json allowlist
+  # add or remove tipotd Stop hook based on TIP_OF_DAY setting
+
+create_claude_session(session_name, dir, "", false)
+```
+
+---
+
+## autolaunch_dispatch()
+
+Called by LaunchAgent every 60s via KeepAlive.
+
+```
+case LAUNCHAGENT_MODE:
+
+  none:
+    log "mode is none, nothing to do"
+    if plist still installed:
+      launchctl unload plist   # self-heal: stop recurring invocations
+
+  home:
+    LAUNCH_DIR = BASE_DIR
+    HOME_LAUNCH = true
+    LAUNCH_SESSION_NAME = "home"
+    NO_ATTACH = true
+    launch_single_session()
+      # if home already running → skip (claude_running_in_session check)
+      # if not → create and launch
+```
+
+---
+
+## do_update()
+
+```
+fetch GitHub releases API → latest version string
+if already at latest → exit 0
+if current is newer than latest → exit 0  (dev build)
+
+if brew list claude-mux:
+  brew upgrade claude-mux
+else:
+  download binary from GitHub releases
+  validate: starts with #!, size > 1000 bytes, VERSION string matches
+  replace binary at install path
+
+echo "claude-mux updated: OLD → NEW"
+clear ~/.claude-mux/.update-check cache
+
+if TTY:
+  prompt "Restart running sessions? [y/N]"
+  if yes → exec claude-mux --restart
+```
+
+---
+
+## shutdown_single_session(name)
+
+```
+if session not running → return
+
+send-keys name "/exit" + Enter
+wait up to 10s (20 × 0.5s):
+  if claude no longer running → break
+
+if still running → tmux kill-session name   # hard kill
+```
+
+---
+
+## shutdown_claude_sessions()
+
+```
+# Named sessions path (when --shutdown SESSION [...] is used)
+if SHUTDOWN_SESSIONS not empty:
+  get_managed_session_names()
+  for each named session:
+    validate: is managed session
+    shutdown_single_session(session)
+  return
+
+# All managed sessions path
+get_managed_session_names()
+for each running tmux session:
+  if not managed → skip
+  if protected and FORCE != true → skip with log
+  collect in managed_list; send /exit if claude is running
+
+wait up to 10s (20 × 0.5s) for all claude processes to exit
+
+for each session in managed_list:
+  tmux kill-session
+```
+
+---
+
+## rename_move_command(src, dst, mode)
+
+```
+validate: src is a managed session
+get src working dir
+
+if mode == "rename":
+  new_dir = parent(src_dir) / dst
+  validate: new_dir does not exist (or --force)
+  mv src_dir → new_dir
+  update tmux session name (kill old, new name picks up on restart)
+  migrate Claude history:
+    old_encoded = encode_claude_path(src_dir)
+    new_encoded = encode_claude_path(new_dir)
+    mv ~/.claude/projects/old_encoded → ~/.claude/projects/new_encoded
+
+if mode == "move":
+  smart dest: if basename(dst) == src → dst = dirname(dst)  # strip trailing session name
+  validate: dst parent exists
+  mv src_dir → dst/src_name
+  migrate Claude history (same as rename)
+```
+
+---
+
+## tip_of_day([--session])
+
+```
+if TIP_OF_DAY != true → return ""
+
+tips = [array of ~39 tip strings]
+
+if mode == "--session":
+  # called at session launch
+  read ~/.claude-mux/.tip-date
+  if today → return ""   # already sent today
+  write today to .tip-date
+
+if TIP_MODE == "daily":
+  index = hash(today's date) % len(tips)
+else:
+  index = random % len(tips)
+
+return tips[index]
+```
+
+---
+
+## Key Invariants
+
+- `COMMAND` can only be set once — `set_command()` enforces this and exits on conflict.
+- Sessions are only touched if `@claude-mux-managed=1` is set in tmux — this prevents accidental collision with non-claude-mux tmux sessions.
+- Protected sessions (`@claude-mux-protected=1`) are skipped by `shutdown_claude_sessions()` unless `FORCE=true`. `--restart` always sets `FORCE=true` (restart ≠ permanent kill).
+- Caller-last ordering in full restart: the session running the restart script cannot kill itself mid-execution — it separates itself from the list and uses a background subshell with `disown` to handle its own restart.
+- The ready poller always sends `Ready?` even on timeout — a slow-starting session still gets the handshake, just later than expected.
+- Temp launch scripts clean themselves up via `trap ... EXIT` — no orphaned files even if claude crashes.
