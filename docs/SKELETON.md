@@ -150,6 +150,14 @@ case COMMAND:
   send:
     validate: session is managed, session is running, command starts with /
     tmux send-keys session command + Enter
+    if command == "/compact" and not DRY_RUN:
+      background subshell (disowned):
+        sleep 5   # lead-in: let /compact clear the prompt before polling
+        poll pane every 0.5s, up to 60s (120 × 0.5s)
+        if pane matches /^❯|^> / → compact finished, break
+        if session gone → exit (was intentionally killed, don't restart)
+        sleep 2   # let RC settle
+        claude-mux --restart SESSION   # delegates to --restart for caller-last handling
 
   shutdown:
     shutdown_claude_sessions()   # skips protected unless FORCE=true

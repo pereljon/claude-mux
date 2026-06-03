@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.14.1] - 2026-06-02
+
+### Fixed
+- **`/compact` RC hang**: sending `/compact` via `claude-mux -s SESSION /compact` (or "compact this session") now automatically restarts the session after compact completes, recovering the hung RC connection. A background monitor polls the pane for compact completion, waits 2s, then calls `--restart SESSION`. Sessions typed into directly still require a manual restart.
+
 ## [1.14.0] - 2026-05-30
 
 ### Added

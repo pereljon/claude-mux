@@ -10,6 +10,14 @@
 **Workaround:** Re-apply the desired mode with "switch this session to bypassPermissions mode" after restart, or use `--permission-mode` with `--restart`.
 **Fix path:** Requires v2.x session state awareness — store the effective mode (e.g. as a tmux user option `@claude-mux-mode`) and read it back during restart.
 
+### /compact hangs RC connection
+
+**Severity:** Low
+**Status:** Resolved in v1.14.1 - auto-restart via `-s SESSION /compact`
+**Description:** Running `/compact` inside a session causes the Remote Control connection to hang. Unlike `--restart` (which drops RC cleanly and reconnects in ~10s), `/compact` leaves the RC connection in a hung state that does not recover.
+**Root cause:** Claude Code internal - `/compact` reinitializes session state in a way that drops the RC WebSocket without a clean reconnect signal.
+**Fix:** When `/compact` is sent via `claude-mux -s SESSION /compact` (or "compact this session" via the injection), the `-s` handler spawns a background monitor that polls the pane for compact completion, then automatically calls `--restart SESSION` to recover RC. Sessions using the conversational trigger get this automatically.
+
 ### Phantom message replay causes unintended actions
 **Severity:** High
 **Status:** Open - cannot fully fix from claude-mux side

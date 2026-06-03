@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.14.0"
+VERSION="1.14.1"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -1456,7 +1456,7 @@ Rules:
 - When user says: what mode is this session / what permission mode — run claude-mux --get-mode SESSION and report the result
 - When user says: switch this session to MODE mode / switch session NAME to MODE mode — run claude-mux --permission-mode MODE on the named or current session
 - When user says: switch this session to MODEL model / switch session NAME to MODEL model — send /model MODEL via -s to the named or current session
-- When user says: compact this session / compact session NAME — send /compact via -s to the named or current session
+- When user says: compact this session / compact session NAME — send /compact via -s to the named or current session; inform the user the session will auto-restart after compact completes (~30-60s) to recover the RC connection
 - When user says: clear this session / clear session NAME — send /clear via -s to the named or current session
 - When user says: update claude-mux — check the installed version and latest available; warn the user that all sessions will be restarted and ask for confirmation before proceeding; if confirmed, run claude-mux --update then claude-mux --restart
 - When user says: hide this project / hide PROJECT — run claude-mux --hide (no arg = current session, or pass session name). Confirm with the project name.
@@ -3747,6 +3747,27 @@ case "$COMMAND" in
             exit 1
         fi
         "$TMUX_BIN" send-keys -t "$SEND_SESSION" -l "$SEND_COMMAND" && "$TMUX_BIN" send-keys -t "$SEND_SESSION" Enter
+        if [[ "$SEND_COMMAND" == "/compact" && "$DRY_RUN" != "true" ]]; then
+            log "Compact sent to '$SEND_SESSION'; monitoring for completion to auto-restart RC"
+            (
+                # Lead-in: wait for /compact to clear the prompt before polling
+                sleep 5
+                # Poll every 0.5s, up to 60s (120 × 0.5s) for prompt to return
+                _cpoll=0
+                while [[ $_cpoll -lt 120 ]]; do
+                    sleep 0.5
+                    _cpane=$("$TMUX_BIN" capture-pane -t "$SEND_SESSION" -p 2>/dev/null) || break
+                    echo "$_cpane" | grep -qE '^❯|^> ' && break
+                    (( _cpoll++ ))
+                done
+                # Guard: don't restart a session that was intentionally killed
+                "$TMUX_BIN" has-session -t "$SEND_SESSION" 2>/dev/null || exit 0
+                sleep 2
+                log "Compact complete in '$SEND_SESSION'; restarting to recover RC"
+                "$CLAUDE_MUX_BIN" --restart "$SEND_SESSION" 2>>"$LOG_FILE"
+            ) &
+            disown
+        fi
         exit 0
         ;;
     shutdown) shutdown_claude_sessions; exit $? ;;
