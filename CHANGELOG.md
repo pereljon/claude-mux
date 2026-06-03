@@ -4,10 +4,15 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.14.2] - 2026-06-02
+
+### Fixed
+- **`/compact` RC reconnect**: instead of restarting the session after compact, the monitor now sends `Ready?` to the pane, which reconnects the RC WebSocket without disrupting the session.
+
 ## [1.14.1] - 2026-06-02
 
 ### Fixed
-- **`/compact` RC hang**: sending `/compact` via `claude-mux -s SESSION /compact` (or "compact this session") now automatically restarts the session after compact completes, recovering the hung RC connection. A background monitor polls the pane for compact completion, waits 2s, then calls `--restart SESSION`. Sessions typed into directly still require a manual restart.
+- **`/compact` RC hang**: sending `/compact` via `claude-mux -s SESSION /compact` (or "compact this session") now monitors for compact completion and recovers the RC connection. A background monitor polls the pane for compact completion, waits 2s, then sends a reconnect ping. Sessions typed into directly still require a manual `--restart SESSION`.
 
 ## [1.14.0] - 2026-05-30
 
