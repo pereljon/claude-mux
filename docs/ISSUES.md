@@ -13,10 +13,10 @@
 ### /compact hangs RC connection
 
 **Severity:** Low
-**Status:** Resolved in v1.14.1 - auto-restart via `-s SESSION /compact`
+**Status:** Resolved in v1.14.2 - `-s SESSION /compact` sends `Ready?` after completion to reconnect RC
 **Description:** Running `/compact` inside a session causes the Remote Control connection to hang. Unlike `--restart` (which drops RC cleanly and reconnects in ~10s), `/compact` leaves the RC connection in a hung state that does not recover.
-**Root cause:** Claude Code internal - `/compact` reinitializes session state in a way that drops the RC WebSocket without a clean reconnect signal.
-**Fix:** When `/compact` is sent via `claude-mux -s SESSION /compact` (or "compact this session" via the injection), the `-s` handler spawns a background monitor that polls the pane for compact completion, then automatically calls `--restart SESSION` to recover RC. Sessions using the conversational trigger get this automatically.
+**Root cause:** Claude Code internal - `/compact` reinitializes session state in a way that drops the RC WebSocket without a clean reconnect signal. This is an instance of the broader upstream bug [anthropics/claude-code#34255](https://github.com/anthropics/claude-code/issues/34255) (RC auto-reconnect doesn't fire after a disruptive operation); `/compact` is just a reliable trigger. `/clear` is not disruptive enough to drop RC.
+**Fix:** When `/compact` is sent via `claude-mux -s SESSION /compact` (or "compact this session" via the injection), the `-s` handler spawns a background monitor that polls the pane for compact completion, then sends `Ready?` to force a fresh message that re-establishes RC - no session restart, no context loss. If the poll times out (compact still running after 60s), the monitor skips the ping rather than interrupt. **Limitation:** only fires for compacts that go through `-s`. A `/compact` typed directly in the pane or in Remote Control bypasses claude-mux entirely, so the monitor never spawns; those still need a manual `--restart SESSION`. RC users should prefer the conversational trigger ("compact this session") over typing `/compact`.
 
 ### Phantom message replay causes unintended actions
 **Severity:** High

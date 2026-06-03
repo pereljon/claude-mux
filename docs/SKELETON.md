@@ -153,11 +153,13 @@ case COMMAND:
     if command == "/compact" and not DRY_RUN:
       background subshell (disowned):
         sleep 5   # lead-in: let /compact clear the prompt before polling
+        found = false
         poll pane every 0.5s, up to 60s (120 × 0.5s)
-        if pane matches /^❯|^> / → compact finished, break
-        if session gone → exit (was intentionally killed, don't restart)
+        if pane matches /^❯|^> / → compact finished, found = true, break
+        if not found → log timeout, exit (compact still running, don't interrupt)
+        if session gone → exit (was intentionally killed, don't ping)
         sleep 2   # let RC settle
-        claude-mux --restart SESSION   # delegates to --restart for caller-last handling
+        tmux send-keys SESSION -l "Ready?" + Enter   # fresh message reconnects hung RC
 
   shutdown:
     shutdown_claude_sessions()   # skips protected unless FORCE=true

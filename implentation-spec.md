@@ -113,19 +113,24 @@ The script sources `~/.claude-mux/config` after setting defaults, so any variabl
 9. If COMMAND=attach (-t): attach to named tmux session and exit
 10. If COMMAND=send (-s): send command to session via tmux send-keys and exit
     - Special case: if SEND_COMMAND == "/compact", after sending, spawn a background
-      subshell (disowned) that polls the pane every 0.5s up to 60s for the input
-      prompt (^❯|^> ), waits 2s for RC to settle, then calls `claude-mux --restart
-      SESSION`. The restart is delegated to `--restart` (not inline) so that
-      caller-last ordering is handled for free if the session being compacted is
-      the caller. The disown prevents SIGHUP from killing the subshell if the
-      session exits before the restart completes.
+      subshell (disowned) with a 5s lead-in (so the pre-compact prompt clears before
+      polling), then poll the pane every 0.5s up to 60s for the input prompt
+      (^❯|^> ). If the prompt is detected, wait 2s for RC to settle, then send
+      `Ready?` (literal, via send-keys -l) to force a fresh message that re-establishes
+      the hung RC WebSocket - no session restart, no context loss. If the poll times
+      out without detecting the prompt, the monitor logs and skips the ping rather
+      than interrupt an in-progress compact. A has-session guard prevents pinging a
+      session that was intentionally killed. The disown prevents SIGHUP from killing
+      the subshell if the parent exits first. Only fires for compacts initiated via
+      `-s`; directly-typed or RC-typed `/compact` bypasses claude-mux and is not
+      monitored (see docs/ISSUES.md, upstream anthropics/claude-code#34255).
 11. 45-second startup delay (skipped when stdout is a terminal or in dry-run) for LaunchAgent login use
 12. Check dependencies (tmux, claude)
 13. Dispatch:
     - start: discover_projects → migrate_stray_sessions → create sessions
     - launch (-d): migrate stray in target dir → create session → attach
     - new (-n): create dir (if -p) → git init → .gitignore → create session → attach
-    - send (-s): tmux send-keys to named session; /compact auto-triggers restart after completion
+    - send (-s): tmux send-keys to named session; /compact spawns a monitor that sends Ready? after completion to reconnect RC
     - list (-l): show active sessions (running + stopped)
     - list-all (-L): show all projects (active + idle)
     - shutdown: send /exit → poll → kill tmux sessions (all managed, or specific session(s))
