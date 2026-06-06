@@ -16,7 +16,7 @@
 **Status:** Resolved in v1.14.2 - `-s SESSION /compact` sends `Ready?` after completion to reconnect RC
 **Description:** Running `/compact` inside a session causes the Remote Control connection to hang. Unlike `--restart` (which drops RC cleanly and reconnects in ~10s), `/compact` leaves the RC connection in a hung state that does not recover.
 **Root cause:** Claude Code internal - `/compact` reinitializes session state in a way that drops the RC WebSocket without a clean reconnect signal. This is an instance of the broader upstream bug [anthropics/claude-code#34255](https://github.com/anthropics/claude-code/issues/34255) (RC auto-reconnect doesn't fire after a disruptive operation); `/compact` is just a reliable trigger. `/clear` is not disruptive enough to drop RC.
-**Fix:** When `/compact` is sent via `claude-mux -s SESSION /compact` (or "compact this session" via the injection), the `-s` handler spawns a background monitor that polls the pane for compact completion, then sends `Ready?` to force a fresh message that re-establishes RC - no session restart, no context loss. If the poll times out (compact still running after 60s), the monitor skips the ping rather than interrupt. **Limitation:** only fires for compacts that go through `-s`. A `/compact` typed directly in the pane or in Remote Control bypasses claude-mux entirely, so the monitor never spawns; those still need a manual `--restart SESSION`. RC users should prefer the conversational trigger ("compact this session") over typing `/compact`.
+**Fix:** When `/compact` is sent via `claude-mux -s SESSION /compact` (or "compact this session" via the injection), the `-s` handler spawns a background monitor that polls the pane for compact completion, then sends `Ready?` to force a fresh message that re-establishes RC - no session restart, no context loss. If the poll times out (compact still running after 60s), the monitor skips the ping rather than interrupt. **Limitation:** only fires for compacts that go through `-s`. A `/compact` typed directly in the pane or in Remote Control bypasses claude-mux entirely, so the monitor never spawns; those still need a manual `--restart SESSION`. RC users should prefer the conversational trigger ("compact this session") over typing `/compact`. **Follow-up:** a universal fix via a `PreCompact` hook (covers directly-typed and RC-typed compacts) is planned - see Planned Patches -> v1.16.0.
 
 ### Phantom message replay causes unintended actions
 **Severity:** High
@@ -194,6 +194,25 @@ These are bug-fix patches (x.y.Z), not planned UX minors, so they're tracked in 
 **Open decisions:** config flags (`TIP_OF_DAY` for the tip, `UPDATE_CHECK` for the update line); single `--on-prompt` entry vs separate; keep or replace the launch-time `get_version_prompt_lines` version line; same-tip-everywhere (day-of-year) vs random per session.
 
 **Touches:** `setup_claude_mux_permissions` (install/remove the UserPromptSubmit hook instead of the Stop hook), `tipotd` dispatch + early-exit (~614-620), `tip_of_day`, `check_for_update`/`get_version_prompt_lines`, config (`TIP_OF_DAY`, `UPDATE_CHECK`), plus docs: implentation-spec.md, docs/CODEMAP.md, docs/SKELETON.md, docs/guide.md, CHANGELOG.md, config.example, README, install.sh. (Not CLAUDE.md - tips are a feature, documented in the spec.)
+
+### v1.16.0 - Universal /compact RC reconnect via PreCompact hook
+
+**Status: Planned.** Closes the gap left by v1.14.2: `/compact` typed directly in the pane or in Remote Control still hangs RC and needs a manual `--restart`, because claude-mux only monitors compacts sent via `-s`.
+
+**Mechanism:** register a Claude Code `PreCompact` hook. It fires for *every* compact regardless of trigger - manual `/compact`, RC, or `-s` (verified firing in practice: `hook_event_name:"PreCompact","trigger:"manual"`). The hook spawns the same disowned post-compact monitor v1.14.2 already uses: resolve its own session (via `$TMUX_PANE` / stdin `session_id`), poll the pane for compact completion, then send `Ready?` to generate the turn activity that reconnects the hung RC WebSocket. No user action needed.
+
+**Supersedes** the `-s`-only monitor in v1.14.2 with a universal one - the `-s` `/compact` special case (~3750) can then be removed or left as a no-op since the PreCompact hook covers it.
+
+**Caveats / verify first:**
+- Confirm a disowned monitor spawned from a PreCompact hook survives and that `send-keys` lands correctly *after* compaction completes (same uncertainty class as the original `-s` monitor before it was verified).
+- Confirm PreCompact fires for auto-compaction (`trigger:"auto"`), not just manual - so long-session startup auto-compacts are covered too.
+- Why not UserPromptSubmit: it fires only when a prompt is submitted (impossible from a hung RC) and augments an existing turn rather than generating the turn-activity that reconnects RC. PreCompact is the correct event.
+
+**Hook-type growth note:** this is a third hook type (Stop going away in v1.15.0; UserPromptSubmit for tips/updates in v1.15.0; PreCompact here). `setup_claude_mux_permissions` must manage all of them in `.claude/settings.local.json`. Be deliberate about the growth.
+
+**Touches:** `setup_claude_mux_permissions` (register/remove PreCompact hook), the `-s` `/compact` special case (~3750, remove or simplify), a new dispatch entry for the hook, docs: implentation-spec.md, docs/CODEMAP.md, docs/SKELETON.md, docs/guide.md, CHANGELOG.md, README, install.sh. Relates to the `/compact hangs RC connection` entry above.
+
+**Sequence:** independent of v1.15.0 (different hook); order between them is flexible.
 
 ## v2.0 Milestone
 
