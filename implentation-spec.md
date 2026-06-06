@@ -445,7 +445,13 @@ Long-running sessions that compact but never restart would never see tips via th
 }
 ```
 
-**Lifecycle:** Hook is added by `setup_claude_mux_permissions()` when `TIP_OF_DAY=true` (default). Removed when `TIP_OF_DAY=false`. Managed during: session create/restart/launch (`--enable-tips` adds to all projects, `--disable-tips` removes from all, `--uninstall` removes from all).
+The hook lives in `.claude/settings.local.json` (highest precedence, safe from array-replace merge behavior in Claude Code's settings hierarchy).
+
+**Lifecycle:** Managed by `setup_claude_mux_permissions()` (adds when `TIP_OF_DAY=true`, the default; removes when `false`) and by `enable_tips()`/`disable_tips()`.
+
+- **Added by:** `--install`; `-d`/session launch (`create_claude_session()`); `-n`/new project (`create_new_project()` → `create_claude_session()`); `--restart`; `launch_single_session()` (home/LaunchAgent); `--enable-tips` (walks all projects).
+- **Removed by:** `--delete` (project removed); `--disable-tips` (walks all projects); `--uninstall` (full teardown).
+- **No hook action:** `--shutdown` (session stops, hook stays for next launch); `--hide`/`--show` (visibility only); `--protect`/`--unprotect` (protection only); `--rename`/`--move` (`settings.local.json` travels with the folder).
 
 When tips are disabled, the hook is removed from `settings.local.json` entirely — `--tipotd` is never called, so there's no config check needed inside the fast path.
 

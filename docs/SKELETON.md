@@ -2,6 +2,25 @@
 
 Pseudo-code showing the structure and logic of `claude-mux`. Use this to understand how the script works, trace a bug, or reason about the impact of a change. For function locations and config var details, see `docs/CODEMAP.md`.
 
+## Contents
+
+Read only the section you need - `grep -n "^## <name>" docs/SKELETON.md` for its offset, then Read that range:
+
+- **How to Use** - navigating this file
+- **How to Maintain** (+ **Non-Obvious Script Structure** - the interspersed pre-dispatch blocks that are easy to miss)
+- **Top-Level Structure** - the 10 phases from shebang to dispatch
+- **Main Dispatch** - the command `case` block
+- **create_claude_session** - session creation, injection, ready poller, tip delivery
+- **launch_single_session** - direct (non-send-keys) launch path
+- **build_system_prompt** - the injected system prompt
+- **create_new_project** - new-project scaffolding
+- **autolaunch_dispatch** - LaunchAgent boot path
+- **do_update** - self-update
+- **shutdown_single_session / shutdown_claude_sessions** - teardown paths
+- **rename_move_command** - rename/move with history migration
+- **tip_of_day** - tip selection and daily gate
+- **Key Invariants** - rules that must hold across changes
+
 ## How to Use
 
 - **Tracing a bug**: find the relevant section (Top-Level Structure, Main Dispatch, or a function section), follow the pseudo-code to identify which condition or path is wrong, then use `docs/CODEMAP.md` to jump to the exact line.

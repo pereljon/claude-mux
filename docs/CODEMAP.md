@@ -2,7 +2,7 @@
 
 Navigation reference for the `claude-mux` script. Use this to locate functions and config vars. For logic and control flow, see `docs/SKELETON.md`.
 
-**Current version:** 1.14.1 (~3990 lines)
+**Current version:** 1.14.2 (~4005 lines)
 
 ## How to Use
 

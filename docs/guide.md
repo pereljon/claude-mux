@@ -129,6 +129,7 @@ Reference lookups (run on demand if you need information not covered by trigger 
   claude-mux --commands       → full CLI reference
   claude-mux --config-help    → config options with defaults, types, descriptions
   claude-mux --list-templates → available CLAUDE.md templates
+  claude-mux --tip            → print a tip (standalone; no daily gate)
 
 Rules:
 - Always run claude-mux using the absolute path shown above (claude-mux path:). The bare command may not be in PATH.
@@ -189,6 +190,71 @@ GitHub SSH accounts configured in ~/.ssh/config: <accounts>. For gh CLI operatio
 ```
 
 The home session receives additional context: a description of its role, plus self-management triggers for reading/editing config and templates. When `ALLOW_CROSS_SESSION_CONTROL=true`, the send command can target any session, not just itself. The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.
+
+## Update Check
+
+claude-mux checks GitHub for newer releases and surfaces them two ways: a one-line notice in the terminal, and an "Update available" line injected into each session's system prompt (shown in the block above). The whole mechanism is gated by the `UPDATE_CHECK` config option (default `true`).
+
+### The cache file
+
+State lives in a single file, `~/.claude-mux/.update-check`, holding three space-separated fields on one line:
+
+```
+<last_check> <latest> <last_notify>
+```
+
+- `last_check` - epoch seconds of the last GitHub API query
+- `latest` - the newest release version string seen (e.g. `1.14.2`)
+- `last_notify` - epoch seconds of the last terminal notification shown
+
+### The background check (`check_for_update`)
+
+Runs once on every invocation, before command dispatch, but exits early unless conditions are met:
+
+1. Skips entirely if `UPDATE_CHECK` is not `true`.
+2. Skips if stdout is not an interactive TTY (so it never interferes with scripts, hooks, or piped output).
+3. Reads the cache. It queries the GitHub releases API (`api.github.com/repos/pereljon/claude-mux/releases/latest`, 3-second timeout) **at most once per day** - if `last_check` is under 86400 seconds old, it uses the cached `latest` and makes no network call.
+4. On a fresh query, it parses the latest tag, updates `last_check`, and rewrites the cache. If the version returned differs from what was cached, `last_notify` is reset to `0` so the new version is allowed to notify immediately.
+
+### The terminal notification
+
+After the check, a notice is printed to stderr only if all of these hold:
+
+- `latest` is set and is strictly greater than the running `VERSION` (semver comparison via `version_gt`)
+- the last notification for this version was over 7 days ago (`last_notify` older than 604800 seconds, or zero)
+
+The notice looks like:
+
+```
+claude-mux <latest> available (current: <version>). See: github.com/pereljon/claude-mux/releases/tag/v<latest>
+  Update: claude-mux --update
+```
+
+When shown, `last_notify` is updated to now - so a given version nags at most once per 7 days, not on every command.
+
+### The in-session injection (`get_version_prompt_lines`)
+
+Independently of the terminal notice, session creation reads the same cache file to build the version context baked into `--append-system-prompt`. The base `claude-mux version: <version>` line is always present. When the cached `latest` is newer than the running version, a second line is appended:
+
+```
+Update available: <latest> (found <check-date>). Tell the user and suggest they say "update claude-mux" to update.
+```
+
+`<check-date>` is `last_check` formatted as `YYYY-MM-DD`. This is why a running session can proactively mention an available update: the cache was populated by an earlier TTY check, and the value is read again at session launch. Sessions started before a new release is cached won't carry the line until they're restarted.
+
+### Applying the update (`--update`)
+
+`claude-mux --update` (conversationally: "update claude-mux") fetches the latest tag, and:
+
+- if already current or newer, reports so and exits without changes
+- if installed via Homebrew, delegates to `brew upgrade claude-mux`
+- otherwise downloads the release asset directly and validates it before replacing the script: it must start with a `#!` shebang, be at least 1000 bytes, and contain a matching `VERSION="<latest>"` line. A failed validation aborts without overwriting.
+
+Because claude-mux is a script read fresh from disk on each call, the new version takes effect on the next invocation. Running sessions keep their old injected prompt until restarted, so `--update` restarts sessions automatically (and the conversational trigger warns first).
+
+### Disabling
+
+Set `UPDATE_CHECK=false` in `~/.claude-mux/config` to turn off both the background check and the injected update line. `--update` still works on demand. Note that the repo (`pereljon/claude-mux`) is hardcoded in `check_for_update()` and `do_update()`; forks should disable the check or edit those functions (see FAQ).
 
 ## Troubleshooting
 
