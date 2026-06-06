@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.15.1] - 2026-06-05
+
+### Added
+- Two tip-of-the-day entries: automatic update notices (claude-mux now surfaces an "update available" notice in-conversation, including Remote Control) and starting an idle project by name (`start the api-server session`), reinforcing the names-not-paths convention.
+
 ## [1.15.0] - 2026-06-05
 
 ### Fixed
