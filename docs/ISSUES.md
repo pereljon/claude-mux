@@ -81,7 +81,7 @@
 
 ### Tip of the day
 **Severity:** Low
-**Status:** Resolved in v1.10.0 - `--tip`, `TIP_OF_DAY`, `TIP_MODE`, daily gate, session-start delivery implemented
+**Status:** Reopened - the v1.10.0 implementation (`--tip`, `TIP_OF_DAY`, `TIP_MODE`, daily gate, session-start delivery) never actually displays a tip: Stop-hook stdout is transcript-only, and the global daily gate is claimed by the invisible Stop-hook path before the visible session-start path can run. `--tip` on demand still works. Fix tracked in Planned Patches -> v1.15.0 (UserPromptSubmit hook).
 
 ### Reply timestamp
 **Severity:** Low
@@ -140,7 +140,7 @@ Small UX work pulled out of the v2.0 milestone to ship under the lifted feature 
 
 ### v1.14.0 - Launch and restart transparency
 
-**Status: Implemented. Pending code review, commit, push, release.**
+**Status: Shipped (released as v1.14.0).**
 
 Two coherent small wins, both about telling the user what's happening at session boundaries.
 
@@ -163,20 +163,43 @@ One summary line at the start of the restart sweep, not per-session.
 
 **Out of scope:** mid-tick warnings, status pages, model badges in `-l` — deferred to v2.0/v2.1.
 
-**Implementation order:**
+**Interim bug-fix patches since (committed, NOT yet released - last tag is v1.14.0):**
+- **v1.14.1** - `/compact` sent via `-s` monitors for compact completion to recover the hung RC connection.
+- **v1.14.2** - replaced the post-compact restart with a `Ready?` ping that reconnects RC without restarting the session. See the `/compact hangs RC connection` entry above and CHANGELOG.
 
-1. Implement "Warn before restart" first (smaller, pure string output in two existing functions).
-2. Implement "Show model on session start" second (needs the model value plumbed into the injection at launch).
-3. Test: restart cycles, single session vs `--restart` all, `--update` flow, RC reconnect notice, injection update.
-4. CHANGELOG, VERSION bump to `1.14.0`, doc-updater for user-facing changes.
-5. Code review (minor bump → review all functions added/modified per CLAUDE.md).
-6. Commit / push / release.
+These are bug-fix patches (x.y.Z), not planned UX minors, so they're tracked in CHANGELOG and the Open/Resolved entries rather than expanded here. The planned-minor sequence stays legible: v1.14.0 (shipped) -> v1.15.0 (next planned).
 
 ---
+
+### v1.15.0 - Tips and update notices via UserPromptSubmit hook
+
+**Status: Planned.** Fixes two features that currently never reach the user, by switching delivery to a UserPromptSubmit hook - the only injection path proven to surface in Remote Control (the `claude-now-context` datetime hook demonstrates it).
+
+**Why 1.x and not v2.0:** both are broken/invisible features, and the fix is self-contained - it needs no `--autolaunch` tick or other v2.0 architecture. It does build the in-context notification hook that v2.0 situational-awareness features (binary-upgrade detection, zombie detection) reuse for *delivery*; this is the same pattern as auto-restore's tick being the keystone others bolt onto.
+
+**Problem 1 - tips never display.** `--tipotd` (Stop hook) writes to stdout, which Claude Code routes to the transcript, not the conversation (verified; `systemMessage` also did not surface in RC). Worse, the global daily gate (`~/.claude-mux/.tip-date`) is claimed by this invisible Stop-hook path before the visible session-start `send-keys` path can run, so the one visible path is starved every day. Net: a tip has never been seen.
+
+**Problem 2 - update notice never reaches RC.** `check_for_update` is TTY-gated (`[[ ! -t 1 ]]`), so it never runs when Claude invokes claude-mux via the Bash tool (piped stdout). The in-session "Update available" line is built only at session creation (`get_version_prompt_lines` reads the cache once at launch), so a running session never learns of a release mid-session without restart.
+
+**Fix:** one claude-mux UserPromptSubmit hook (replacing the Stop hook) that injects into context, once per day per session: the daily tip, and an "Update available: X" line when the cache holds a newer version.
+
+**Per-session gating:** key on `session_id` from the hook's stdin JSON (validate as a safe filename token); a per-session state file (`~/.claude-mux/tip-state/<session_id>.json`) replaces the global `.tip-date`. Each active session shows the tip once/day - this kills the gate race and delivers per-session scope for free.
+
+**Scope discipline:** ship only the delivery hook plus the two notices that need *no* detection (tip = time-gated, update = cache-gated). Notices that require detecting state (stale `claude` binary, dead process) stay in v2.0 - they need the `--autolaunch` tick.
+
+**Caveats:**
+- Per-prompt hook must be cheap: keep a fast early-exit before config load (current `--tipotd` is ~6ms).
+- Injected context is *seen* by Claude, not force-displayed; the injected text must instruct Claude to surface it (e.g. `[Daily tip - mention to the user]: ...`). Slightly non-deterministic vs a hard message, but it is the only proven-visible RC path.
+
+**Open decisions:** config flags (`TIP_OF_DAY` for the tip, `UPDATE_CHECK` for the update line); single `--on-prompt` entry vs separate; keep or replace the launch-time `get_version_prompt_lines` version line; same-tip-everywhere (day-of-year) vs random per session.
+
+**Touches:** `setup_claude_mux_permissions` (install/remove the UserPromptSubmit hook instead of the Stop hook), `tipotd` dispatch + early-exit (~614-620), `tip_of_day`, `check_for_update`/`get_version_prompt_lines`, config (`TIP_OF_DAY`, `UPDATE_CHECK`), plus docs: implentation-spec.md, docs/CODEMAP.md, docs/SKELETON.md, docs/guide.md, CHANGELOG.md, config.example, README, install.sh. (Not CLAUDE.md - tips are a feature, documented in the spec.)
 
 ## v2.0 Milestone
 
 Architectural changes significant enough to warrant a major version bump. Sequenced into three minors (v2.0, v2.1, v2.2). Not scheduled.
+
+**Two shared backbones run through this milestone:** the `--autolaunch` tick (background detection and self-healing, no user turn) and the **UserPromptSubmit notification hook shipped in v1.15.0** (in-context delivery that reaches RC). Detection-heavy items below typically need both: the tick detects, the hook notifies.
 
 ### Data directory separation
 Move static data (tips, default templates, possibly command/guide output) out of the script and into a platform-appropriate data directory. The script would resolve `DATA_DIR` at startup relative to the binary location, with embedded fallbacks for single-file installs.
@@ -257,7 +280,7 @@ claude-mux has no awareness of `claude` binary upgrades. `--update` handles clau
 **Possible mechanisms:**
 
 - **Detect on `--autolaunch` tick.** Compare each session's `claude` PID's executable path/mtime against `command -v claude`. If a session is running an older binary, surface in `-l` as a "stale" badge.
-- **Conversational notice.** On detection, inject a one-shot note: *"Claude Code was upgraded since this session started; say 'restart this session' to load the new binary."*
+- **Conversational notice.** On detection, inject a one-shot note: *"Claude Code was upgraded since this session started; say 'restart this session' to load the new binary."* Delivered via the v1.15.0 UserPromptSubmit notification hook (the tick detects; the hook surfaces it in-context, including RC).
 - **Extend `--update`.** Detect `brew outdated claude` (or equivalent for npm/curl installs) and offer to upgrade both together with a single restart sweep.
 
 **Adjacent but distinct** from "Warn before restart in `--update` and RC" — that item is about explaining *our* restarts; this is about detecting an external dependency upgrade.
