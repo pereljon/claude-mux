@@ -113,7 +113,7 @@ Tú: "consejo"
 Claude: muestra un consejo - el mismo consejo todo el día, o aleatorio si TIP_MODE=random está configurado
 
 Tú: "activar consejos" / "desactivar consejos"
-Claude: registra o elimina el hook de consejo del día en todos los proyectos
+Claude: activa o desactiva el consejo del día en todos los proyectos
 
 Tú: "actualizar claude-mux"
 Claude: advierte que todas las sesiones se reiniciarán, pide confirmación, luego actualiza y reinicia

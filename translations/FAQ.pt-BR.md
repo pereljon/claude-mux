@@ -55,11 +55,11 @@ Listar templates: "listar templates" ou `claude-mux --list-templates`.
 
 ## Como funciona o tip-of-the-day?
 
-Um hook Stop do Claude Code no `.claude/settings.local.json` de cada projeto chama `claude-mux --tipotd` apos cada turno de conversa. O comando verifica se uma dica ja foi mostrada hoje (via `~/.claude-mux/.tip-date`). Se sim, encerra em cerca de 6ms. Se nao, mostra uma dica e registra a data de hoje.
+Um hook `UserPromptSubmit` do Claude Code no `.claude/settings.local.json` de cada projeto chama `claude-mux --on-prompt` a cada prompt. O primeiro prompt do dia injeta uma dica na conversa; prompts posteriores naquele dia nao injetam nada. O estado e por sessao, armazenado em `~/.claude-mux/tip-state/<session_id>.json`, entao cada sessao ativa mostra a dica uma vez por dia. Como o hook injeta no contexto (nao um hook Stop, cuja saida vai apenas para o transcript), a dica fica visivel na conversa e no Remote Control.
 
-Dicas sao habilitadas por padrao (`TIP_OF_DAY=true`). Alterne com "ativar tips" ou "desativar tips" dentro de qualquer sessao. `TIP_MODE=daily` mostra a mesma dica o dia todo; `TIP_MODE=random` escolhe uma dica aleatoria por invocacao (com o hook Stop, isso significa uma dica aleatoria por dia devido a trava diaria).
+Dicas sao habilitadas por padrao (`TIP_OF_DAY=true`). Alterne com "ativar tips" ou "desativar tips" dentro de qualquer sessao. `TIP_MODE=daily` mostra a mesma dica o dia todo; `TIP_MODE=random` escolhe uma dica aleatoria.
 
-O comando `--tip` sempre funciona independente da trava diaria, entao voce pode dizer "tip" a qualquer momento.
+O comando `--tip` sempre funciona independente da trava diaria (e independente de `TIP_OF_DAY`), entao voce pode dizer "tip" a qualquer momento.
 
 ## Posso usar com multiplas contas GitHub?
 
@@ -87,8 +87,9 @@ O Claude entao usara `git@github.com-work:org/repo.git` para repos de trabalho e
 |-------|---------------|
 | `~/.claude-mux/config` | Configuracao do usuario (carregada como bash) |
 | `~/.claude-mux/templates/` | Arquivos de template CLAUDE.md |
-| `~/.claude-mux/.tip-date` | Data da ultima dica mostrada |
+| `~/.claude-mux/tip-state/<session_id>.json` | Data da dica por sessao + limite de avisos de atualizacao |
 | `~/.claude-mux/.update-check` | Resultado em cache da verificacao de versao |
+| `~/.claude-mux/.update-checking` | Trava durante a verificacao de atualizacao em segundo plano |
 | `~/Library/Logs/claude-mux.log` | Arquivo de log (configuravel via `LOG_DIR`) |
 | `~/Library/LaunchAgents/com.user.claude-mux.plist` | plist do LaunchAgent (gerado por `--install`) |
 | `.claudemux-protected` (por projeto) | Marca uma sessao como protegida contra encerramento |

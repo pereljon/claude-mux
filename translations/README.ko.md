@@ -113,7 +113,7 @@ Claude: CLAUDE.md를 ~/.claude-mux/templates/web.md로 복사
 Claude: 팁을 출력 - 하루 내내 같은 팁, TIP_MODE=random 설정 시 무작위
 
 사용자: "팁 활성화" / "팁 비활성화"
-Claude: 모든 프로젝트에서 오늘의 팁 훅을 등록하거나 제거
+Claude: 모든 프로젝트에서 매일 팁을 켜거나 끔
 
 사용자: "update claude-mux"
 Claude: 모든 세션이 재시작될 것을 경고하고, 확인 후 업데이트 및 재시작

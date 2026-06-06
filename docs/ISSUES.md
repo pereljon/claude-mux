@@ -81,7 +81,7 @@
 
 ### Tip of the day
 **Severity:** Low
-**Status:** Reopened - the v1.10.0 implementation (`--tip`, `TIP_OF_DAY`, `TIP_MODE`, daily gate, session-start delivery) never actually displays a tip: Stop-hook stdout is transcript-only, and the global daily gate is claimed by the invisible Stop-hook path before the visible session-start path can run. `--tip` on demand still works. Fix tracked in Planned Patches -> v1.15.0 (UserPromptSubmit hook).
+**Status:** Resolved in v1.15.0 - the Stop-hook delivery (transcript-only, never visible) and global daily gate (which starved the visible path) are replaced by a `UserPromptSubmit` hook (`--on-prompt`) that injects the tip into context, gated per session via `~/.claude-mux/tip-state/<session_id>.json`. Each active session now shows one tip per day, visible in Remote Control.
 
 ### Reply timestamp
 **Severity:** Low
@@ -173,7 +173,7 @@ These are bug-fix patches (x.y.Z), not planned UX minors, so they're tracked in 
 
 ### v1.15.0 - Tips and update notices via UserPromptSubmit hook
 
-**Status: Planned.** Fixes two features that currently never reach the user, by switching delivery to a UserPromptSubmit hook - the only injection path proven to surface in Remote Control (the `claude-now-context` datetime hook demonstrates it).
+**Status: Shipped (2026-06-05).** Fixes two features that never reached the user, by switching delivery to a UserPromptSubmit hook - the only injection path proven to surface in Remote Control (the `claude-now-context` datetime hook demonstrates it). Implemented as designed: `on_prompt` (per-session tip + update notice), `update_check_bg` (disowned background curl), `.update-checking` lock with 5-min stale guard, `setup_claude_mux_permissions` registers UserPromptSubmit and removes the legacy Stop hook.
 
 **Why 1.x and not v2.0:** both are broken/invisible features, and the fix is self-contained - it needs no `--autolaunch` tick or other v2.0 architecture. It does build the in-context notification hook that v2.0 situational-awareness features (binary-upgrade detection, zombie detection) reuse for *delivery*; this is the same pattern as auto-restore's tick being the keystone others bolt onto.
 
@@ -187,13 +187,33 @@ These are bug-fix patches (x.y.Z), not planned UX minors, so they're tracked in 
 
 **Scope discipline:** ship only the delivery hook plus the two notices that need *no* detection (tip = time-gated, update = cache-gated). Notices that require detecting state (stale `claude` binary, dead process) stay in v2.0 - they need the `--autolaunch` tick.
 
+**Update check architecture - hook never blocks on network.** The hook reads only the existing cache file (`~/.claude-mux/.update-check`) - pure file I/O, ~1ms. If the cache shows a newer version, it emits the notice. The GitHub API call (curl to `api.github.com/repos/pereljon/claude-mux/releases/latest`) is split into a separate background dispatch (`--update-check-bg`) that the hook spawns as a disowned process when the cache is stale (>24h since `last_check`). The hook does not wait for it - the next prompt submission will see the fresh result.
+
+**Preventing duplicate curl spawns.** Before spawning the background process, the hook synchronously touches `~/.claude-mux/.update-checking`. Subsequent hook invocations see this file and skip spawning. The background process removes `.update-checking` when done (whether success or failure). Guard against orphaned lock: if `.update-checking` is older than 5 minutes (longer than any reasonable curl + cache write), treat it as stale, remove it, and allow a fresh spawn.
+
 **Caveats:**
-- Per-prompt hook must be cheap: keep a fast early-exit before config load (current `--tipotd` is ~6ms).
-- Injected context is *seen* by Claude, not force-displayed; the injected text must instruct Claude to surface it (e.g. `[Daily tip - mention to the user]: ...`). Slightly non-deterministic vs a hard message, but it is the only proven-visible RC path.
+- Per-prompt hook must return quickly: fast early-exit if today's tip was already shown for this session and update cache is fresh (all file reads, no network).
+- The `--update-check-bg` dispatch must suppress all output and exit silently regardless of curl result.
+- Injected context is *seen* by Claude, not force-displayed; the injected text must instruct Claude to surface it (e.g. `[Daily tip - share with the user]: ...`). Slightly non-deterministic vs a hard message, but it is the only proven-visible RC path.
+- 1-prompt lag before a fresh update notice appears (the turn after the background curl completes) - acceptable since update notices aren't time-sensitive.
 
-**Open decisions:** config flags (`TIP_OF_DAY` for the tip, `UPDATE_CHECK` for the update line); single `--on-prompt` entry vs separate; keep or replace the launch-time `get_version_prompt_lines` version line; same-tip-everywhere (day-of-year) vs random per session.
+**Open decisions:** config flags (`TIP_OF_DAY` for the tip, `UPDATE_CHECK` for the update line); single `--on-prompt` entry vs separate; keep or replace the launch-time `get_version_prompt_lines` version line; same-tip-everywhere (day-of-year) vs random per session; whether the early-exit can happen before config load (requires parsing stdin JSON in bash at that stage, ~6ms vs ~1ms - may not be worth the complexity).
 
-**Touches:** `setup_claude_mux_permissions` (install/remove the UserPromptSubmit hook instead of the Stop hook), `tipotd` dispatch + early-exit (~614-620), `tip_of_day`, `check_for_update`/`get_version_prompt_lines`, config (`TIP_OF_DAY`, `UPDATE_CHECK`), plus docs: implentation-spec.md, docs/CODEMAP.md, docs/SKELETON.md, docs/guide.md, CHANGELOG.md, config.example, README, install.sh. (Not CLAUDE.md - tips are a feature, documented in the spec.)
+**Testing plan:**
+- **Tip delivery:** confirm tip text appears in Claude's response on the first prompt of a new day; confirm it does NOT appear on subsequent prompts in the same session that day; confirm a second session also gets the tip once that day (per-session gate, not global); confirm `--tip` on demand still works; confirm `TIP_OF_DAY=false` suppresses tip output from the hook; confirm tip-state dir (`~/.claude-mux/tip-state/`) is created automatically if missing.
+- **Update notice:** manually set the cache (`~/.claude-mux/.update-check`) to a version higher than `VERSION` and confirm the notice appears in Claude's response; set to same or lower version and confirm it does not; confirm the 7-day notify throttle (set `last_notify` to recent timestamp and verify suppression).
+- **Background curl (`.update-checking` lock):** set cache `last_check` to >24h ago and confirm `.update-checking` is created immediately when the hook fires; send a second prompt while `.update-checking` exists and confirm no second curl spawns (check process list); confirm `.update-checking` is removed after background process completes; manually set `.update-checking` mtime to >5 minutes ago and confirm next hook invocation removes the stale lock and spawns fresh; confirm `UPDATE_CHECK=false` suppresses the spawn.
+- **Background process hygiene:** confirm `--update-check-bg` produces no stdout or stderr output; confirm it exits 0 on success and silently on curl failure (no network / bad response).
+- **Hook registration:** confirm `setup_claude_mux_permissions` writes a `UserPromptSubmit` entry (not `Stop`) into `.claude/settings.local.json`; confirm any existing `--tipotd` Stop hook entry is removed during the upgrade; confirm `--enable-tips`/`--disable-tips` add/remove the UserPromptSubmit hook correctly across all projects.
+- **Missing/malformed session_id:** run the hook with empty or missing stdin and confirm it exits cleanly without error and produces no output.
+- **RC visibility:** confirm the tip and update notice text actually appear in a Remote Control session (the whole point of this change).
+
+**Touches:** `setup_claude_mux_permissions` (install/remove the UserPromptSubmit hook instead of the Stop hook), `tipotd` dispatch + early-exit (~614-620), `tip_of_day`, `check_for_update`/`get_version_prompt_lines`, new `--update-check-bg` dispatch, config (`TIP_OF_DAY`, `UPDATE_CHECK`), plus docs: implentation-spec.md, docs/CODEMAP.md, docs/SKELETON.md, docs/guide.md, CHANGELOG.md, config.example, README, install.sh. (Not CLAUDE.md - tips are a feature, documented in the spec.)
+
+**Code review (2026-06-05) - resolved:** lock race fixed with an atomic `mkdir` directory lock; update throttle made version-aware (`notify_version` in per-session state); per-prompt read path reduced from 3 python3 calls to 2 by merging the stdin-parse and state-read into one call; missing-`matcher` flag verified a non-issue (UserPromptSubmit takes no matcher). The "missing matcher", empty-`session_id`, empty-`tip_date`-on-failure, and `version_gt`-on-cache findings were confirmed safe-as-written.
+
+**Deferred to a future round (low priority, not blocking):**
+- *Eliminate the last per-prompt python3 write.* The hot path is down to 2 python3 calls (merged read + state write). The remaining write could be removed by switching the per-session state file from JSON (`tip-state/<id>.json`) to a space-delimited line like `.update-check`. Deferred because it changes the state file's format and `.json` path, rippling through docs + all 12 FAQ translations for ~50ms on a non-blocking hook. Revisit if the hook ever shows up as a latency problem.
 
 ### v1.16.0 - Universal /compact RC reconnect via PreCompact hook
 

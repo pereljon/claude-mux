@@ -55,11 +55,11 @@ Templates सूचीबद्ध करें: "list templates" या `claude
 
 ## Tip-of-the-day कैसे काम करता है?
 
-प्रत्येक प्रोजेक्ट के `.claude/settings.local.json` में एक Claude Code Stop hook `claude-mux --tipotd` को हर conversation turn के बाद call करता है। Command check करती है कि आज tip पहले से दिखाई गई है या नहीं (`~/.claude-mux/.tip-date` के माध्यम से)। अगर हाँ, तो लगभग 6ms में exit हो जाती है। अगर नहीं, तो एक tip print करती है और आज की तारीख record करती है।
+प्रत्येक प्रोजेक्ट के `.claude/settings.local.json` में एक Claude Code `UserPromptSubmit` hook हर prompt पर `claude-mux --on-prompt` को call करता है। दिन का पहला prompt conversation में एक tip inject करता है; उस दिन के बाद के prompts कुछ inject नहीं करते। State हर session के लिए अलग है, `~/.claude-mux/tip-state/<session_id>.json` में संग्रहीत, इसलिए हर active session दिन में एक बार tip दिखाता है। चूँकि hook context में inject करता है (Stop hook नहीं, जिसका output केवल transcript में जाता है), tip conversation और Remote Control में दिखता है।
 
-Tips डिफ़ॉल्ट रूप से सक्षम हैं (`TIP_OF_DAY=true`)। किसी भी सेशन में "enable tips" या "disable tips" से toggle करें। `TIP_MODE=daily` पूरे दिन वही tip दिखाता है; `TIP_MODE=random` हर invocation पर random tip चुनता है (Stop hook के साथ, daily gate के कारण प्रति दिन एक random tip)।
+Tips डिफ़ॉल्ट रूप से सक्षम हैं (`TIP_OF_DAY=true`)। किसी भी सेशन में "enable tips" या "disable tips" से toggle करें। `TIP_MODE=daily` पूरे दिन वही tip दिखाता है; `TIP_MODE=random` एक random tip चुनता है।
 
-`--tip` command हमेशा काम करती है daily gate की परवाह किए बिना, तो आप कभी भी "tip" कह सकते हैं।
+`--tip` command हमेशा काम करती है daily gate की परवाह किए बिना (और `TIP_OF_DAY` की परवाह किए बिना), तो आप कभी भी "tip" कह सकते हैं।
 
 ## क्या इसे कई GitHub accounts के साथ उपयोग कर सकता हूँ?
 
@@ -87,8 +87,9 @@ Claude जानेगा कि work repos के लिए `git@github.com-wor
 |--------|-------------|
 | `~/.claude-mux/config` | User configuration (bash के रूप में sourced) |
 | `~/.claude-mux/templates/` | CLAUDE.md template files |
-| `~/.claude-mux/.tip-date` | आखिरी tip दिखाने की तारीख |
+| `~/.claude-mux/tip-state/<session_id>.json` | प्रति-session tip तारीख + update सूचना throttle |
 | `~/.claude-mux/.update-check` | Cached version check result |
+| `~/.claude-mux/.update-checking` | background update check के दौरान lock |
 | `~/Library/Logs/claude-mux.log` | Log file (`LOG_DIR` से configurable) |
 | `~/Library/LaunchAgents/com.user.claude-mux.plist` | LaunchAgent plist (`--install` द्वारा generated) |
 | `.claudemux-protected` (प्रति प्रोजेक्ट) | सेशन को shutdown से सुरक्षित चिह्नित करता है |

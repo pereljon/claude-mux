@@ -55,11 +55,11 @@ Elenca i template: "list templates" oppure `claude-mux --list-templates`.
 
 ## Come funziona il tip-of-the-day?
 
-Un hook Stop di Claude Code nel file `.claude/settings.local.json` di ogni progetto chiama `claude-mux --tipotd` dopo ogni turno di conversazione. Il comando verifica se un consiglio e gia stato mostrato oggi (tramite `~/.claude-mux/.tip-date`). Se si, esce in circa 6ms. Se no, stampa un consiglio e registra la data odierna.
+Un hook `UserPromptSubmit` di Claude Code nel file `.claude/settings.local.json` di ogni progetto chiama `claude-mux --on-prompt` a ogni prompt. Il primo prompt del giorno inietta un consiglio nella conversazione; i prompt successivi di quel giorno non iniettano nulla. Lo stato e per sessione, salvato in `~/.claude-mux/tip-state/<session_id>.json`, quindi ogni sessione attiva mostra il consiglio una volta al giorno. Poiche l'hook inietta nel contesto (non un hook Stop, il cui output finisce solo nel transcript), il consiglio e visibile nella conversazione e in Remote Control.
 
-I consigli sono abilitati per impostazione predefinita (`TIP_OF_DAY=true`). Attiva o disattiva con "enable tips" o "disable tips" dentro qualsiasi sessione. `TIP_MODE=daily` mostra lo stesso consiglio tutto il giorno; `TIP_MODE=random` sceglie un consiglio casuale per invocazione (con l'hook Stop, questo significa un consiglio casuale al giorno grazie al gate giornaliero).
+I consigli sono abilitati per impostazione predefinita (`TIP_OF_DAY=true`). Attiva o disattiva con "enable tips" o "disable tips" dentro qualsiasi sessione. `TIP_MODE=daily` mostra lo stesso consiglio tutto il giorno; `TIP_MODE=random` sceglie un consiglio casuale.
 
-Il comando `--tip` funziona sempre indipendentemente dal gate giornaliero, quindi puoi dire "tip" in qualsiasi momento.
+Il comando `--tip` funziona sempre indipendentemente dal gate giornaliero (e indipendentemente da `TIP_OF_DAY`), quindi puoi dire "tip" in qualsiasi momento.
 
 ## Posso usarlo con piu account GitHub?
 
@@ -87,8 +87,9 @@ Claude sapra di usare `git@github.com-work:org/repo.git` per i repo di lavoro e 
 |-----------|---------------|
 | `~/.claude-mux/config` | Configurazione utente (sourced come bash) |
 | `~/.claude-mux/templates/` | File di template CLAUDE.md |
-| `~/.claude-mux/.tip-date` | Data dell'ultimo consiglio mostrato |
+| `~/.claude-mux/tip-state/<session_id>.json` | Data del consiglio per sessione + limite degli avvisi di aggiornamento |
 | `~/.claude-mux/.update-check` | Risultato della verifica di versione in cache |
+| `~/.claude-mux/.update-checking` | Lock durante la verifica di aggiornamento in background |
 | `~/Library/Logs/claude-mux.log` | File di log (configurabile tramite `LOG_DIR`) |
 | `~/Library/LaunchAgents/com.user.claude-mux.plist` | Plist del LaunchAgent (generato da `--install`) |
 | `.claudemux-protected` (per progetto) | Contrassegna una sessione come protetta dallo shutdown |

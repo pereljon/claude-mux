@@ -113,7 +113,7 @@ Tu: "tip"
 Claude: stampa un consiglio - lo stesso tutto il giorno, o casuale se TIP_MODE=random e impostato
 
 Tu: "attiva i consigli" / "disattiva i consigli"
-Claude: registra o rimuove l'hook tip-of-the-day su tutti i progetti
+Claude: attiva o disattiva il consiglio del giorno su tutti i progetti
 
 Tu: "aggiorna claude-mux"
 Claude: avvisa che tutte le sessioni verranno riavviate, chiede conferma, poi aggiorna e riavvia

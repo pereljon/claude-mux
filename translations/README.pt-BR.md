@@ -113,7 +113,7 @@ Voce: "tip"
 Claude: mostra uma dica - a mesma o dia todo, ou aleatoria se TIP_MODE=random estiver definido
 
 Voce: "ativar tips" / "desativar tips"
-Claude: registra ou remove o hook tip-of-the-day em todos os projetos
+Claude: ativa ou desativa a dica do dia em todos os projetos
 
 Voce: "atualizar claude-mux"
 Claude: avisa que todas as sessoes serao reiniciadas, pede confirmacao, atualiza e reinicia

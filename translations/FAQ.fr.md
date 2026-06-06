@@ -55,11 +55,11 @@ Lister les templates : "lister les templates" ou `claude-mux --list-templates`.
 
 ## Comment fonctionne le conseil du jour ?
 
-Un hook Stop de Claude Code dans le `.claude/settings.local.json` de chaque projet appelle `claude-mux --tipotd` après chaque tour de conversation. La commande vérifie si un conseil a déjà été affiché aujourd'hui (via `~/.claude-mux/.tip-date`). Si oui, elle quitte en environ 6ms. Sinon, elle affiche un conseil et enregistre la date du jour.
+Un hook `UserPromptSubmit` de Claude Code dans le `.claude/settings.local.json` de chaque projet appelle `claude-mux --on-prompt` à chaque invite. La première invite de la journée injecte un conseil dans la conversation ; les invites suivantes de la journée n'injectent rien. L'état est par session, stocké dans `~/.claude-mux/tip-state/<session_id>.json`, donc chaque session active affiche le conseil une fois par jour. Comme le hook injecte dans le contexte (pas un hook Stop, dont la sortie ne va que dans le transcript), le conseil est visible dans la conversation et dans Remote Control.
 
-Les conseils sont activés par défaut (`TIP_OF_DAY=true`). Basculez avec "activer les conseils" ou "désactiver les conseils" dans n'importe quelle session. `TIP_MODE=daily` affiche le même conseil toute la journée ; `TIP_MODE=random` choisit un conseil aléatoire par invocation (avec le hook Stop, cela signifie un conseil aléatoire par jour grâce à la porte quotidienne).
+Les conseils sont activés par défaut (`TIP_OF_DAY=true`). Basculez avec "activer les conseils" ou "désactiver les conseils" dans n'importe quelle session. `TIP_MODE=daily` affiche le même conseil toute la journée ; `TIP_MODE=random` choisit un conseil aléatoire.
 
-La commande `--tip` fonctionne toujours indépendamment de la porte quotidienne, donc vous pouvez dire "conseil" à tout moment.
+La commande `--tip` fonctionne toujours indépendamment de la porte quotidienne (et indépendamment de `TIP_OF_DAY`), donc vous pouvez dire "conseil" à tout moment.
 
 ## Puis-je utiliser ceci avec plusieurs comptes GitHub ?
 
@@ -87,8 +87,9 @@ Claude saura alors utiliser `git@github.com-work:org/repo.git` pour les repos pr
 |------------|---------|
 | `~/.claude-mux/config` | Configuration utilisateur (chargée comme bash) |
 | `~/.claude-mux/templates/` | Fichiers de template CLAUDE.md |
-| `~/.claude-mux/.tip-date` | Date du dernier conseil affiché |
+| `~/.claude-mux/tip-state/<session_id>.json` | Date du conseil par session + limitation des avis de mise à jour |
 | `~/.claude-mux/.update-check` | Résultat mis en cache de la vérification de version |
+| `~/.claude-mux/.update-checking` | Verrou pendant la vérification de mise à jour en arrière-plan |
 | `~/Library/Logs/claude-mux.log` | Fichier de log (configurable via `LOG_DIR`) |
 | `~/Library/LaunchAgents/com.user.claude-mux.plist` | Plist du LaunchAgent (généré par `--install`) |
 | `.claudemux-protected` (par projet) | Marque une session comme protégée contre l'arrêt |

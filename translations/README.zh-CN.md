@@ -113,7 +113,7 @@ Claude: 将 CLAUDE.md 复制到 ~/.claude-mux/templates/web.md
 Claude: 显示一条提示 - 全天相同，或在设置 TIP_MODE=random 时随机
 
 你: "启用提示" / "禁用提示"
-Claude: 在所有项目中注册或移除每日提示钩子
+Claude: 在所有项目中开启或关闭每日提示
 
 你: "更新 claude-mux"
 Claude: 警告所有会话将重启，请求确认，然后更新并重启

@@ -55,11 +55,11 @@ Claude Code لديه أربعة أوضاع أذونات تتحكم في مقدا
 
 ## كيف تعمل نصيحة اليوم؟
 
-خطاف Claude Code Stop في `.claude/settings.local.json` لكل مشروع يستدعي `claude-mux --tipotd` بعد كل جولة محادثة. الأمر يتحقق إن عُرضت نصيحة اليوم بالفعل (عبر `~/.claude-mux/.tip-date`). إن نعم، يخرج في حوالي 6ms. إن لا، يطبع نصيحة ويسجل تاريخ اليوم.
+خطاف Claude Code من نوع `UserPromptSubmit` في `.claude/settings.local.json` لكل مشروع يستدعي `claude-mux --on-prompt` عند كل مُطالبة. أول مُطالبة في اليوم تحقن نصيحة واحدة في المحادثة؛ المطالبات اللاحقة في ذلك اليوم لا تحقن شيئا. الحالة لكل جلسة، مُخزَّنة في `~/.claude-mux/tip-state/<session_id>.json`، لذا تعرض كل جلسة نشطة النصيحة مرة واحدة يوميا. لأن الخطاف يحقن في السياق (وليس خطاف Stop الذي يكون مُخرَجه في النص فقط)، تكون النصيحة مرئية في المحادثة وفي Remote Control.
 
-النصائح مُفعَّلة افتراضيا (`TIP_OF_DAY=true`). بدِّل بـ "enable tips" أو "disable tips" داخل أي جلسة. `TIP_MODE=daily` يعرض نفس النصيحة طوال اليوم؛ `TIP_MODE=random` يختار نصيحة عشوائية لكل استدعاء (مع خطاف Stop، هذا يعني نصيحة عشوائية واحدة يوميا بسبب البوابة اليومية).
+النصائح مُفعَّلة افتراضيا (`TIP_OF_DAY=true`). بدِّل بـ "enable tips" أو "disable tips" داخل أي جلسة. `TIP_MODE=daily` يعرض نفس النصيحة طوال اليوم؛ `TIP_MODE=random` يختار نصيحة عشوائية.
 
-الأمر `--tip` يعمل دائما بغض النظر عن البوابة اليومية، فيمكنك قول "tip" في أي وقت.
+الأمر `--tip` يعمل دائما بغض النظر عن البوابة اليومية (وبغض النظر عن `TIP_OF_DAY`)، فيمكنك قول "tip" في أي وقت.
 
 ## هل يمكنني استخدامه مع حسابات GitHub متعددة؟
 
@@ -87,8 +87,9 @@ Host github.com-personal
 |--------|---------|
 | `~/.claude-mux/config` | إعدادات المستخدم (يُقرأ كـ bash) |
 | `~/.claude-mux/templates/` | ملفات قوالب CLAUDE.md |
-| `~/.claude-mux/.tip-date` | تاريخ آخر نصيحة معروضة |
+| `~/.claude-mux/tip-state/<session_id>.json` | تاريخ نصيحة كل جلسة + خانق إشعار التحديث |
 | `~/.claude-mux/.update-check` | نتيجة فحص الإصدار المحفوظة |
+| `~/.claude-mux/.update-checking` | قفل أثناء فحص التحديث في الخلفية |
 | `~/Library/Logs/claude-mux.log` | ملف السجل (قابل للتعديل عبر `LOG_DIR`) |
 | `~/Library/LaunchAgents/com.user.claude-mux.plist` | ملف plist لـ LaunchAgent (يُنشئه `--install`) |
 | `.claudemux-protected` (لكل مشروع) | يُعلِّم الجلسة كمحمية من الإيقاف |

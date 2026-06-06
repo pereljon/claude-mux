@@ -48,9 +48,10 @@
 
 # ── Tips ─────────────────────────────────────────────────────────────────────
 
-# Show a tip once per day via Stop hook (first completed turn of the day).
-# When true, a Stop hook is registered in each project's settings.local.json.
-# Say "enable tips" or "disable tips" to toggle. --tip always works regardless.
+# Inject a tip once per day per session (via the UserPromptSubmit hook).
+# When true (or when UPDATE_CHECK is true), an on-prompt hook is registered in
+# each project's settings.local.json. Say "enable tips" or "disable tips" to
+# toggle. --tip on demand always works regardless.
 # Default: true
 #TIP_OF_DAY=true
 
@@ -61,8 +62,10 @@
 
 # ── Update check ──────────────────────────────────────────────────────────────
 
-# Check GitHub releases for newer versions (cached daily, TTY-only).
-# Set to false to disable update notifications.
+# Check GitHub releases for newer versions (cached daily). When true, a running
+# session is notified in-conversation via the on-prompt hook if a newer release
+# is available (throttled to once per 7 days per session); the terminal also
+# prints a notice on interactive runs. Set to false to disable.
 # Default: true
 #UPDATE_CHECK=true
 

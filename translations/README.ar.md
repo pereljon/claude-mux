@@ -113,7 +113,7 @@ Claude: ينسخ CLAUDE.md إلى ~/.claude-mux/templates/web.md
 Claude: يطبع نصيحة - نفس النصيحة طوال اليوم أو عشوائية إذا ضُبط TIP_MODE=random
 
 أنت: "enable tips" / "disable tips"
-Claude: يُسجِّل أو يُزيل خطاف نصيحة اليوم عبر جميع المشاريع
+Claude: يُفعّل أو يُعطّل نصيحة اليوم عبر جميع المشاريع
 
 أنت: "update claude-mux"
 Claude: يُحذِّر بأن جميع الجلسات ستُعاد تشغيلها ويطلب التأكيد ثم يُحدِّث ويُعيد التشغيل

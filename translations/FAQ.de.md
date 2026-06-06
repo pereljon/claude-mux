@@ -55,11 +55,11 @@ Templates auflisten: "Templates auflisten" oder `claude-mux --list-templates`.
 
 ## Wie funktioniert der Tip-of-the-Day?
 
-Ein Claude Code Stop-Hook in der `.claude/settings.local.json` jedes Projekts ruft `claude-mux --tipotd` nach jeder Konversationsrunde auf. Der Befehl prueft, ob heute schon ein Tipp gezeigt wurde (ueber `~/.claude-mux/.tip-date`). Falls ja, beendet er sich in etwa 6ms. Falls nein, zeigt er einen Tipp an und speichert das heutige Datum.
+Ein Claude Code `UserPromptSubmit`-Hook in der `.claude/settings.local.json` jedes Projekts ruft bei jeder Eingabe `claude-mux --on-prompt` auf. Die erste Eingabe des Tages spielt einen Tipp in die Konversation ein; spaetere Eingaben an diesem Tag spielen nichts ein. Der Zustand ist pro Sitzung und wird in `~/.claude-mux/tip-state/<session_id>.json` gespeichert, sodass jede aktive Sitzung den Tipp einmal pro Tag zeigt. Da der Hook in den Kontext einspielt (kein Stop-Hook, dessen Ausgabe nur im Transkript landet), ist der Tipp in der Konversation und in Remote Control sichtbar.
 
-Tipps sind standardmaessig aktiviert (`TIP_OF_DAY=true`). Umschalten mit "tips aktivieren" oder "tips deaktivieren" innerhalb jeder Sitzung. `TIP_MODE=daily` zeigt den ganzen Tag denselben Tipp; `TIP_MODE=random` waehlt bei jedem Aufruf einen zufaelligen Tipp (mit dem Stop-Hook bedeutet das aufgrund der Tagessperre einen zufaelligen Tipp pro Tag).
+Tipps sind standardmaessig aktiviert (`TIP_OF_DAY=true`). Umschalten mit "tips aktivieren" oder "tips deaktivieren" innerhalb jeder Sitzung. `TIP_MODE=daily` zeigt den ganzen Tag denselben Tipp; `TIP_MODE=random` waehlt einen zufaelligen Tipp.
 
-Der `--tip`-Befehl funktioniert immer unabhaengig von der Tagessperre, du kannst also jederzeit "tip" sagen.
+Der `--tip`-Befehl funktioniert immer unabhaengig von der Tagessperre (und unabhaengig von `TIP_OF_DAY`), du kannst also jederzeit "tip" sagen.
 
 ## Kann ich das mit mehreren GitHub-Konten nutzen?
 
@@ -87,8 +87,9 @@ Claude verwendet dann `git@github.com-work:org/repo.git` fuer Arbeitsrepos und `
 |-----|--------|
 | `~/.claude-mux/config` | Benutzerkonfiguration (wird als Bash gesourct) |
 | `~/.claude-mux/templates/` | CLAUDE.md-Template-Dateien |
-| `~/.claude-mux/.tip-date` | Datum des zuletzt gezeigten Tipps |
+| `~/.claude-mux/tip-state/<session_id>.json` | Tipp-Datum pro Sitzung + Drossel fuer Update-Hinweise |
 | `~/.claude-mux/.update-check` | Zwischengespeichertes Ergebnis der Versionspruefung |
+| `~/.claude-mux/.update-checking` | Sperre waehrend der Update-Pruefung im Hintergrund |
 | `~/Library/Logs/claude-mux.log` | Logdatei (konfigurierbar ueber `LOG_DIR`) |
 | `~/Library/LaunchAgents/com.user.claude-mux.plist` | LaunchAgent-plist (generiert von `--install`) |
 | `.claudemux-protected` (pro Projekt) | Markiert eine Sitzung als geschuetzt vor dem Beenden |

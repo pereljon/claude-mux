@@ -10,7 +10,7 @@ Read only the section you need - `grep -n "^## <name>" docs/SKELETON.md` for its
 - **How to Maintain** (+ **Non-Obvious Script Structure** - the interspersed pre-dispatch blocks that are easy to miss)
 - **Top-Level Structure** - the 10 phases from shebang to dispatch
 - **Main Dispatch** - the command `case` block
-- **create_claude_session** - session creation, injection, ready poller, tip delivery
+- **create_claude_session** - session creation, injection, ready poller
 - **launch_single_session** - direct (non-send-keys) launch path
 - **build_system_prompt** - the injected system prompt
 - **create_new_project** - new-project scaffolding
@@ -18,7 +18,9 @@ Read only the section you need - `grep -n "^## <name>" docs/SKELETON.md` for its
 - **do_update** - self-update
 - **shutdown_single_session / shutdown_claude_sessions** - teardown paths
 - **rename_move_command** - rename/move with history migration
-- **tip_of_day** - tip selection and daily gate
+- **tip_of_day** - tip selection (no gating)
+- **on_prompt** - UserPromptSubmit hook: per-session tip + update notice + bg check spawn
+- **update_check_bg** - disowned background GitHub release check
 - **Key Invariants** - rules that must hold across changes
 
 ## How to Use
@@ -82,11 +84,9 @@ while args remain:
     --force only valid with --shutdown, --delete, --save-template, --rename, --move
     --fresh only valid with --restart or -d
 
-# 6. Fast-exit: tipotd daily gate
+# 6. Legacy no-op: tipotd
     if COMMAND == "tipotd":
-        read ~/.claude-mux/.tip-date
-        if date matches today → exit 0   # done in ~6ms, before config loads
-        else → write today's date, fall through
+        exit 0   # Stop hook retired in v1.15.0; pre-upgrade sessions still call it
 
 # 7. Load user config
     source ~/.claude-mux/config   # overrides defaults
@@ -152,7 +152,9 @@ case COMMAND:
   install   → do_install()
   autolaunch → autolaunch_dispatch()
   uninstall → do_uninstall()
-  tip/tipotd → tip_of_day()
+  tip          → tip_of_day()
+  on-prompt    → on_prompt()            # UserPromptSubmit hook
+  update-check-bg → update_check_bg()   # disowned background curl
   enable-tips  → enable_tips()
   disable-tips → disable_tips()
   list-templates → list_templates()
@@ -296,10 +298,8 @@ for i in 1..20:
 
 send "Ready?" + Enter   # whether ready=true or timeout (always send)
 
-# Tip delivery (background, non-blocking)
-tip = tip_of_day(--session)
-if tip not empty:
-  background: sleep 5, send-keys tip + Enter
+# (Tips are no longer sent here. As of v1.15.0 the daily tip and update notice
+#  are injected per-prompt by the on_prompt UserPromptSubmit hook.)
 
 # Protection
 if .claudemux-protected exists in dir:
@@ -411,7 +411,8 @@ if not NO_PERMISSION_MODE:
 
 setup_claude_mux_permissions(dir)
   # add claude-mux to .claude/settings.local.json allowlist
-  # add or remove tipotd Stop hook based on TIP_OF_DAY setting
+  # register UserPromptSubmit --on-prompt hook (if TIP_OF_DAY or UPDATE_CHECK)
+  # remove legacy Stop --tipotd hook
 
 create_claude_session(session_name, dir, "", false)
 ```
@@ -531,25 +532,70 @@ if mode == "move":
 
 ---
 
-## tip_of_day([--session])
+## tip_of_day()
 
 ```
-if TIP_OF_DAY != true → return ""
-
 tips = [array of ~39 tip strings]
-
-if mode == "--session":
-  # called at session launch
-  read ~/.claude-mux/.tip-date
-  if today → return ""   # already sent today
-  write today to .tip-date
 
 if TIP_MODE == "daily":
   index = hash(today's date) % len(tips)
 else:
   index = random % len(tips)
 
-return tips[index]
+print tips[index]   # no gating; --tip always works, on_prompt gates per-session
+```
+
+---
+
+## on_prompt()  (UserPromptSubmit hook)
+
+```
+# Injected stdout is seen by Claude (and reaches Remote Control), unlike the
+# old Stop hook whose stdout was transcript-only.
+
+if TIP_OF_DAY != true AND UPDATE_CHECK != true → exit 0   # cheap guard
+
+read stdin JSON → session_id (via python3)
+if session_id not safe token ([A-Za-z0-9_-]{1,128}) → exit 0
+
+state = ~/.claude-mux/tip-state/<session_id>.json  # {tip_date, update_notify, notify_version}
+
+# Daily tip (per session)
+if TIP_OF_DAY and state.tip_date != today:
+  out += "[claude-mux tip — share this with the user]: " + tip_of_day()
+  new tip_date = today
+
+# Update notice (cache-gated; 7-day throttle per session, version-aware)
+if UPDATE_CHECK:
+  read ~/.claude-mux/.update-check → last_check, latest, _
+  if latest > VERSION and (notified never, or >7d ago, or latest != notify_version):
+    out += "[claude-mux update available — tell the user]: ..."
+    new update_notify = now; new notify_version = latest
+  if cache stale (>24h):
+    lock dir = ~/.claude-mux/.update-checking
+    if lock dir mtime >5min: rmdir it (orphaned)
+    if mkdir lock dir succeeds (atomic):   # loser of the race skips
+      spawn disowned: claude-mux --update-check-bg   # never blocks
+    # else: in-flight check, skip
+
+if state changed: write state file
+print out   # may be empty
+exit 0
+```
+
+---
+
+## update_check_bg()  (disowned background)
+
+```
+# Spawned by on_prompt when the cache is stale. Never prints anything.
+read ~/.claude-mux/.update-check → preserve last_notify
+curl GitHub releases/latest (max 5s)
+if got a version:
+  if version changed → reset last_notify to 0
+  write "<now> <latest> <last_notify>" to .update-check
+remove ~/.claude-mux/.update-checking   # always clear the lock
+exit 0
 ```
 
 ---

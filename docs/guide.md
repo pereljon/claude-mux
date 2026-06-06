@@ -191,9 +191,19 @@ GitHub SSH accounts configured in ~/.ssh/config: <accounts>. For gh CLI operatio
 
 The home session receives additional context: a description of its role, plus self-management triggers for reading/editing config and templates. When `ALLOW_CROSS_SESSION_CONTROL=true`, the send command can target any session, not just itself. The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.
 
+## Tips
+
+When `TIP_OF_DAY` is `true` (default), the `UserPromptSubmit` hook (`claude-mux --on-prompt`) injects one usage tip per day into each session, gated per session via `~/.claude-mux/tip-state/<session_id>.json`:
+
+```
+[claude-mux tip — share this with the user]: Say "compact this session" instead of typing /compact ...
+```
+
+Each active session shows the tip once per calendar day (the first prompt of the day). Because it goes through UserPromptSubmit, the tip is visible in the conversation and in Remote Control - unlike the pre-v1.15.0 Stop-hook delivery, which was never seen. Say "disable tips" to turn it off (the hook stays registered if `UPDATE_CHECK` is still on, to keep delivering update notices), or "tip" for one on demand (`--tip` always works regardless of `TIP_OF_DAY`). `TIP_MODE` (`daily` or `random`) controls selection.
+
 ## Update Check
 
-claude-mux checks GitHub for newer releases and surfaces them two ways: a one-line notice in the terminal, and an "Update available" line injected into each session's system prompt (shown in the block above). The whole mechanism is gated by the `UPDATE_CHECK` config option (default `true`).
+claude-mux checks GitHub for newer releases and surfaces them three ways: a one-line notice in the terminal, an "Update available" line injected into each session's system prompt at launch (shown in the block above), and - as of v1.15.0 - an in-conversation notice injected per prompt by the `UserPromptSubmit` hook (the only path that reaches a running session, including Remote Control). The whole mechanism is gated by the `UPDATE_CHECK` config option (default `true`).
 
 ### The cache file
 
@@ -207,14 +217,18 @@ State lives in a single file, `~/.claude-mux/.update-check`, holding three space
 - `latest` - the newest release version string seen (e.g. `1.14.2`)
 - `last_notify` - epoch seconds of the last terminal notification shown
 
-### The background check (`check_for_update`)
+### The background check (`check_for_update` and `update_check_bg`)
 
-Runs once on every invocation, before command dispatch, but exits early unless conditions are met:
+Two paths populate the cache, neither blocking interactive use:
+
+`check_for_update` runs once on every invocation, before command dispatch, but exits early unless conditions are met:
 
 1. Skips entirely if `UPDATE_CHECK` is not `true`.
 2. Skips if stdout is not an interactive TTY (so it never interferes with scripts, hooks, or piped output).
 3. Reads the cache. It queries the GitHub releases API (`api.github.com/repos/pereljon/claude-mux/releases/latest`, 3-second timeout) **at most once per day** - if `last_check` is under 86400 seconds old, it uses the cached `latest` and makes no network call.
 4. On a fresh query, it parses the latest tag, updates `last_check`, and rewrites the cache. If the version returned differs from what was cached, `last_notify` is reset to `0` so the new version is allowed to notify immediately.
+
+Because the TTY gate means `check_for_update` never runs under Claude's Bash tool, the on-prompt hook drives a second path: when it sees a stale cache (>24h), it spawns `claude-mux --update-check-bg` as a disowned background process. That process does the same GitHub query and cache rewrite, then exits silently. An atomically created lock directory (`~/.claude-mux/.update-checking`, with a 5-minute orphan guard) ensures only one background check runs at a time even when prompts arrive rapidly. This keeps the cache fresh for sessions that are only ever driven through Claude, never a terminal.
 
 ### The terminal notification
 
@@ -240,7 +254,17 @@ Independently of the terminal notice, session creation reads the same cache file
 Update available: <latest> (found <check-date>). Tell the user and suggest they say "update claude-mux" to update.
 ```
 
-`<check-date>` is `last_check` formatted as `YYYY-MM-DD`. This is why a running session can proactively mention an available update: the cache was populated by an earlier TTY check, and the value is read again at session launch. Sessions started before a new release is cached won't carry the line until they're restarted.
+`<check-date>` is `last_check` formatted as `YYYY-MM-DD`. This line is only built at session launch, so a session started before a new release is cached won't carry it until restarted - which is what the on-prompt hook below fixes.
+
+### The in-conversation notice (`--on-prompt` hook)
+
+The launch injection can't reach a session that was already running when a release dropped. The `UserPromptSubmit` hook (`claude-mux --on-prompt`, registered in each project's `.claude/settings.local.json`) closes that gap. On prompt submission it reads the same cache and, if `latest` is newer than the running version, injects:
+
+```
+[claude-mux update available — tell the user]: version <latest> is out (current: <version>). Suggest they say "update claude-mux".
+```
+
+This is the only update path that surfaces in a live session and in Remote Control (UserPromptSubmit stdout is injected into context; Stop-hook stdout is not). It is throttled to once per 7 days **per session** via `~/.claude-mux/tip-state/<session_id>.json`, and the hook never blocks on the network - it only reads the cache and, if stale, spawns the background check described above. The same hook also delivers the daily tip (see Tips above).
 
 ### Applying the update (`--update`)
 
@@ -254,7 +278,7 @@ Because claude-mux is a script read fresh from disk on each call, the new versio
 
 ### Disabling
 
-Set `UPDATE_CHECK=false` in `~/.claude-mux/config` to turn off both the background check and the injected update line. `--update` still works on demand. Note that the repo (`pereljon/claude-mux`) is hardcoded in `check_for_update()` and `do_update()`; forks should disable the check or edit those functions (see FAQ).
+Set `UPDATE_CHECK=false` in `~/.claude-mux/config` to turn off the background check, the launch injection line, and the on-prompt notice. `--update` still works on demand. (The on-prompt hook stays registered if `TIP_OF_DAY` is still `true`, but it emits no update line.) Note that the repo (`pereljon/claude-mux`) is hardcoded in `check_for_update()`, `update_check_bg()`, and `do_update()`; forks should disable the check or edit those functions (see FAQ).
 
 ## Troubleshooting
 

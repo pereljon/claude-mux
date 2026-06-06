@@ -78,8 +78,9 @@ Note: `com.user.claude-mux.plist` was removed from the repo in v1.8.0. The plist
 | `TMUX_ESCAPE_TIME` | `10` | Escape key delay in milliseconds |
 | `TMUX_TITLE_FORMAT` | `#S` | Terminal/tab title format |
 | `TMUX_MONITOR_ACTIVITY` | `true` | Activity notifications from other sessions |
-| `TIP_OF_DAY` | `true` | Show a tip once per day via Stop hook. When `true`, a Stop hook calling `--tipotd` is registered in each project's `settings.local.json`. When `false`, the hook is removed. `--tip` always works regardless. |
+| `TIP_OF_DAY` | `true` | Inject a tip once per day per session via the `UserPromptSubmit` hook (`--on-prompt`). The hook is registered when `TIP_OF_DAY` or `UPDATE_CHECK` is `true`, and removed only when both are `false`. `--tip` on demand always works regardless. |
 | `TIP_MODE` | `daily` | `daily` picks the same tip all day via day-of-year hash. `random` picks a non-deterministic tip. |
+| `UPDATE_CHECK` | `true` | Check GitHub releases for newer versions (cached daily). When `true`, a running session is notified in-conversation via the `--on-prompt` hook (throttled once per 7 days per session) and the terminal prints a notice on interactive runs. Also keeps the on-prompt hook registered even when `TIP_OF_DAY` is `false`. |
 
 The script sources `~/.claude-mux/config` after setting defaults, so any variable set in the config overrides the default. Tmux session options are applied via `apply_tmux_options()` after session creation.
 
@@ -421,25 +422,37 @@ If `$dir/.git` exists, appends `.claudemux-*` to `$dir/.gitignore` (idempotent �
 
 Encodes an absolute path to the format Claude Code uses for `~/.claude/projects/` folder names: every non-alphanumeric character (slashes, hyphens, dots, spaces) is replaced with `-`. Uses `printf '%s'` (not `echo`) to avoid trailing newlines becoming an extra `-`. Verified empirically against real `~/.claude/projects/` entries.
 
-### tip_of_day([--session])
+### tip_of_day()
 
-Prints one tip from the embedded 42-tip array. Without `--session`, prints unconditionally (used by `--tip`). With `--session`, checks the daily gate: if `~/.claude-mux/.tip-date` contains today's date, returns empty. Otherwise writes today's date and prints the tip.
+Prints one tip from the embedded ~39-tip array, unconditionally. No gating: `--tip` always works regardless of `TIP_OF_DAY`, and `on_prompt` applies its own per-session gate. (Prior to v1.15.0 this function carried a `--session` daily-gate mode and a `TIP_OF_DAY` early-return; both were removed.)
 
 Tip selection: `daily` mode → `(day_of_year - 1) % num_tips`; `random` mode → `RANDOM % num_tips`.
 
-Respects `TIP_OF_DAY` config: returns immediately if `false`. `--tip` CLI flag still respects `TIP_OF_DAY=false` (by design — the flag is for on-demand use, same code path).
+### Tip and update delivery: the UserPromptSubmit hook
 
-### Tip-of-the-Day Stop Hook
+**Why this design.** The pre-v1.15.0 tip delivery used a `Stop` hook. Stop-hook stdout is routed to the transcript, not the conversation, so it never appeared (in the terminal or in Remote Control). A global daily gate (`~/.claude-mux/.tip-date`) made it worse: the invisible Stop path claimed the gate before the visible session-start `send-keys` path could run, starving it. Separately, the update notice never reached running sessions: `check_for_update` is TTY-gated (never runs under Claude's Bash tool) and the in-session notice was built only at launch.
 
-Long-running sessions that compact but never restart would never see tips via the injection prompt alone. A Claude Code `Stop` hook in each project's `.claude/settings.local.json` calls `claude-mux --tipotd` after every turn. The `--tipotd` command has an early exit before config loading: reads `~/.claude-mux/.tip-date`, compares to today's date, and exits 0 immediately if already shown (p50 ~6ms). On first fire of the day, writes today's date and falls through to `tip_of_day`.
+v1.15.0 replaces both with a single Claude Code `UserPromptSubmit` hook calling `claude-mux --on-prompt`. UserPromptSubmit stdout **is** injected into the conversation context (proven to surface in Remote Control), making it the correct delivery path for both notices.
+
+**`on_prompt()` flow:**
+1. Cheap guard: if both `TIP_OF_DAY` and `UPDATE_CHECK` are false, `exit 0` before any stdin parse or I/O.
+2. Read the hook's stdin JSON, extract `session_id` (via `python3`). Require a safe filename token (`[A-Za-z0-9_-]{1,128}`); otherwise `exit 0`.
+3. Load per-session state from `~/.claude-mux/tip-state/<session_id>.json` (`{tip_date, update_notify, notify_version}`).
+4. **Tip:** if `TIP_OF_DAY` and `state.tip_date != today`, emit `[claude-mux tip — share this with the user]: <tip>` and set `tip_date = today`.
+5. **Update notice:** if `UPDATE_CHECK`, read the cache (`~/.claude-mux/.update-check`); if `latest > VERSION` and either this session has not been notified within 7 days **or** `latest` differs from the session's `notify_version` (so a brand-new release is not suppressed by the window), emit `[claude-mux update available — tell the user]: ...` and set `update_notify = now`, `notify_version = latest`.
+6. **Background refresh:** if the cache is stale (>24h since `last_check`), spawn a disowned `claude-mux --update-check-bg`. The in-flight lock is a **directory** (`~/.claude-mux/.update-checking`): `mkdir` is atomic on POSIX, so only the process that creates it spawns the check and concurrent prompts that lose the race skip. A lock older than 5 minutes is treated as orphaned (`rmdir`, then re-acquire). The hook never blocks on the network.
+7. Persist per-session state only if it changed; print accumulated notices.
+
+The injected text *instructs* Claude to surface it (the notice is seen, not force-displayed) — the one tradeoff of this delivery path, accepted because it is the only one that reaches RC.
+
+**`update_check_bg()`** performs the GitHub `releases/latest` curl (max 5s), refreshes `~/.claude-mux/.update-check` (`<now> <latest> <last_notify>`, resetting `last_notify` to 0 if the version changed), and always clears the `.update-checking` lock. It produces no output and always exits 0.
 
 **Hook format in `.claude/settings.local.json`:**
 ```json
 {
   "hooks": {
-    "Stop": [{
-      "matcher": "*",
-      "hooks": [{"type": "command", "command": "/path/to/claude-mux --tipotd", "timeout": 5}]
+    "UserPromptSubmit": [{
+      "hooks": [{"type": "command", "command": "/path/to/claude-mux --on-prompt", "timeout": 5}]
     }]
   }
 }
@@ -447,26 +460,26 @@ Long-running sessions that compact but never restart would never see tips via th
 
 The hook lives in `.claude/settings.local.json` (highest precedence, safe from array-replace merge behavior in Claude Code's settings hierarchy).
 
-**Lifecycle:** Managed by `setup_claude_mux_permissions()` (adds when `TIP_OF_DAY=true`, the default; removes when `false`) and by `enable_tips()`/`disable_tips()`.
+**Lifecycle:** Managed by `setup_claude_mux_permissions()`. The hook is registered when **either** `TIP_OF_DAY` or `UPDATE_CHECK` is enabled (it serves both), and removed only when both are off. The same function removes any legacy `Stop --tipotd` hook from pre-upgrade projects.
 
-- **Added by:** `--install`; `-d`/session launch (`create_claude_session()`); `-n`/new project (`create_new_project()` → `create_claude_session()`); `--restart`; `launch_single_session()` (home/LaunchAgent); `--enable-tips` (walks all projects).
-- **Removed by:** `--delete` (project removed); `--disable-tips` (walks all projects); `--uninstall` (full teardown).
-- **No hook action:** `--shutdown` (session stops, hook stays for next launch); `--hide`/`--show` (visibility only); `--protect`/`--unprotect` (protection only); `--rename`/`--move` (`settings.local.json` travels with the folder).
+- **Added by:** `--install`; `-d`/session launch (`create_claude_session()`); `-n`/new project; `--restart`; `launch_single_session()` (home/LaunchAgent); `--enable-tips` (walks all projects).
+- **Removed by:** `--delete` (project removed); `--disable-tips` *only if* `UPDATE_CHECK` is also off; `--uninstall` (full teardown).
+- **No hook action:** `--shutdown`; `--hide`/`--show`; `--protect`/`--unprotect`; `--rename`/`--move` (`settings.local.json` travels with the folder).
 
-When tips are disabled, the hook is removed from `settings.local.json` entirely — `--tipotd` is never called, so there's no config check needed inside the fast path.
+**Legacy `--tipotd`:** retired as a silent no-op (early `exit 0` before config load). Pre-upgrade sessions may still call it on stop until they restart; `setup_claude_mux_permissions()` strips the stale Stop hook at the next launch.
 
 ### enable_tips() / disable_tips()
 
-`enable_tips()`: sets `TIP_OF_DAY=true` in config, discovers all projects (including hidden), and calls `setup_claude_mux_permissions()` on each to add the hook.
+`enable_tips()`: sets `TIP_OF_DAY=true` in config, discovers all projects (including hidden), and calls `setup_claude_mux_permissions()` on each (registers the on-prompt hook).
 
-`disable_tips()`: sets `TIP_OF_DAY=false` in config, discovers all projects, and calls `setup_claude_mux_permissions()` on each to remove the hook.
+`disable_tips()`: sets `TIP_OF_DAY=false` in config, discovers all projects, and calls `setup_claude_mux_permissions()` on each. The on-prompt hook is removed only if `UPDATE_CHECK` is also false; otherwise it stays to deliver update notices (the disable message reflects this).
 
 Both use `set_tip_config()` helper to update the config file and `update_all_project_hooks()` to walk all project dirs.
 
 ### do_uninstall()
 
 Removes all claude-mux traces from Claude Code settings:
-1. Walks all known project dirs (base + discovered + hidden), removes tipotd Stop hook and claude-mux permission rules from each `.claude/settings.local.json`. Deletes the file entirely if empty after cleanup.
+1. Walks all known project dirs (base + discovered + hidden), removes claude-mux hooks (legacy `Stop --tipotd` and `UserPromptSubmit --on-prompt`) and claude-mux permission rules from each `.claude/settings.local.json`. Deletes the file entirely if empty after cleanup.
 2. Unloads and removes the LaunchAgent plist.
 3. If interactive, prompts to remove `~/.claude-mux/` (config, templates, logs). Non-interactive: keeps it.
 4. Reports the binary path for manual removal.

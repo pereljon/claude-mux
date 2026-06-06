@@ -55,11 +55,11 @@ Listar plantillas: "listar plantillas" o `claude-mux --list-templates`.
 
 ## ¿Cómo funciona el consejo del día?
 
-Un hook Stop de Claude Code en el `.claude/settings.local.json` de cada proyecto llama a `claude-mux --tipotd` después de cada turno de conversación. El comando verifica si ya se mostró un consejo hoy (vía `~/.claude-mux/.tip-date`). Si sí, sale en unos 6ms. Si no, muestra un consejo y registra la fecha de hoy.
+Un hook `UserPromptSubmit` de Claude Code en el `.claude/settings.local.json` de cada proyecto llama a `claude-mux --on-prompt` en cada prompt. El primer prompt del día inyecta un consejo en la conversación; los prompts posteriores de ese día no inyectan nada. El estado es por sesión, almacenado en `~/.claude-mux/tip-state/<session_id>.json`, así que cada sesión activa muestra el consejo una vez al día. Como el hook inyecta en el contexto (no un hook Stop, cuya salida solo va al transcript), el consejo es visible en la conversación y en Remote Control.
 
-Los consejos están habilitados por defecto (`TIP_OF_DAY=true`). Alterna con "activar consejos" o "desactivar consejos" dentro de cualquier sesión. `TIP_MODE=daily` muestra el mismo consejo todo el día; `TIP_MODE=random` elige un consejo aleatorio por invocación (con el hook Stop, esto significa un consejo aleatorio por día debido a la puerta diaria).
+Los consejos están habilitados por defecto (`TIP_OF_DAY=true`). Alterna con "activar consejos" o "desactivar consejos" dentro de cualquier sesión. `TIP_MODE=daily` muestra el mismo consejo todo el día; `TIP_MODE=random` elige un consejo aleatorio.
 
-El comando `--tip` siempre funciona independientemente de la puerta diaria, así que puedes decir "consejo" en cualquier momento.
+El comando `--tip` siempre funciona independientemente de la puerta diaria (y de `TIP_OF_DAY`), así que puedes decir "consejo" en cualquier momento.
 
 ## ¿Puedo usar esto con múltiples cuentas de GitHub?
 
@@ -87,8 +87,9 @@ Claude entonces sabrá usar `git@github.com-work:org/repo.git` para repos de tra
 |-----------|--------------|
 | `~/.claude-mux/config` | Configuración del usuario (se carga como bash) |
 | `~/.claude-mux/templates/` | Archivos de plantilla CLAUDE.md |
-| `~/.claude-mux/.tip-date` | Fecha del último consejo mostrado |
+| `~/.claude-mux/tip-state/<session_id>.json` | Fecha del consejo por sesión + límite de avisos de actualización |
 | `~/.claude-mux/.update-check` | Resultado cacheado de verificación de versión |
+| `~/.claude-mux/.update-checking` | Bloqueo durante la verificación de actualización en segundo plano |
 | `~/Library/Logs/claude-mux.log` | Archivo de log (configurable vía `LOG_DIR`) |
 | `~/Library/LaunchAgents/com.user.claude-mux.plist` | Plist del LaunchAgent (generado por `--install`) |
 | `.claudemux-protected` (por proyecto) | Marca una sesión como protegida contra el apagado |

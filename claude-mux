@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.14.2"
+VERSION="1.15.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -85,7 +85,8 @@ MULTI_CODER_FILES="AGENTS.md GEMINI.md"
 
 # ── Tip of the day ─────────────────────────────────────────────────────────────
 
-# Show a tip on session start. Set to false to disable entirely.
+# Inject a tip once per day per session (via the UserPromptSubmit hook).
+# Set to false to disable entirely. --tip on demand always works.
 TIP_OF_DAY=true
 
 # Tip selection mode: "daily" (same tip all day, hash-based) or "random".
@@ -212,9 +213,10 @@ Self-targeting (works inside sessions):
                            both "/path/to" and "/path/to/SESSION" work).
                            Both: --force overrides protection; --dry-run previews steps
   --tip                    Print a tip (standalone; no daily gate)
-  --tipotd                 Print a tip (daily-gated; for Stop hook use)
-  --enable-tips            Register tip-of-the-day Stop hook in all projects
-  --disable-tips           Remove tip-of-the-day Stop hook from all projects
+  --on-prompt              Internal: UserPromptSubmit hook (daily tip + update notice)
+  --update-check-bg        Internal: background GitHub release check (refreshes cache)
+  --enable-tips            Enable daily tips (registers the on-prompt hook)
+  --disable-tips           Disable daily tips
   --config-help            List all valid config options
   --commands               Print this reference
   --guide                  Print conversational commands list
@@ -309,9 +311,9 @@ TMUX_BIN, CLAUDE_BIN             defaults: resolved via `command -v`
 
 TIP_OF_DAY                       default: true
   Type: true | false
-  Description: Show a tip once per day via Stop hook. Registers/removes the hook
-               in each project's settings.local.json. Say "enable/disable tips".
-               Set false to disable. --tip always works regardless.
+  Description: Inject a tip once per day per session via the UserPromptSubmit
+               hook. Say "enable/disable tips" to toggle. Set false to disable.
+               --tip always works regardless.
 
 TIP_MODE                         default: "daily"
   Type: daily | random
@@ -361,8 +363,8 @@ Commands:
     --fresh                  With --restart or -d: start new conversation instead of resuming
   --permission-mode MODE [SESSION...]  Restart session(s) with the given permission mode
   --autolaunch             Invoked by LaunchAgent; dispatches based on LAUNCHAGENT_MODE
-  --enable-tips            Register tip-of-the-day Stop hook in all projects
-  --disable-tips           Remove tip-of-the-day Stop hook from all projects
+  --enable-tips            Enable daily tips (registers the on-prompt hook)
+  --disable-tips           Disable daily tips
   --update                 Update claude-mux to the latest version
   --install [OPTS...]      Run interactive setup (config + LaunchAgent)
                            Options: --non-interactive, --base-dir DIR,
@@ -537,6 +539,8 @@ while [[ $# -gt 0 ]]; do
         -h|--help)        usage; exit 0 ;;
         --tip)            set_command "--tip" "tip"; shift ;;
         --tipotd)         set_command "--tipotd" "tipotd"; shift ;;
+        --on-prompt)      set_command "--on-prompt" "on-prompt"; shift ;;
+        --update-check-bg) set_command "--update-check-bg" "update-check-bg"; shift ;;
         --enable-tips)    set_command "--enable-tips" "enable-tips"; shift ;;
         --disable-tips)   set_command "--disable-tips" "disable-tips"; shift ;;
         --uninstall)      set_command "--uninstall" "uninstall"; shift ;;
@@ -606,17 +610,14 @@ if [[ "$FRESH_START" == "true" && "$COMMAND" != "restart" && "$COMMAND" != "laun
     exit 1
 fi
 
-# ── Fast-exit: daily-gated tip check ─────────────────────────────────────────
-# Runs on every Claude turn via Stop hook. Exit immediately if tip already
-# shown today — avoids config loading, function parsing, and binary resolution.
-# When tips are disabled, the hook is removed from settings.local.json entirely,
-# so this code path is never reached.
+# ── Legacy no-op: --tipotd Stop hook ─────────────────────────────────────────
+# The tip-of-the-day Stop hook was removed in v1.15.0 (replaced by the
+# --on-prompt UserPromptSubmit hook). Sessions launched before the upgrade may
+# still call --tipotd on stop until they restart; exit immediately so they do
+# not error. setup_claude_mux_permissions() removes the stale Stop hook at the
+# next session launch.
 if [[ "$COMMAND" == "tipotd" ]]; then
-    _f="$HOME/.claude-mux/.tip-date"
-    _t=$(date +%Y-%m-%d)
-    [[ -f "$_f" ]] && [[ "$(cat "$_f" 2>/dev/null)" == "$_t" ]] && exit 0
-    printf '%s' "$_t" > "$_f" 2>/dev/null
-    # Date changed — fall through to load config + tips array
+    exit 0
 fi
 
 # ── User config (overrides defaults above) ────────────────────────────────────
@@ -2345,18 +2346,23 @@ setup_claude_mux_permissions() {
     local settings_file="$dir/.claude/settings.local.json"
     local mux_dir="$HOME/.claude-mux"
 
-    local tip_enabled="${TIP_OF_DAY:-true}"
+    # The UserPromptSubmit --on-prompt hook serves both the daily tip and the
+    # update notice, so it is registered when either feature is enabled.
+    local hook_enabled="false"
+    if [[ "${TIP_OF_DAY:-true}" == "true" || "${UPDATE_CHECK:-true}" == "true" ]]; then
+        hook_enabled="true"
+    fi
 
     # Check if expected rules and hooks already exist
     if [[ -f "$settings_file" ]]; then
-        if /usr/bin/python3 - "$settings_file" "$is_home" "$mux_dir" "$tip_enabled" 2>/dev/null <<'PYEOF'
+        if /usr/bin/python3 - "$settings_file" "$is_home" "$mux_dir" "$hook_enabled" 2>/dev/null <<'PYEOF'
 import json, sys
 try:
     with open(sys.argv[1]) as f: d = json.load(f)
 except Exception: sys.exit(1)
 is_home = sys.argv[2] == 'true'
 mux_dir = sys.argv[3]
-tip_enabled = sys.argv[4] == 'true'
+hook_enabled = sys.argv[4] == 'true'
 perms = d.get('permissions', {})
 allow = perms.get('allow', [])
 if not any('claude-mux' in r for r in allow):
@@ -2367,15 +2373,19 @@ if is_home:
         sys.exit(1)
     if mux_dir not in perms.get('additionalDirectories', []):
         sys.exit(1)
-# Check tip hook matches desired state
-stop_hooks = d.get('hooks', {}).get('Stop', [])
-has_tip = any(
+hooks = d.get('hooks', {})
+# Legacy Stop --tipotd hook must be gone (replaced in v1.15.0)
+if any(
     any(h.get('command', '').endswith('--tipotd') for h in entry.get('hooks', []))
-    for entry in stop_hooks
-)
-if tip_enabled and not has_tip:
+    for entry in hooks.get('Stop', [])
+):
     sys.exit(1)
-if not tip_enabled and has_tip:
+# UserPromptSubmit --on-prompt hook must match desired state
+has_hook = any(
+    any(h.get('command', '').endswith('--on-prompt') for h in entry.get('hooks', []))
+    for entry in hooks.get('UserPromptSubmit', [])
+)
+if hook_enabled != has_hook:
     sys.exit(1)
 sys.exit(0)
 PYEOF
@@ -2397,13 +2407,13 @@ PYEOF
     # absolute path (when injection or scripts use the full path).
     # Home rules: file-system access for ~/.claude-mux/** so the home session
     # can manage its own config and templates.
-    if ! /usr/bin/python3 - "$settings_file" "$CLAUDE_MUX_BIN" "$is_home" "$mux_dir" "$tip_enabled" >> "$LOG_FILE" 2>&1 <<'PYEOF'
+    if ! /usr/bin/python3 - "$settings_file" "$CLAUDE_MUX_BIN" "$is_home" "$mux_dir" "$hook_enabled" >> "$LOG_FILE" 2>&1 <<'PYEOF'
 import json, sys, os
 path = sys.argv[1]
 b = sys.argv[2]
 is_home = sys.argv[3] == 'true'
 mux_dir = sys.argv[4]
-tip_enabled = sys.argv[5] == 'true'
+hook_enabled = sys.argv[5] == 'true'
 
 if os.path.exists(path):
     try:
@@ -2429,28 +2439,42 @@ if is_home:
     if mux_dir not in additional:
         additional.append(mux_dir)
 
-# Tip-of-the-day Stop hook
 hooks = d.setdefault('hooks', {})
-stop_hooks = hooks.setdefault('Stop', [])
-tip_cmd = f'{b} --tipotd'
-has_tip = any(
-    any(h.get('command', '').endswith('--tipotd') for h in entry.get('hooks', []))
-    for entry in stop_hooks
+
+# Remove the legacy tip-of-the-day Stop hook (replaced in v1.15.0).
+stop_hooks = hooks.get('Stop', [])
+new_stop = [
+    entry for entry in stop_hooks
+    if not any(h.get('command', '').endswith('--tipotd') for h in entry.get('hooks', []))
+]
+if new_stop:
+    hooks['Stop'] = new_stop
+else:
+    hooks.pop('Stop', None)
+
+# UserPromptSubmit --on-prompt hook (daily tip + update notice).
+up_hooks = hooks.setdefault('UserPromptSubmit', [])
+hook_cmd = f'{b} --on-prompt'
+has_hook = any(
+    any(h.get('command', '').endswith('--on-prompt') for h in entry.get('hooks', []))
+    for entry in up_hooks
 )
-if tip_enabled and not has_tip:
-    stop_hooks.append({
-        'matcher': '*',
-        'hooks': [{'type': 'command', 'command': tip_cmd, 'timeout': 5}]
+if hook_enabled and not has_hook:
+    up_hooks.append({
+        'hooks': [{'type': 'command', 'command': hook_cmd, 'timeout': 5}]
     })
-elif not tip_enabled and has_tip:
-    hooks['Stop'] = [
-        entry for entry in stop_hooks
-        if not any(h.get('command', '').endswith('--tipotd') for h in entry.get('hooks', []))
+elif not hook_enabled and has_hook:
+    hooks['UserPromptSubmit'] = [
+        entry for entry in up_hooks
+        if not any(h.get('command', '').endswith('--on-prompt') for h in entry.get('hooks', []))
     ]
-    if not hooks['Stop']:
-        del hooks['Stop']
-    if not hooks:
-        del d['hooks']
+
+# Drop emptied hook lists / hooks key.
+for key in ('Stop', 'UserPromptSubmit'):
+    if key in hooks and not hooks[key]:
+        del hooks[key]
+if not hooks:
+    del d['hooks']
 
 try:
     with open(path, 'w') as f: json.dump(d, f, indent=2)
@@ -2679,19 +2703,6 @@ LAUNCH_EOF
     else
         log "WARN: Claude prompt not detected in '$session_name' after 10s, sending ready anyway"
         "$TMUX_BIN" send-keys -t "$session_name" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
-    fi
-
-    # Send daily tip in background if first session of the day.
-    # Waits for Claude to respond to Ready? before sending.
-    local _tip_msg
-    _tip_msg=$(tip_of_day --session 2>/dev/null || true)
-    if [[ -n "$_tip_msg" ]]; then
-        local _tip_session="$session_name"
-        (
-            sleep 5
-            "$TMUX_BIN" send-keys -t "$_tip_session" -l "Tip: $_tip_msg" 2>/dev/null
-            "$TMUX_BIN" send-keys -t "$_tip_session" Enter 2>/dev/null
-        ) &
     fi
 
     # Protect at launch if .claudemux-protected marker exists in working dir
@@ -2999,14 +3010,6 @@ LAUNCH_EOF
             echo "$_pane" | grep -qE '^❯|^> ' && break
         done
         "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
-        # Send daily tip if first session of the day.
-        local _ltip
-        _ltip=$(tip_of_day --session 2>/dev/null || true)
-        if [[ -n "$_ltip" ]]; then
-            sleep 5
-            "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" -l "Tip: $_ltip" 2>/dev/null
-            "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
-        fi
     ) &
 
     if [[ "$NO_ATTACH" == "true" ]]; then
@@ -3024,15 +3027,10 @@ encode_claude_path() {
     printf '%s' "$1" | tr -c '[:alnum:]' '-'
 }
 
-# Print one tip from the embedded tips array.
-# Called with no args for --tip (standalone, no daily gate).
-# Called with --session by session-start code: checks daily gate and returns
-# empty string if the tip has already been shown today.
+# Print one tip from the embedded tips array. No gating — selects a tip and
+# prints it. Used by --tip (on demand) and by on_prompt (which applies its own
+# per-session daily gate). --tip always works regardless of TIP_OF_DAY.
 tip_of_day() {
-    local mode="${1:-}"
-
-    [[ "${TIP_OF_DAY:-true}" != "true" ]] && return 0
-
     # Tips array — sourced from internal/tips.md. Keep in sync.
     local tips=(
         "Say \"status\" in any session to see your session name, current model, permission mode, and context usage — all at once."
@@ -3087,20 +3085,149 @@ tip_of_day() {
         idx=$(( (10#$day_of_year - 1) % num_tips ))
     fi
 
-    if [[ "$mode" == "--session" ]]; then
-        # Daily gate: only show tip once per day (first session of the day).
-        local tip_date_file="$CLAUDE_MUX_DIR/.tip-date"
-        local today
-        today=$(date +%Y-%m-%d)
-        if [[ -f "$tip_date_file" ]] && [[ "$(cat "$tip_date_file" 2>/dev/null)" == "$today" ]]; then
-            return 0  # Already shown today
+    printf '%s\n' "${tips[$idx]}"
+}
+
+# UserPromptSubmit hook handler. Injects (via stdout) a daily tip and an update
+# notice into the conversation context — the only delivery path proven to surface
+# in Remote Control. Gated per session (keyed on the session_id from the hook's
+# stdin JSON). Must return fast and never block on the network: the GitHub API
+# call is delegated to a disowned --update-check-bg process.
+on_prompt() {
+    # Cheap guard: if both features are off there is nothing to inject — skip the
+    # stdin parse and state I/O entirely.
+    [[ "${TIP_OF_DAY:-true}" != "true" && "${UPDATE_CHECK:-true}" != "true" ]] && exit 0
+
+    local _state_dir="$CLAUDE_MUX_DIR/tip-state"
+    local _today _now
+    _today=$(date +%Y-%m-%d)
+    _now=$(date +%s)
+
+    # One python3 call does three things at once: parse session_id from the hook's
+    # stdin JSON, validate it as a safe filename token, and load the per-session
+    # state file (tip_date, update_notify, notify_version — "_" marks empty). This
+    # keeps the per-prompt hot path to a single subprocess for read. notify_version
+    # lets a brand-new release re-notify even inside the 7-day window.
+    local _sid _tip_date _update_notify _notify_version
+    read -r _sid _tip_date _update_notify _notify_version < <(/usr/bin/python3 -c '
+import json, sys, os, re
+try: sid = json.load(sys.stdin).get("session_id", "") or ""
+except Exception: sid = ""
+if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", sid):
+    sys.exit(0)
+tip_date, un, nv = "_", 0, "_"
+try:
+    d = json.load(open(os.path.join(sys.argv[1], sid + ".json")))
+    tip_date = d.get("tip_date", "") or "_"
+    un = int(d.get("update_notify", 0) or 0)
+    nv = d.get("notify_version", "") or "_"
+except Exception:
+    pass
+print(sid, tip_date, un, nv)
+' "$_state_dir" 2>/dev/null)
+
+    # No valid session_id → nothing was printed → bail silently.
+    [[ -z "$_sid" ]] && exit 0
+    local _state_file="$_state_dir/$_sid.json"
+    [[ "$_tip_date" == "_" ]] && _tip_date=""
+    [[ "$_notify_version" == "_" ]] && _notify_version=""
+    [[ -z "$_update_notify" ]] && _update_notify=0
+
+    local _out="" _new_tip_date="$_tip_date" _new_notify="$_update_notify" _new_notify_version="$_notify_version"
+
+    # ── Daily tip (per session) ──────────────────────────────────────────────
+    if [[ "${TIP_OF_DAY:-true}" == "true" && "$_tip_date" != "$_today" ]]; then
+        local _tip
+        _tip=$(tip_of_day 2>/dev/null || true)
+        if [[ -n "$_tip" ]]; then
+            _out+="[claude-mux tip — share this with the user]: $_tip"$'\n'
+            _new_tip_date="$_today"
         fi
-        printf '%s' "$today" > "$tip_date_file" 2>/dev/null || true
-        printf '%s\n' "${tips[$idx]}"
-    else
-        # Standalone --tip: no gate, just print.
-        printf '%s\n' "${tips[$idx]}"
     fi
+
+    # ── Update notice (cache-gated; 7-day throttle per session) ──────────────
+    if [[ "${UPDATE_CHECK:-true}" == "true" ]]; then
+        local _cache="$CLAUDE_MUX_DIR/.update-check"
+        local _last_check=0 _latest="" _gnotify=0
+        if [[ -f "$_cache" ]]; then
+            read -r _last_check _latest _gnotify < "$_cache" 2>/dev/null || true
+        fi
+        [[ -z "$_last_check" ]] && _last_check=0
+
+        # Emit notice if a newer version is cached and either this session has
+        # not been notified in 7 days, or the available version differs from the
+        # one we last notified about (a fresh release should not wait out the
+        # window).
+        if [[ -n "$_latest" ]] && version_gt "$_latest" "$VERSION"; then
+            if (( _update_notify == 0 || _now - _update_notify >= 604800 )) || [[ "$_latest" != "$_notify_version" ]]; then
+                _out+="[claude-mux update available — tell the user]: version $_latest is out (current: $VERSION). Suggest they say \"update claude-mux\"."$'\n'
+                _new_notify="$_now"
+                _new_notify_version="$_latest"
+            fi
+        fi
+
+        # Refresh the cache in the background if it is stale (>24h). Never block.
+        if (( _now - _last_check > 86400 )); then
+            # The lock is a directory: mkdir is atomic on POSIX, so it doubles as
+            # a test-and-set. Only the process that creates it spawns the check;
+            # concurrent prompts that lose the race simply skip.
+            local _lock="$CLAUDE_MUX_DIR/.update-checking"
+            # Stale guard: a lock older than 5 minutes means the prior background
+            # check died before clearing it; remove it so a fresh one can acquire.
+            if [[ -d "$_lock" ]]; then
+                local _lock_mtime
+                _lock_mtime=$(stat -f '%m' "$_lock" 2>/dev/null || stat -c '%Y' "$_lock" 2>/dev/null || echo 0)
+                (( _now - _lock_mtime >= 300 )) && rmdir "$_lock" 2>/dev/null
+            fi
+            if mkdir "$_lock" 2>/dev/null; then
+                ( "$CLAUDE_MUX_BIN" --update-check-bg >/dev/null 2>&1 & )
+            fi
+        fi
+    fi
+
+    # Persist per-session state only if something changed.
+    if [[ "$_new_tip_date" != "$_tip_date" || "$_new_notify" != "$_update_notify" || "$_new_notify_version" != "$_notify_version" ]]; then
+        mkdir -p "$_state_dir" 2>/dev/null
+        /usr/bin/python3 -c 'import json,sys
+json.dump({"tip_date": sys.argv[2], "update_notify": int(sys.argv[3]), "notify_version": sys.argv[4]}, open(sys.argv[1],"w"))' \
+            "$_state_file" "$_new_tip_date" "$_new_notify" "$_new_notify_version" 2>/dev/null || true
+    fi
+
+    # Emit accumulated notices; UserPromptSubmit injects stdout into context.
+    [[ -n "$_out" ]] && printf '%s' "$_out"
+    exit 0
+}
+
+# Background update check spawned (disowned) by on_prompt. Performs the GitHub
+# API call, refreshes the update cache, and clears the in-flight lock. Produces
+# no output and always exits 0 — it must never disturb the session.
+update_check_bg() {
+    local _cache="$CLAUDE_MUX_DIR/.update-check"
+    local _lock="$CLAUDE_MUX_DIR/.update-checking"
+    local _now _last_check=0 _latest="" _gnotify=0
+    _now=$(date +%s)
+    if [[ -f "$_cache" ]]; then
+        read -r _last_check _latest _gnotify < "$_cache" 2>/dev/null || true
+    fi
+    [[ -z "$_gnotify" ]] && _gnotify=0
+
+    local _api _new_latest
+    # 5s timeout (vs check_for_update's 3s): this runs disowned in the background,
+    # so a slightly longer wait costs nothing and tolerates a slow network.
+    _api=$(curl -sf --max-time 5 \
+        "https://api.github.com/repos/pereljon/claude-mux/releases/latest" 2>/dev/null)
+    if [[ -n "$_api" ]]; then
+        _new_latest=$(echo "$_api" | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/' | head -1)
+        if [[ -n "$_new_latest" ]]; then
+            # Reset the global notify timer if the version changed (keeps the TTY
+            # check_for_update path's throttle honest).
+            [[ "$_new_latest" != "$_latest" ]] && _gnotify=0
+            echo "$_now $_new_latest $_gnotify" > "$_cache" 2>/dev/null || true
+        fi
+    fi
+    # Clear the lock (a directory; rm -rf also tolerates a legacy file lock).
+    rm -rf "$_lock" 2>/dev/null
+    exit 0
 }
 
 # Update TIP_OF_DAY in ~/.claude-mux/config. Creates the line if missing.
@@ -3119,7 +3246,8 @@ set_tip_config() {
 
 # Walk all known project dirs and call setup_claude_mux_permissions() on each.
 # This re-runs the idempotent permission+hook setup, which adds or removes the
-# tip hook based on the current TIP_OF_DAY value.
+# UserPromptSubmit --on-prompt hook based on the current TIP_OF_DAY / UPDATE_CHECK
+# values.
 update_all_project_hooks() {
     discover_projects
     local dirs=("$BASE_DIR")
@@ -3140,14 +3268,18 @@ enable_tips() {
     TIP_OF_DAY=true
     set_tip_config "true"
     update_all_project_hooks
-    echo "Tips enabled. The tip-of-the-day hook has been added to all projects."
+    echo "Tips enabled. Daily tips will appear in each session once per day."
 }
 
 disable_tips() {
     TIP_OF_DAY=false
     set_tip_config "false"
     update_all_project_hooks
-    echo "Tips disabled. The tip-of-the-day hook has been removed from all projects."
+    if [[ "${UPDATE_CHECK:-true}" == "true" ]]; then
+        echo "Tips disabled. (The on-prompt hook stays active to deliver update notices.)"
+    else
+        echo "Tips disabled. The on-prompt hook has been removed from all projects."
+    fi
 }
 
 # Remove all claude-mux artifacts: hooks, permissions, LaunchAgent, and optionally config.
@@ -3168,7 +3300,7 @@ do_uninstall() {
     for _dir in "${dirs[@]}"; do
         _settings="$_dir/.claude/settings.local.json"
         [[ ! -f "$_settings" ]] && continue
-        # Remove tip hook and claude-mux permission rules
+        # Remove claude-mux hooks and permission rules
         if /usr/bin/python3 - "$_settings" 2>/dev/null <<'PYEOF'
 import json, sys
 path = sys.argv[1]
@@ -3178,21 +3310,22 @@ except Exception: sys.exit(1)
 
 changed = False
 
-# Remove tip hooks
+# Remove claude-mux hooks: legacy Stop --tipotd and UserPromptSubmit --on-prompt
 hooks = d.get('hooks', {})
-stop_hooks = hooks.get('Stop', [])
-new_stop = [
-    entry for entry in stop_hooks
-    if not any(h.get('command', '').endswith('--tipotd') for h in entry.get('hooks', []))
-]
-if len(new_stop) != len(stop_hooks):
-    changed = True
-    if new_stop:
-        hooks['Stop'] = new_stop
-    else:
-        hooks.pop('Stop', None)
-    if not hooks:
-        d.pop('hooks', None)
+for key, suffix in (('Stop', '--tipotd'), ('UserPromptSubmit', '--on-prompt')):
+    entries = hooks.get(key, [])
+    kept = [
+        entry for entry in entries
+        if not any(h.get('command', '').endswith(suffix) for h in entry.get('hooks', []))
+    ]
+    if len(kept) != len(entries):
+        changed = True
+        if kept:
+            hooks[key] = kept
+        else:
+            hooks.pop(key, None)
+if changed and not hooks:
+    d.pop('hooks', None)
 
 # Remove claude-mux permission rules
 perms = d.get('permissions', {})
@@ -3673,8 +3806,10 @@ check_for_update
 # Commands that don't need config: install, update, list-templates, send,
 # shutdown, autolaunch (LaunchAgent context — handled in autolaunch_dispatch).
 case "$COMMAND" in
-    install|update|list-templates|send|shutdown|autolaunch|uninstall)
-        # Skip config-required check; these can run without config
+    install|update|list-templates|send|shutdown|autolaunch|uninstall|on-prompt|update-check-bg)
+        # Skip config-required check; these can run without config.
+        # Hook commands (on-prompt, update-check-bg) must never prompt or error
+        # when config is missing — they exit silently in their handlers.
         ;;
     *)
         if [[ ! -f "$CLAUDE_MUX_CONFIG" ]]; then
@@ -3714,7 +3849,8 @@ case "$COMMAND" in
     list-all) status_claude_sessions true; exit 0 ;;
     list-templates) list_templates; exit 0 ;;
     tip)           tip_of_day; exit 0 ;;
-    tipotd)        tip_of_day; exit 0 ;;
+    on-prompt)     on_prompt; exit 0 ;;
+    update-check-bg) update_check_bg; exit 0 ;;
     enable-tips)   enable_tips; exit 0 ;;
     disable-tips)  disable_tips; exit 0 ;;
     uninstall)     do_uninstall; exit 0 ;;

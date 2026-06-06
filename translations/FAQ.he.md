@@ -55,11 +55,11 @@ Remote Control (RC) הוא פיצ'ר של Claude Code שמאפשר להתחבר 
 
 ## איך עובד הטיפ היומי?
 
-Claude Code Stop hook ב-`.claude/settings.local.json` של כל פרויקט קורא ל-`claude-mux --tipotd` אחרי כל סיבוב שיחה. הפקודה בודקת אם טיפ כבר הוצג היום (דרך `~/.claude-mux/.tip-date`). אם כן, יוצאת תוך כ-6ms. אם לא, מציגה טיפ ורושמת את התאריך של היום.
+Claude Code `UserPromptSubmit` hook ב-`.claude/settings.local.json` של כל פרויקט קורא ל-`claude-mux --on-prompt` בכל הודעה. ההודעה הראשונה של היום מזריקה טיפ אחד לשיחה; הודעות מאוחרות יותר באותו יום לא מזריקות כלום. המצב הוא לכל סשן, נשמר ב-`~/.claude-mux/tip-state/<session_id>.json`, כך שכל סשן פעיל מציג את הטיפ פעם ביום. מכיוון שה-hook מזריק להקשר (לא Stop hook שהפלט שלו רק בתמליל), הטיפ גלוי בשיחה וב-Remote Control.
 
-טיפים מופעלים כברירת מחדל (`TIP_OF_DAY=true`). החלף עם "הפעל טיפים" או "כבה טיפים" בתוך כל סשן. `TIP_MODE=daily` מציג את אותו טיפ כל היום; `TIP_MODE=random` בוחר טיפ אקראי בכל הפעלה (עם ה-Stop hook, זה אומר טיפ אקראי אחד ביום בגלל השער היומי).
+טיפים מופעלים כברירת מחדל (`TIP_OF_DAY=true`). החלף עם "הפעל טיפים" או "כבה טיפים" בתוך כל סשן. `TIP_MODE=daily` מציג את אותו טיפ כל היום; `TIP_MODE=random` בוחר טיפ אקראי.
 
-פקודת `--tip` תמיד עובדת ללא קשר לשער היומי, אז אפשר לומר "tip" בכל זמן.
+פקודת `--tip` תמיד עובדת ללא קשר לשער היומי (וללא קשר ל-`TIP_OF_DAY`), אז אפשר לומר "tip" בכל זמן.
 
 ## אפשר להשתמש עם מספר חשבונות GitHub?
 
@@ -87,8 +87,9 @@ Claude יידע להשתמש ב-`git@github.com-work:org/repo.git` עבור מא
 |-------|-----------|
 | `~/.claude-mux/config` | תצורת משתמש (נטענת כ-bash) |
 | `~/.claude-mux/templates/` | קבצי תבנית CLAUDE.md |
-| `~/.claude-mux/.tip-date` | תאריך הטיפ האחרון שהוצג |
+| `~/.claude-mux/tip-state/<session_id>.json` | תאריך טיפ לכל סשן + מצערת התראות עדכון |
 | `~/.claude-mux/.update-check` | תוצאת בדיקת גרסה במטמון |
+| `~/.claude-mux/.update-checking` | נעילה במהלך בדיקת עדכון ברקע |
 | `~/Library/Logs/claude-mux.log` | קובץ לוג (ניתן להגדרה דרך `LOG_DIR`) |
 | `~/Library/LaunchAgents/com.user.claude-mux.plist` | plist של LaunchAgent (נוצר על ידי `--install`) |
 | `.claudemux-protected` (לכל פרויקט) | מסמן סשן כמוגן מכיבוי |

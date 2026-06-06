@@ -4,6 +4,21 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-06-05
+
+### Fixed
+- **Tips now actually appear.** The tip-of-the-day was delivered via a Stop hook whose stdout is transcript-only (never surfaced in the conversation or Remote Control), and a global daily gate let the invisible path starve the one visible path. Tips are now injected via a `UserPromptSubmit` hook (the only delivery path proven to surface in RC) and gated per session, so each active session shows one tip per day.
+- **Update notices now reach running sessions.** The TTY-gated update check never ran under Claude's Bash tool, and the in-session notice was built only at launch, so a running session never learned of a release mid-session. The same `UserPromptSubmit` hook now injects an "update available" notice from the cached release info, throttled to once per 7 days per session.
+
+### Changed
+- The tip-of-the-day Stop hook is replaced by a `UserPromptSubmit` hook (`--on-prompt`). `setup_claude_mux_permissions` registers the new hook and removes the legacy Stop hook automatically at the next session launch. The hook is registered when either `TIP_OF_DAY` or `UPDATE_CHECK` is enabled.
+- The GitHub release check that the notice depends on now runs as a disowned background process (`--update-check-bg`) so the per-prompt hook never blocks on the network. An in-flight lock (`~/.claude-mux/.update-checking`, with a 5-minute stale guard) prevents duplicate checks when prompts arrive rapidly.
+- `--tip` on demand now always works regardless of `TIP_OF_DAY` (previously it was incorrectly suppressed when tips were disabled).
+- Session-start tips (sent via `send-keys` after launch) are removed; tips now arrive through the on-prompt hook instead.
+
+### Removed
+- The `--tipotd` Stop-hook command is retired (kept as a silent no-op so pre-upgrade sessions do not error until they restart).
+
 ## [1.14.2] - 2026-06-02
 
 ### Fixed

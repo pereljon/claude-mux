@@ -113,7 +113,7 @@ Claude：CLAUDE.md を ~/.claude-mux/templates/web.md にコピー
 Claude：ヒントを表示 - 同じ日は同じヒント、TIP_MODE=random を設定するとランダム
 
 あなた：「ヒントを有効にして」/「ヒントを無効にして」
-Claude：全プロジェクトにわたってヒント表示の Stop hook を登録または削除
+Claude：全プロジェクトで毎日のヒントをオン/オフ
 
 あなた：「update claude-mux」
 Claude：全セッションが再起動される旨を警告し、確認後にアップデートと再起動を実行

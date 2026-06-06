@@ -113,7 +113,7 @@ Vous : "conseil"
 Claude : affiche un conseil - le même conseil toute la journée, ou aléatoire si TIP_MODE=random est configuré
 
 Vous : "activer les conseils" / "désactiver les conseils"
-Claude : enregistre ou supprime le hook de conseil du jour sur tous les projets
+Claude : active ou désactive le conseil du jour sur tous les projets
 
 Vous : "mettre à jour claude-mux"
 Claude : prévient que toutes les sessions vont redémarrer, demande confirmation, puis met à jour et redémarre

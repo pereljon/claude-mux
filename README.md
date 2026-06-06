@@ -113,7 +113,7 @@ You: "tip"
 Claude: prints a tip - same tip all day, or random if TIP_MODE=random is set
 
 You: "enable tips" / "disable tips"
-Claude: registers or removes the tip-of-the-day hook across all projects
+Claude: turns the daily tip on or off across all projects
 
 You: "update claude-mux"
 Claude: warns that all sessions will restart, asks for confirmation, then updates and restarts

@@ -113,7 +113,7 @@ Du: "tip"
 Claude: zeigt einen Tipp - den ganzen Tag derselbe, oder zufaellig wenn TIP_MODE=random gesetzt ist
 
 Du: "tips aktivieren" / "tips deaktivieren"
-Claude: registriert oder entfernt den Tip-of-the-Day-Hook in allen Projekten
+Claude: schaltet den täglichen Tipp projektübergreifend ein oder aus
 
 Du: "claude-mux aktualisieren"
 Claude: warnt, dass alle Sitzungen neugestartet werden, bittet um Bestaetigung, aktualisiert und startet neu
