@@ -73,6 +73,7 @@ Per-project state lives in the project folder, not in central config. State file
 |---|---|
 | `.claudemux-ignore` | Hide project from `claude-mux -L` and `discover_projects()` |
 | `.claudemux-protected` | Set `@claude-mux-protected = 1` on the tmux session at launch |
+| `.claudemux-running` | Auto-restore intent: session should be alive. The `--autolaunch` tick restores it if Claude died. Removed on clean `/exit` (rc 0) or `--shutdown`. Written at launch (not for home). |
 
 **Why marker files, not config:**
 - State follows the folder across renames, moves, and machine syncs.

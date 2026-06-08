@@ -70,6 +70,9 @@ Note: `com.user.claude-mux.plist` was removed from the repo in v1.8.0. The plist
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches when `-a` is used |
 | `LAUNCHAGENT_MODE` | `home` | LaunchAgent at-login behavior: `none` or `home` (single protected session in `$BASE_DIR`). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `home` (previously `batch`, removed). |
 | `HOME_SESSION_MODEL` | `""` | Model for the home session (`sonnet`, `haiku`, `opus`). Empty string inherits Claude's default. |
+| `AUTORESTORE` | `true` | Self-healing. When `true`, the LaunchAgent tick restores sessions that should be alive (carry a `.claudemux-running` marker) but whose Claude process has died, after a reboot or a mid-day crash. Markers are always written/removed; this flag only gates whether the tick acts. A clean in-pane `/exit` (or `--shutdown`) removes the marker so the session stays down. |
+| `STAGGER_CONCURRENCY` | `3` | Max sessions the restore tick launches per `STARTING_WINDOW` (thundering-herd cap after a reboot). Mainly API-burst insurance; local cost per idle session is small. |
+| `STARTING_WINDOW` | `90` | Window in seconds over which `STAGGER_CONCURRENCY` is counted, via each session's last restore-attempt timestamp in `~/.claude-mux/restore-state/`. |
 | `TMUX_MOUSE` | `true` | Mouse support (scroll, select, resize) |
 | `TMUX_HISTORY_LIMIT` | `50000` | Scrollback buffer size in lines |
 | `TMUX_CLIPBOARD` | `true` | System clipboard integration via OSC 52 |
@@ -402,6 +405,7 @@ Per-project state lives in marker files at the project root, not in central conf
 |--------|---------|------------|
 | `.claudemux-protected` | Session is protected at launch. `--shutdown` requires `--force`. | `claude-mux --protect` or `claude-mux --install` (for `$BASE_DIR`) |
 | `.claudemux-ignore` | Project is hidden from `claude-mux -L` listings and `discover_projects()`. | `claude-mux --hide` |
+| `.claudemux-running` | Auto-restore intent: this session should be alive. The LaunchAgent tick restores it if its Claude process has died. Removed on a clean in-pane `/exit` (exit 0) or `--shutdown`. | `write_running_marker()` at session launch (skipped for the home session) |
 
 **Conventions:**
 - Boolean flags: empty file at `.claudemux-<name>`, presence = on.
@@ -411,8 +415,19 @@ Per-project state lives in marker files at the project root, not in central conf
 
 **When NOT to use markers:**
 - User-global preferences → `~/.claude-mux/config`
-- Session-runtime state → tmux user options (e.g. `@claude-mux-managed`, `@claude-mux-protected`)
+- Session-runtime state → tmux user options (e.g. `@claude-mux-managed`, `@claude-mux-protected`, `@claude-mux-dir`)
+- Cross-session/runtime bookkeeping → central state under `~/.claude-mux/` (e.g. `restore-state/<session>.json` for crash-loop/stagger tracking)
 - Markers are for state that should travel with the project folder.
+
+#### Auto-restore (self-healing)
+
+The keystone of the v2.0 self-healing milestone. A per-project `.claudemux-running` marker records "this session should be alive." The LaunchAgent re-fires `claude-mux --autolaunch` roughly every 60s (one-shot dispatch + `KeepAlive`/`ThrottleInterval=60`), so reboot recovery and a mid-day-crash watchdog are the same code path, differing only in when the tick fires.
+
+- **Liveness:** `should_be_alive()` is the single predicate shared by the restore walk and `-l` (marker present + `AUTORESTORE` on + not crash-tripped, or a future `.claudemux-autostart` override). Death is detected with `claude_running_in_session()` (process-tree check), so a zombie (tmux pane alive, Claude dead) is restored like any other death.
+- **Clean-quit vs crash:** the generated launch script removes the marker only on a clean exit (rc 0 from `/exit` or Ctrl-C ×2). A non-zero exit within ~10s of launch is treated as a resume-that-failed-to-start and retried fresh; a non-zero exit after that is a crash that leaves the marker for the tick.
+- **Crash-loop guard:** `~/.claude-mux/restore-state/<session>.json` tracks `last_attempt_ts`, `death_count`, `tripped`. A death within `AUTORESTORE_MIN_HEALTHY` (300s) of the last attempt is a fast death; after `AUTORESTORE_TRIP_THRESHOLD` (3) consecutive fast deaths the session is tripped (no longer restored, shows `failed` in `-l`, a one-shot notice is routed to home). A user restart/`restart fresh`/setmode/`-d` clears the state via `restore_state_clear()`.
+- **Staggering:** the tick launches at most `STAGGER_CONCURRENCY` sessions per `STARTING_WINDOW`, counting recent attempts via `last_attempt_ts`, in deterministic (sorted) order, home first and outside the batch.
+- **`-l` statuses:** a non-running marked session shows `queued` (tick will restore), `failed` (tripped), or `stopped` (`AUTORESTORE` off / no marker), all derived through the same state so the listing never promises a restore the tick won't perform.
 
 ### ensure_gitignore_entry(dir)
 

@@ -14,6 +14,7 @@ Read only the section you need - `grep -n "^## <name>" docs/SKELETON.md` for its
 - **launch_single_session** - direct (non-send-keys) launch path
 - **build_system_prompt** - the injected system prompt
 - **create_new_project** - new-project scaffolding
+- **autorestore_walk** - the restore tick (relaunch dead-but-marked sessions, staggered, crash-loop guard)
 - **autolaunch_dispatch** - LaunchAgent boot path
 - **do_update** - self-update
 - **shutdown_single_session / shutdown_claude_sessions** - teardown paths
@@ -205,6 +206,7 @@ case COMMAND:
       for each session:
         validate: is managed session
         get working dir from tmux
+        restore_state_clear(session)   # user restart un-trips a crash-looped session
         shutdown_single_session(session)
         create_claude_session(session, dir, "", FRESH_START)
 
@@ -221,6 +223,7 @@ case COMMAND:
       shutdown_claude_sessions()
       detect_github_ssh_accounts()
       for each non-caller session:
+        restore_state_clear(name)   # user restart un-trips crash-loop history
         create_claude_session(name, dir, "", FRESH_START)
 
       if caller session exists:
@@ -252,6 +255,7 @@ else:
 
 apply_tmux_options(name)
 set @claude-mux-managed = 1
+set @claude-mux-dir = working_dir     # authoritative source for marker removal
 
 # Build injection
 prompt = build_system_prompt(name, mode or "auto")
@@ -262,15 +266,24 @@ resume_flag = "-c"  (omit if fresh=true)
 
 # Write temp files (600 perms, cleaned up by trap on exit)
 write prompt → /tmp/claude-prompt-XXXXX
+_marker_esc = single-quote-escaped "working_dir/.claudemux-running"
 write launch script → /tmp/claude-launch-XXXXX:
   #!/bin/bash
   trap cleanup EXIT
   _prompt=$(cat prompt_file)
+  _marker='{_marker_esc}'
+  _start=$(date +%s)
   claude {resume} --remote-control {perm} \
     --allow-dangerously-skip-permissions \
     --name name --append-system-prompt "$_prompt"
-  || claude (same, without -c on retry)
+  _rc=$?
+  if rc != 0 AND (now - _start) < 10:     # resume failed to start → retry fresh
+    claude (same, without -c) ; _rc=$?
+  [[ _rc == 0 ]] && rm -f "$_marker"       # clean quit (exit 0) → stay dead
+  # claude stays a DIRECT child of this script (no subshell) so the
+  # 2-level claude_running_in_session check still finds it
 
+write_running_marker(working_dir)     # before launch; skipped for home
 tmux send-keys name "bash launch_script" + Enter
 
 # Ready poller: poll pane every 0.5s, up to 10s (20 iterations)
@@ -329,15 +342,24 @@ if HOME_LAUNCH and HOME_SESSION_MODEL set:
 resume_flag = "-c"  (omit if FRESH_START=true)
 
 write prompt → tmp file
+_marker_esc = single-quote-escaped "LAUNCH_DIR/.claudemux-running"
 write launch script → tmp file:
+  _marker='{_marker_esc}' ; _start=$(date +%s)
   claude {resume} --remote-control --permission-mode auto \
     --allow-dangerously-skip-permissions {model_flag} \
     --name session --append-system-prompt "$prompt"
+  _rc=$?
+  if rc != 0 AND (now - _start) < 10: claude (no -c) ; _rc=$?   # resume-fail → fresh
+  [[ _rc == 0 ]] && rm -f "$_marker"                             # clean quit → stay dead
+
+restore_state_clear(LAUNCH_SESSION_NAME)   # -d / caller-restart is user-initiated → un-trip
+write_running_marker(LAUNCH_DIR)            # no-op for home (BASE_DIR)
 
 # Direct launch (not via send-keys)
 tmux new-session -d -s name -c dir "bash launch_script"
 
 set @claude-mux-managed = 1
+set @claude-mux-dir = LAUNCH_DIR
 
 if .claudemux-protected exists in dir:
   set @claude-mux-protected = 1
@@ -439,7 +461,51 @@ case LAUNCHAGENT_MODE:
     launch_single_session()
       # if home already running → skip (claude_running_in_session check)
       # if not → create and launch
+    autorestore_walk()       # after home is up, restore other dead-but-marked sessions
 ```
+
+---
+
+## autorestore_walk()
+
+The restore tick. Pure bash, no Claude turn. Called from `autolaunch_dispatch` (home mode) after the home session is up, so launchd's ~60s re-fire makes it both boot recovery and a runtime watchdog.
+
+```
+if AUTORESTORE != true: return            # nothing to act on
+
+discover_projects()                        # populates PROJECT_DIRS + HIDDEN_PROJECT_DIRS
+now = epoch
+
+candidates = []
+in_flight = 0
+for proj in PROJECT_DIRS + HIDDEN_PROJECT_DIRS:
+    name = sanitize(basename(proj))
+    skip if empty or name == "home"
+    la = restore_state_last_attempt(name)
+    if (now - la) < STARTING_WINDOW: in_flight++      # recent attempt occupies a slot
+    if should_be_alive(name, proj) AND NOT claude_running_in_session(name):
+        candidates += "name|proj|la"                   # carry la to avoid a re-read
+
+if candidates empty: return
+slots = STAGGER_CONCURRENCY - in_flight
+if slots <= 0: log "deferring"; return
+
+for entry in sort(candidates)[: slots]:               # deterministic order
+    name, dir, last = split(entry)
+    dc = restore_state_death_count(name)
+    # crash-loop guard: judge survival since last attempt
+    if last > 0:
+        if (now - last) < AUTORESTORE_MIN_HEALTHY: dc++    # fast death
+        else: dc = 0                                        # ran healthy → reset
+    if dc >= AUTORESTORE_TRIP_THRESHOLD:
+        restore_state_write(name, last, dc, tripped=true)  # keep marker, stop restoring
+        notify_home("X crash-looped … say 'restart X fresh'")
+        continue                                            # should_be_alive false next tick (one notice)
+    restore_state_write(name, now, dc, tripped=false)
+    create_claude_session(name, dir, "", fresh=false)      # resume
+```
+
+**Invariants:** stays one-shot (launchd re-fires it; never loops internally). Uses `claude_running_in_session` (not `has-session`) so zombies are restored. A reboot leaves `last_attempt_ts` stale/large, so nothing trips on boot recovery.
 
 ---
 
@@ -471,6 +537,10 @@ if TTY:
 
 ```
 if session not running → return
+if protected and not force → error, return
+
+remove_running_marker(session_marker_dir(session))   # intent to stop, BEFORE kill,
+                                                      # so the tick can't resurrect mid-shutdown
 
 send-keys name "/exit" + Enter
 wait up to 10s (20 × 0.5s):
@@ -497,7 +567,9 @@ get_managed_session_names()
 for each running tmux session:
   if not managed → skip
   if protected and FORCE != true → skip with log
-  collect in managed_list; send /exit if claude is running
+  collect in managed_list
+  remove_running_marker(session_marker_dir(session))   # intent to stop, before kill
+  send /exit if claude is running
 
 wait up to 10s (20 × 0.5s) for all claude processes to exit
 
@@ -608,3 +680,7 @@ exit 0
 - Caller-last ordering in full restart: the session running the restart script cannot kill itself mid-execution — it separates itself from the list and uses a background subshell with `disown` to handle its own restart.
 - The ready poller always sends `Ready?` even on timeout — a slow-starting session still gets the handshake, just later than expected.
 - Temp launch scripts clean themselves up via `trap ... EXIT` — no orphaned files even if claude crashes.
+- Auto-restore marker presence ⇒ session should be alive. The marker is cleared exactly two ways, both = intent to stop: `--shutdown` (`remove_running_marker` before kill) or a clean in-pane exit (rc 0, the launch wrapper removes it). A crash/`kill-session`/reboot leaves it, so the tick restores it.
+- `should_be_alive()` is the single predicate behind both the restore walk and the `-l` status, so the listing never promises a restore the tick won't perform.
+- `--autolaunch`/`autorestore_walk` must stay one-shot; launchd re-fires it (~60s via `KeepAlive`+`ThrottleInterval=60`), so an internal loop would break the watchdog.
+- The launch wrapper keeps `claude` a direct child of the launch script (no extra subshell), so `claude_running_in_session`'s 2-level process-tree check still finds it.

@@ -73,6 +73,24 @@ HOME_SESSION_MODEL="sonnet"
 # LAUNCHAGENT_MODE=batch before batch was removed).
 LAUNCHAGENT_ENABLED=false
 
+# ── Auto-restore (self-healing) ─────────────────────────────────────────────────
+# When true, the LaunchAgent tick restores sessions that should be alive (those
+# with a .claudemux-running marker) but whose Claude process has died, after a
+# reboot or a mid-day crash. Markers are always written/removed; this flag only
+# gates whether the tick acts on them. Set false to disable self-healing.
+# A clean in-pane /exit (or --shutdown) removes the marker so the session stays
+# down; a crash or kill leaves it, so the tick brings the session back.
+AUTORESTORE=true
+
+# Max sessions the restore tick launches per STARTING_WINDOW (thundering-herd cap
+# after a reboot). Local cost per idle session is small (~80-110 MB); this is
+# mainly insurance against API rate/burst limits. Tune from real reboot experience.
+STAGGER_CONCURRENCY=3
+
+# Window (seconds) over which STAGGER_CONCURRENCY is counted, via each session's
+# last restore-attempt timestamp in ~/.claude-mux/restore-state/.
+STARTING_WINDOW=90
+
 # ── Update check ──────────────────────────────────────────────────────────────
 # Check GitHub releases for newer versions. Set to false to disable.
 UPDATE_CHECK=true
@@ -268,6 +286,24 @@ HOME_SESSION_MODEL               default: "sonnet"
   Type: sonnet | haiku | opus | (empty)
   Description: Model used for the home session at launch. Empty inherits
                Claude's default.
+
+AUTORESTORE                      default: true
+  Type: true | false
+  Description: Self-healing. When true, the LaunchAgent tick restores sessions
+               that should be alive (have a .claudemux-running marker) but whose
+               Claude died, after a reboot or a mid-day crash. Markers are
+               always written; this only gates whether the tick acts. A clean
+               in-pane /exit (or --shutdown) removes the marker and stays down.
+
+STAGGER_CONCURRENCY              default: 3
+  Type: integer
+  Description: Max sessions the restore tick launches per STARTING_WINDOW, to
+               avoid a reboot thundering-herd. Mainly API-burst insurance.
+
+STARTING_WINDOW                  default: 90
+  Type: integer (seconds)
+  Description: Window over which STAGGER_CONCURRENCY is counted, via each
+               session's last restore-attempt timestamp.
 
 MULTI_CODER_FILES                default: "AGENTS.md GEMINI.md"
   Type: space-separated filenames
@@ -692,7 +728,7 @@ case "$HOME_SESSION_MODEL" in
 esac
 
 # Validate numeric tmux config values
-for _var_name in SLEEP_BETWEEN TMUX_HISTORY_LIMIT TMUX_ESCAPE_TIME; do
+for _var_name in SLEEP_BETWEEN TMUX_HISTORY_LIMIT TMUX_ESCAPE_TIME STAGGER_CONCURRENCY STARTING_WINDOW; do
     _var_val="${!_var_name}"
     if [[ -n "$_var_val" && ! "$_var_val" =~ ^[0-9]+$ ]]; then
         echo "ERROR: $CLAUDE_MUX_CONFIG: $_var_name must be a non-negative integer (got: '$_var_val')" >&2
@@ -714,6 +750,15 @@ HOME_LAUNCH=false
 SLEEP_BETWEEN="${SLEEP_BETWEEN:-5}"
 TIP_OF_DAY="${TIP_OF_DAY:-true}"
 TIP_MODE="${TIP_MODE:-daily}"
+AUTORESTORE="${AUTORESTORE:-true}"
+STAGGER_CONCURRENCY="${STAGGER_CONCURRENCY:-3}"
+STARTING_WINDOW="${STARTING_WINDOW:-90}"
+RESTORE_STATE_DIR="$CLAUDE_MUX_DIR/restore-state"
+# Crash-loop guard (internal constants, not user config). A session that dies
+# within MIN_HEALTHY seconds of a restore attempt counts as a fast death; after
+# TRIP_THRESHOLD consecutive fast deaths it is tripped and no longer restored.
+AUTORESTORE_MIN_HEALTHY=300
+AUTORESTORE_TRIP_THRESHOLD=3
 LOG_FILE="$LOG_DIR/claude-mux.log"
 
 # Resolve binary paths: config override → command -v fallback
@@ -1653,6 +1698,10 @@ shutdown_single_session() {
         echo "See $LOG_FILE for details" >&2
         return 1
     fi
+    # Remove the auto-restore marker first (intent to stop) so the tick can't
+    # resurrect a session mid-shutdown. Use the recorded launch dir, not
+    # pane_current_path, which can drift from the project root.
+    remove_running_marker "$(session_marker_dir "$session")"
     if claude_running_in_session "$session"; then
         log "Sending /exit to session '$session'"
         [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
@@ -1716,6 +1765,8 @@ shutdown_claude_sessions() {
             continue
         fi
         managed_list+=("$session")
+        # Remove the auto-restore marker first (intent to stop).
+        remove_running_marker "$(session_marker_dir "$session")"
         if claude_running_in_session "$session"; then
             log "Sending /exit to session '$session'"
             [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
@@ -1773,7 +1824,7 @@ status_claude_sessions() {
 
     # Build set of active session names
     local active_sessions=""
-    local running=0 protected=0 stopped=0 unmanaged=0 idle=0
+    local running=0 protected=0 stopped=0 unmanaged=0 idle=0 queued=0 failed=0
 
     # Collect all rows, then format as aligned columns
     local rows=""
@@ -1803,8 +1854,16 @@ status_claude_sessions() {
                         (( running++ ))
                     fi
                 else
-                    _status="stopped"
-                    (( stopped++ ))
+                    # Claude not running in a live pane (e.g. a crashed/zombie
+                    # session). Derive queued/failed/stopped from the marker state.
+                    # Use the raw launch dir (not the ~-shortened display path, which
+                    # would never match the on-disk marker).
+                    _status=$(autorestore_status "$session" "$(session_marker_dir "$session")" "stopped")
+                    case "$_status" in
+                        queued) (( queued++ )) ;;
+                        failed) (( failed++ )) ;;
+                        *) (( stopped++ )) ;;
+                    esac
                 fi
 
                 rows="${rows}${_status}|${_display_name}|${_dir}
@@ -1828,9 +1887,17 @@ status_claude_sessions() {
                     continue
                 fi
                 local _short="${_proj/#$HOME/~}"
-                rows="${rows}idle|${_name}|${_short}
+                # A fully-dead project (no tmux) that still carries the marker is
+                # queued/failed, not merely idle, so -l agrees with the tick.
+                local _istatus
+                _istatus=$(autorestore_status "$_name" "$_proj" "idle")
+                rows="${rows}${_istatus}|${_name}|${_short}
 "
-                (( idle++ ))
+                case "$_istatus" in
+                    queued) (( queued++ )) ;;
+                    failed) (( failed++ )) ;;
+                    *) (( idle++ )) ;;
+                esac
             done
         fi
         # Hidden projects (when LIST_HIDDEN_MODE=include or only)
@@ -1843,9 +1910,17 @@ status_claude_sessions() {
                     continue
                 fi
                 local _short="${_proj/#$HOME/~}"
-                rows="${rows}hidden|${_name}|${_short}
+                # Hidden sessions are still restored by the tick, so reflect
+                # queued/failed when marked; otherwise show the visibility state.
+                local _hstatus
+                _hstatus=$(autorestore_status "$_name" "$_proj" "hidden")
+                rows="${rows}${_hstatus}|${_name}|${_short}
 "
-                (( hidden_count++ ))
+                case "$_hstatus" in
+                    queued) (( queued++ )) ;;
+                    failed) (( failed++ )) ;;
+                    *) (( hidden_count++ )) ;;
+                esac
             done
         fi
     fi
@@ -1880,6 +1955,8 @@ status_claude_sessions() {
 
     echo ""
     local summary="${running} running, ${protected} protected, ${stopped} stopped"
+    [[ $queued -gt 0 ]] && summary="${summary}, ${queued} queued"
+    [[ $failed -gt 0 ]] && summary="${summary}, ${failed} failed"
     [[ "$show_idle" == "true" ]] && summary="${summary}, ${idle} idle"
     [[ "$show_idle" == "true" && "${LIST_HIDDEN_MODE:-none}" != "none" ]] && summary="${summary}, ${hidden_count:-0} hidden"
     echo "$summary"
@@ -1979,6 +2056,112 @@ ensure_gitignore_entry() {
     [[ "$DRY_RUN" == "true" ]] && { log "Would add '$pattern' to $gi"; return 0; }
     printf '%s\n' "$pattern" >> "$gi"
     log "Added '$pattern' to $gi"
+}
+
+# Auto-restore marker: presence of .claudemux-running means "this session should
+# be alive." Written before tmux/Claude start; removed first on clean shutdown.
+# The home session never gets a marker; the LaunchAgent always starts it.
+write_running_marker() {
+    local dir="$1"
+    [[ -z "$dir" || ! -d "$dir" ]] && return 0
+    [[ "$dir" == "$BASE_DIR" ]] && return 0   # home is launch-managed, not marker-managed
+    [[ "$DRY_RUN" == "true" ]] && { log "Would write $dir/.claudemux-running"; return 0; }
+    touch "$dir/.claudemux-running" 2>/dev/null || return 0
+    ensure_gitignore_entry "$dir" ".claudemux-*"
+}
+
+# Remove the auto-restore marker (intent to stop). Safe on a missing file.
+remove_running_marker() {
+    local dir="$1"
+    [[ -z "$dir" ]] && return 0
+    [[ "$DRY_RUN" == "true" ]] && { log "Would remove $dir/.claudemux-running"; return 0; }
+    rm -f "$dir/.claudemux-running" 2>/dev/null || true
+}
+
+# ── Restore-state (crash-loop + stagger bookkeeping) ─────────────────────────────
+# Central runtime state, keyed by session name, in $RESTORE_STATE_DIR/<name>.json.
+# Format is a single compact line we own end-to-end:
+#   {"last_attempt_ts":<epoch>,"death_count":<int>,"tripped":<true|false>}
+# Reads are tolerant of a missing/garbage file (treated as fresh: ts 0, count 0,
+# not tripped) so a corrupt file never crashes the tick.
+
+restore_state_last_attempt() {
+    local f="$RESTORE_STATE_DIR/$1.json"
+    [[ -f "$f" ]] || { echo 0; return 0; }
+    local v; v=$(grep -o '"last_attempt_ts":[0-9]*' "$f" 2>/dev/null | head -1 | cut -d: -f2)
+    echo "${v:-0}"
+}
+
+restore_state_death_count() {
+    local f="$RESTORE_STATE_DIR/$1.json"
+    [[ -f "$f" ]] || { echo 0; return 0; }
+    local v; v=$(grep -o '"death_count":[0-9]*' "$f" 2>/dev/null | head -1 | cut -d: -f2)
+    echo "${v:-0}"
+}
+
+# Return 0 (true) only if the session is explicitly tripped.
+restore_state_tripped() {
+    local f="$RESTORE_STATE_DIR/$1.json"
+    [[ -f "$f" ]] && grep -q '"tripped":true' "$f" 2>/dev/null
+}
+
+# Write all three fields atomically-ish (single line, single redirect).
+restore_state_write() {
+    local session="$1" ts="$2" dc="$3" tripped="$4"
+    [[ "$DRY_RUN" == "true" ]] && return 0
+    mkdir -p "$RESTORE_STATE_DIR" 2>/dev/null || return 0
+    printf '{"last_attempt_ts":%s,"death_count":%s,"tripped":%s}\n' \
+        "$ts" "$dc" "$tripped" > "$RESTORE_STATE_DIR/$session.json" 2>/dev/null || true
+}
+
+# Clear crash-loop/stagger history for a session. Called on any user-initiated
+# bring-up (restart, restart fresh, setmode, -d) so a 'restart X fresh' actually
+# un-trips a crash-looped session. The autonomous tick never calls this; it must
+# preserve death_count to detect loops.
+restore_state_clear() {
+    [[ "$DRY_RUN" == "true" ]] && return 0
+    rm -f "$RESTORE_STATE_DIR/$1.json" 2>/dev/null || true
+}
+
+# Resolve the launch (project-root) directory recorded on a session at creation
+# via @claude-mux-dir. This is where the .claudemux-running marker lives. Falls
+# back to the pane's current path for sessions created before this option existed.
+# pane_current_path alone is unreliable (it tracks the foreground process cwd), so
+# the stored option is authoritative for marker removal.
+session_marker_dir() {
+    local s="$1" d
+    d=$("$TMUX_BIN" show-options -t "$s" -v @claude-mux-dir 2>/dev/null)
+    [[ -n "$d" ]] && { printf '%s\n' "$d"; return 0; }
+    "$TMUX_BIN" display-message -t "$s" -p '#{pane_current_path}' 2>/dev/null
+}
+
+# Single predicate shared by the restore walk and the -l status logic, so the
+# listing never promises a restore the tick won't perform. A session should be
+# alive if it has the auto-restore marker (AUTORESTORE on, not crash-tripped),
+# or — future extension point — an always-on .claudemux-autostart marker.
+should_be_alive() {
+    local session="$1" dir="$2"
+    [[ -n "$dir" && -f "$dir/.claudemux-autostart" ]] && return 0   # always-on (future)
+    [[ "$AUTORESTORE" == "true" ]] || return 1
+    [[ -n "$dir" && -f "$dir/.claudemux-running" ]] || return 1
+    restore_state_tripped "$session" && return 1
+    return 0
+}
+
+# Status string for a session whose Claude is NOT running, derived from the same
+# state should_be_alive() uses (so -l never promises a restore the tick won't do):
+#   marker + tripped            -> failed   (crash-looped, will not restore)
+#   marker + AUTORESTORE on      -> queued   (the tick will bring it back)
+#   marker + AUTORESTORE off      -> stopped
+#   no marker                     -> fallback (stopped for active panes, idle for projects)
+autorestore_status() {
+    local name="$1" dir="$2" fallback="${3:-stopped}"
+    if [[ -n "$dir" && -f "$dir/.claudemux-running" ]]; then
+        if restore_state_tripped "$name"; then echo "failed"; return 0; fi
+        [[ "$AUTORESTORE" == "true" ]] && { echo "queued"; return 0; }
+        echo "stopped"; return 0
+    fi
+    echo "$fallback"
 }
 
 # Resolve a session name to its project directory.
@@ -2597,6 +2780,8 @@ create_claude_session() {
         if claude_running_in_session "$session_name"; then
             # Mark as claude-mux-managed (idempotent — handles v1.8 upgrades)
             [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" set-option -t "$session_name" @claude-mux-managed 1 2>/dev/null
+            [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" set-option -t "$session_name" @claude-mux-dir "$working_dir" 2>/dev/null
+            write_running_marker "$working_dir"   # backfill auto-restore marker for live sessions
             log "Session '$session_name' already running claude, skipping"
             return
         fi
@@ -2613,6 +2798,7 @@ create_claude_session() {
 
     apply_tmux_options "$session_name"
     "$TMUX_BIN" set-option -t "$session_name" @claude-mux-managed 1 2>/dev/null
+    "$TMUX_BIN" set-option -t "$session_name" @claude-mux-dir "$working_dir" 2>/dev/null
 
     # Build system prompt — pass permission mode so Claude reports it in the ready response
     local tmux_prompt
@@ -2646,15 +2832,39 @@ create_claude_session() {
     prompt_file=$(mktemp "${TMPDIR:-/tmp}/claude-prompt-XXXXXX")
     chmod 600 "$launch_script" "$prompt_file"
     printf '%s' "$tmux_prompt" > "$prompt_file"
+    # Single-quote-escape the marker path so a project dir containing an apostrophe
+    # (e.g. "Sylvia's-estate") can't break the generated single-quoted assignment.
+    # Escape in a plain (unquoted) assignment: the \' pattern needs unquoted
+    # parsing, and standalone assignment is not word-split, so spaces are safe too.
+    local _esc_dir; _esc_dir=${working_dir//\'/\'\\\'\'}
+    local _marker_esc="${_esc_dir}/.claudemux-running"
+    # The launch wrapper distinguishes a resume-that-failed-to-start (retry fresh)
+    # from a session that ran then crashed (leave the marker for the tick). A
+    # non-zero exit within the first ~10s means resume never came up → fresh
+    # fallback; a non-zero exit after that is a real crash. A clean exit (rc 0,
+    # i.e. /exit or Ctrl-C ×2) removes the marker so the session stays down.
+    # Keep claude a direct child of this script (no extra subshell) so
+    # claude_running_in_session's 2-level check still finds it.
     cat > "$launch_script" << LAUNCH_EOF
 #!/bin/bash
 trap 'rm -f "${launch_script}" "${prompt_file}"' EXIT
 export PATH="$(dirname "$CLAUDE_BIN"):\$PATH"
 _prompt=\$(cat '${prompt_file}')
-claude ${resume_flag:+${resume_flag} }--remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt "\$_prompt" 2>/dev/null || \
-claude --remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt "\$_prompt"
+_marker='${_marker_esc}'
+_start=\$(date +%s)
+claude ${resume_flag:+${resume_flag} }--remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt "\$_prompt" 2>/dev/null
+_rc=\$?
+if [[ \$_rc -ne 0 && \$(( \$(date +%s) - _start )) -lt 10 ]]; then
+    claude --remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt "\$_prompt"
+    _rc=\$?
+fi
+[[ \$_rc -eq 0 ]] && rm -f "\$_marker"
 LAUNCH_EOF
     chmod +x "$launch_script"
+
+    # Write the auto-restore marker before launching so a crash before the first
+    # clean exit still leaves intent-to-be-alive recorded.
+    write_running_marker "$working_dir"
 
     if ! { "$TMUX_BIN" send-keys -t "$session_name" -l "bash '${launch_script}'" && "$TMUX_BIN" send-keys -t "$session_name" Enter; } 2>/dev/null; then
         log "WARN: send-keys failed for '$session_name', cleaning up temp script"
@@ -2911,6 +3121,8 @@ launch_single_session() {
             fi
             # Mark as claude-mux-managed (idempotent — handles v1.8 upgrades)
             "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-managed 1 2>/dev/null
+            "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-dir "$LAUNCH_DIR" 2>/dev/null
+            write_running_marker "$LAUNCH_DIR"   # backfill auto-restore marker for live sessions
             # Re-apply protection if marker exists (handles in-place upgrade and idempotent --autolaunch)
             if [[ -f "$LAUNCH_DIR/.claudemux-protected" ]]; then
                 "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-protected 1 2>/dev/null
@@ -2962,21 +3174,43 @@ launch_single_session() {
     launch_script=$(mktemp "${TMPDIR:-/tmp}/claude-launch-XXXXXX")
     chmod 600 "$prompt_file" "$launch_script"
     printf '%s' "$tmux_prompt" > "$prompt_file"
+    # Single-quote-escape the marker path (see create_claude_session).
+    local _esc_dir; _esc_dir=${LAUNCH_DIR//\'/\'\\\'\'}
+    local _marker_esc="${_esc_dir}/.claudemux-running"
+    # Exit-code wrapper: same clean-quit-vs-crash logic as create_claude_session.
+    # For the home session LAUNCH_DIR is BASE_DIR (no marker written), so the
+    # marker rm is a harmless no-op there.
     cat > "$launch_script" << LAUNCH_EOF
 #!/bin/bash
 trap 'rm -f "${launch_script}" "${prompt_file}"' EXIT
 export PATH="$(dirname "$CLAUDE_BIN"):\$PATH"
 _prompt=\$(cat '${prompt_file}')
-claude ${resume_flag:+${resume_flag} }--remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt "\$_prompt" 2>/dev/null || \
-claude --remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt "\$_prompt"
+_marker='${_marker_esc}'
+_start=\$(date +%s)
+claude ${resume_flag:+${resume_flag} }--remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt "\$_prompt" 2>/dev/null
+_rc=\$?
+if [[ \$_rc -ne 0 && \$(( \$(date +%s) - _start )) -lt 10 ]]; then
+    claude --remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt "\$_prompt"
+    _rc=\$?
+fi
+[[ \$_rc -eq 0 ]] && rm -f "\$_marker"
 LAUNCH_EOF
     chmod +x "$launch_script"
+
+    # A -d launch (and the caller-last restart handoff, which re-execs -d) is
+    # user-initiated, so clear any crash-loop history before bringing it up.
+    restore_state_clear "$LAUNCH_SESSION_NAME"
+
+    # Write the auto-restore marker before launching (no-op for the home session,
+    # which is launch-managed). A crash before the first clean exit keeps intent.
+    write_running_marker "$LAUNCH_DIR"
 
     # Create session using the script file — avoids shell injection via model_flag or session name
     "$TMUX_BIN" new-session -d -s "$LAUNCH_SESSION_NAME" -c "$LAUNCH_DIR" "bash '${launch_script}'"
 
     apply_tmux_options "$LAUNCH_SESSION_NAME"
     "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-managed 1 2>/dev/null
+    "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-dir "$LAUNCH_DIR" 2>/dev/null
 
     # Protect at launch if .claudemux-protected marker exists in working dir
     if [[ -f "$LAUNCH_DIR/.claudemux-protected" ]]; then
@@ -3775,6 +4009,103 @@ create_new_project() {
     fi
 }
 
+# Best-effort one-line notice to the home session. Only injected when home is at
+# an input prompt, so a busy home session is never interrupted; otherwise the log
+# (and the 'failed' status in -l) is the durable surface. Robust delivery is a
+# v2.2 (inter-agent messaging) concern; this is the lean v2.0 stand-in.
+notify_home() {
+    local msg="$1"
+    log "NOTICE (home): $msg"
+    [[ "$DRY_RUN" == "true" ]] && return 0
+    "$TMUX_BIN" has-session -t home 2>/dev/null || return 0
+    local _pane
+    _pane=$("$TMUX_BIN" capture-pane -t home -p 2>/dev/null | tail -5)
+    echo "$_pane" | grep -qE '^❯|^> ' || return 0   # only if home looks idle
+    "$TMUX_BIN" send-keys -t home -l "[claude-mux] $msg" 2>/dev/null \
+        && "$TMUX_BIN" send-keys -t home Enter 2>/dev/null
+}
+
+# Restore walk: relaunch sessions that should be alive but whose Claude has died
+# (reboot recovery and mid-day-crash watchdog are the same mechanism, differing
+# only in when the tick fires). Pure bash; runs after the home session is up.
+# Staggered so a reboot doesn't relaunch everything at once.
+autorestore_walk() {
+    [[ "$AUTORESTORE" == "true" ]] || return 0   # nothing to act on
+
+    discover_projects
+    local now; now=$(date +%s)
+
+    local candidates=() in_flight=0
+    local _proj _name _la
+    for _proj in "${PROJECT_DIRS[@]}" "${HIDDEN_PROJECT_DIRS[@]+"${HIDDEN_PROJECT_DIRS[@]}"}"; do
+        _name=$(sanitize_session_name "$(basename "$_proj")")
+        [[ -z "$_name" || "$_name" == "home" ]] && continue
+
+        # In-flight: any tracked session attempted within the window counts toward
+        # the concurrency cap, so successive ticks drain the backlog gradually.
+        _la=$(restore_state_last_attempt "$_name")
+        (( now - _la < STARTING_WINDOW )) && (( in_flight++ ))
+
+        # Carry last_attempt in the entry so the launch loop need not re-read it.
+        # name is sanitized [a-zA-Z0-9-] and _la is numeric, so '|' only delimits
+        # those two; the project dir is the middle field.
+        if should_be_alive "$_name" "$_proj" && ! claude_running_in_session "$_name"; then
+            candidates+=("${_name}|${_proj}|${_la}")
+        fi
+    done
+
+    [[ ${#candidates[@]} -eq 0 ]] && return 0
+
+    local slots=$(( STAGGER_CONCURRENCY - in_flight ))
+    (( slots <= 0 )) && { log "Auto-restore: ${#candidates[@]} session(s) down, all stagger slots in flight, deferring"; return 0; }
+
+    # Deterministic (sorted) order so behavior is reproducible across ticks.
+    local sorted
+    sorted=$(printf '%s\n' "${candidates[@]}" | sort)
+
+    local launched=0 entry name rest dir last dc uptime
+    while IFS= read -r entry; do
+        [[ -z "$entry" ]] && continue
+        (( launched >= slots )) && break
+        name="${entry%%|*}"
+        rest="${entry#*|}"
+        dir="${rest%|*}"
+        last="${rest##*|}"
+
+        # Crash-loop guard: judge survival since our last attempt. A death within
+        # MIN_HEALTHY of the last launch is a fast death (count it); surviving
+        # longer resets the counter. After a reboot last_attempt is stale (large
+        # uptime), and on a first-ever attempt there's no state file (0), so
+        # neither case trips on legitimate boot recovery.
+        dc=$(restore_state_death_count "$name")
+        if (( last > 0 )); then
+            uptime=$(( now - last ))
+            if (( uptime < AUTORESTORE_MIN_HEALTHY )); then
+                dc=$(( dc + 1 ))
+            else
+                dc=0
+            fi
+        fi
+
+        if (( dc >= AUTORESTORE_TRIP_THRESHOLD )); then
+            # Trip: stop restoring, keep the marker, surface it. should_be_alive()
+            # now returns false for this session, so it drops out next tick (one
+            # notice only). last_attempt is preserved for diagnostics.
+            restore_state_write "$name" "$last" "$dc" "true"
+            log "Auto-restore: '$name' crash-looped ${dc}x — tripped, will not relaunch"
+            notify_home "Session '$name' crash-looped ${dc}x and was stopped. Likely a poisoned transcript; say 'restart $name fresh' to recover."
+            continue
+        fi
+
+        restore_state_write "$name" "$now" "$dc" "false"
+        log "Auto-restore: relaunching '$name' ($dir)"
+        create_claude_session "$name" "$dir" "" false
+        (( launched++ ))
+    done <<< "$sorted"
+
+    log "Auto-restore: launched $launched of ${#candidates[@]} down session(s) this tick"
+}
+
 # Autolaunch dispatches to the appropriate command based on LAUNCHAGENT_MODE.
 # This is invoked by the LaunchAgent plist at login.
 autolaunch_dispatch() {
@@ -3796,6 +4127,9 @@ autolaunch_dispatch() {
             LAUNCH_SESSION_NAME="home"
             NO_ATTACH=true
             launch_single_session
+            # After home is up, restore any other sessions that should be alive
+            # but whose Claude has died (reboot recovery + mid-day watchdog).
+            autorestore_walk
             ;;
     esac
 }
@@ -3946,6 +4280,7 @@ case "$COMMAND" in
                 if [[ "$DRY_RUN" == "true" ]]; then
                     log "Would restart session '$_rs' in $_restart_dir${FRESH_START:+ (fresh start)}"
                 else
+                    restore_state_clear "$_rs"   # user restart un-trips a crash-looped session
                     shutdown_single_session "$_rs"
                     create_claude_session "$_rs" "$_restart_dir" "" "$FRESH_START"
                 fi
@@ -4013,6 +4348,7 @@ case "$COMMAND" in
                     while IFS='|' read -r _name _dir; do
                         [[ -z "$_name" ]] && continue
                         log "Restarting session '$_name' in $_dir"
+                        restore_state_clear "$_name"   # user restart un-trips crash-loop history
                         create_claude_session "$_name" "$_dir" "" "$FRESH_START"
                     done <<< "$_other_list"
 
@@ -4113,12 +4449,14 @@ case "$COMMAND" in
                     _sm_pane=$("$TMUX_BIN" capture-pane -t "$_sm" -p 2>/dev/null)
                     if ! echo "$_sm_pane" | tail -4 | grep -q "bypass permissions on"; then
                         log "WARN: bypassPermissions not confirmed for '$_sm', falling back to restart"
+                        restore_state_clear "$_sm"
                         shutdown_single_session "$_sm"
                         create_claude_session "$_sm" "$_sm_dir" "$SETMODE_VALUE"
                     fi
                 fi
             else
                 log "Restarting session '$_sm' in $_sm_dir with mode '$SETMODE_VALUE'"
+                restore_state_clear "$_sm"
                 shutdown_single_session "$_sm"
                 create_claude_session "$_sm" "$_sm_dir" "$SETMODE_VALUE"
             fi

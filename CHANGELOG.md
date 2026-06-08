@@ -4,6 +4,16 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **Auto-restore (self-healing)**: the keystone of the v2.0 self-healing milestone. Sessions now record a `.claudemux-running` marker, and the LaunchAgent tick (re-fired ~every 60s) brings back any session that should be alive but whose Claude process has died. One mechanism covers both reboot recovery and a mid-day-crash watchdog (zombies included, since liveness is a process-tree check, not `tmux has-session`).
+  - A clean in-pane `/exit` (or `--shutdown`) removes the marker so the session stays down; a crash or kill leaves it, so the tick restores it. The generated launch script distinguishes a resume-that-failed-to-start (retried fresh within ~10s) from a real crash.
+  - **Crash-loop guard**: after 3 fast deaths (within 5 min of a restore attempt) a session is tripped, shown as `failed` in `-l`, with a one-shot notice to the home session; say "restart X fresh" to recover. State lives in `~/.claude-mux/restore-state/`.
+  - **Staggering** via `STAGGER_CONCURRENCY` (default 3) per `STARTING_WINDOW` (default 90s) avoids a reboot thundering-herd; home is launched first.
+  - New config: `AUTORESTORE` (default `true`), `STAGGER_CONCURRENCY`, `STARTING_WINDOW`. New `-l` statuses: `queued` and `failed`.
+
+### Changed
+- **Behavior change**: a crashed session or `tmux kill-session` now resurrects within ~60s while `AUTORESTORE` is on. To truly stop a session, use a clean `/exit` or `claude-mux --shutdown` (both remove the marker), or set `AUTORESTORE=false`.
+
 ## [1.15.1] - 2026-06-05
 
 ### Added

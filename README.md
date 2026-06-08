@@ -42,7 +42,7 @@ Remote Control promises Claude Code from anywhere - but without session manageme
 - **Access everything from anywhere** - every session has Remote Control enabled, so the Claude mobile app, desktop app, or any remote client is a full interface
 - **Switch models and permission modes** - say "switch to Haiku" or "switch to plan mode" and Claude handles it, even over Remote Control
 - **Create new projects** - "create a new project called my-app" sets up the directory, git, CLAUDE.md, and launches a session. CLAUDE.md templates let you reuse instructions across projects.
-- **Keep sessions alive across reboots** - an optional home session launches at login and stays running; all sessions resume their last conversation automatically
+- **Self-heal after reboots and crashes** - sessions that should be alive are automatically brought back (resuming their last conversation) after a reboot, crash, or kill, staggered to avoid a thundering herd. A clean `/exit` or shutdown keeps a session down; a crash-looping session is stopped and flagged instead of restarted forever. On by default via the login agent; toggle with `AUTORESTORE`.
 - **Send slash commands over Remote Control** - Claude routes `/model`, `/compact`, `/clear`, and other slash commands to the running session, working around a [known limitation](https://github.com/anthropics/claude-code/issues/30674)
 - **Preserve conversation history** - renaming, moving, and restarting projects all preserve conversation history automatically
 - **Organize projects** - hide, rename, move, delete, and protect projects from inside any session

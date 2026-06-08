@@ -93,6 +93,25 @@
 # Default: sonnet
 #HOME_SESSION_MODEL="sonnet"
 
+# ── Auto-restore (self-healing) ─────────────────────────────────────────────────
+
+# When true, the LaunchAgent tick restores sessions that should be alive (those
+# with a .claudemux-running marker) but whose Claude process has died, after a
+# reboot or a mid-day crash. Markers are always written/removed; this only gates
+# whether the tick acts on them. A clean in-pane /exit (or --shutdown) removes the
+# marker so the session stays down. Set false to disable self-healing.
+# Default: true
+#AUTORESTORE=true
+
+# Max sessions the restore tick launches per STARTING_WINDOW (thundering-herd cap
+# after a reboot). Mainly API-burst insurance; local cost is small.
+# Default: 3
+#STAGGER_CONCURRENCY=3
+
+# Window (seconds) over which STAGGER_CONCURRENCY is counted.
+# Default: 90
+#STARTING_WINDOW=90
+
 # ── Batch mode ────────────────────────────────────────────────────────────────
 
 # Seconds to wait between launching each session.

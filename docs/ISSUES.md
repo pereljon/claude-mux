@@ -268,6 +268,8 @@ Design posture: don't interfere with agent team lifecycle - that's Claude Code's
 
 ### Auto-restore running sessions after reboot
 
+**STATUS: IMPLEMENTED 2026-06-08 (pending release).** Built per `docs/features/auto-restore.md`; reviewed (3 CRITICAL / 3 HIGH / 2 MEDIUM addressed). Docs synced (CODEMAP, SKELETON, spec, CHANGELOG `[Unreleased]`). Not yet deployed to `~/bin` or run through the manual reboot/crash E2E. Implementation notes diverging from the original sketch below: shutdown/status resolve the marker dir via a new `@claude-mux-dir` tmux option (not `pane_current_path`); a user restart/`-d`/setmode clears restore-state to un-trip a crash-looped session; the marker path is single-quote-escaped in the launch wrapper.
+
 Persist running-session state to a per-project marker file so the LaunchAgent can restore the user's working set after a reboot or crash.
 
 **Marker:** `.claudemux-running` in each project folder.
