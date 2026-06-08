@@ -228,6 +228,8 @@ Claude Code was upgraded since this session started; say "restart this session" 
 
 It is notify-only: claude-mux never restarts the session or upgrades Claude Code for you. Say "restart this session" to load the new binary.
 
+Note: the first launch of a freshly-upgraded `claude` binary may need a one-time macOS trust approval (Gatekeeper's "downloaded from the internet" dialog), which can stall a non-interactive restart or the auto-restore tick. See the FAQ: "After upgrading Claude Code, a session won't relaunch / seems stuck on first launch?".
+
 ## Update Check
 
 claude-mux checks GitHub for newer releases and surfaces them three ways: a one-line notice in the terminal, an "Update available" line injected into each session's system prompt at launch (shown in the block above), and - as of v1.15.0 - an in-conversation notice injected per prompt by the `UserPromptSubmit` hook (the only path that reaches a running session, including Remote Control). The whole mechanism is gated by the `UPDATE_CHECK` config option (default `true`).

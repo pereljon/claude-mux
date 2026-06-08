@@ -138,6 +138,16 @@
 
 Small UX work pulled out of the v2.0 milestone to ship under the lifted feature freeze. Each patch is bumped as a minor (x.Y.0) since they add new behavior, not bug fixes.
 
+### Launch-wrapper hardening
+
+**STATUS: BUILT + live-verified 2026-06-08; English docs done; CODE REVIEW NOT YET RUN; UNCOMMITTED.** Ships with the v2.0 release (no separate feature doc). Three changes to both generated launch heredocs (`create_claude_session`, `launch_single_session`):
+
+1. **Prompt out of `ps`** - pass the system prompt via `--append-system-prompt-file '<prompt_file>'` (path, not the expanded text) on both the primary and resume-fail `claude` invocations; drop the `_prompt=$(cat ...)` line. Verified: claude argv shows only the path; claude reads the file once at startup (deleting it mid-session left the injected instruction in effect). Assumes the flag is supported (current Claude Code has it; older `claude` would fail to launch).
+2. **Delete the prompt temp file after the ready handshake** - the caller `rm -f "$prompt_file"` once `poll_until_ready` returns (synchronous in `create_claude_session`; in the backgrounded subshell in `launch_single_session`). Shrinks on-disk lifetime to the startup window; the launch script `trap` is the backstop.
+3. **Kill the tmux session on a clean `/exit` (rc 0)** - the wrapper's clean-exit branch removes the marker + temp files and `kill-session`s, fixing the `create_claude_session` lingering shell-prompt pane. Only on rc 0; a crash leaves the pane + marker for the restore tick. A clean `/exit` of home kills it, then the LaunchAgent restarts it (~60s).
+
+Pending: code review, commit, deploy. The launch-wrapper review agent was started then rejected (unrelated: reviewing agent token spend), so it has not run.
+
 ### v1.14.0 - Launch and restart transparency
 
 **Status: Shipped (released as v1.14.0).**

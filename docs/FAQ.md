@@ -123,6 +123,18 @@ After upgrading, restart sessions to pick up the updated injection and activate 
 
 Avoid running `brew upgrade claude-mux` directly from a terminal and skipping the restart step - sessions will be running with a mismatched injection prompt and without crash/reboot protection. See the guide's "Updating and upgrading" section for the full picture (including Claude Code binary upgrades).
 
+## After upgrading Claude Code, a session won't relaunch / seems stuck on first launch?
+
+When the `claude` binary itself is upgraded (Homebrew, npm, a fresh download), macOS may mark the new copy as downloaded from the internet and show a Gatekeeper trust dialog the first time it runs. Because claude-mux restarts and auto-restores sessions non-interactively (the LaunchAgent tick has no one watching), that first launch can stall waiting for an approval nobody sees.
+
+If a session does not come up right after a Claude Code upgrade, launch `claude` once in a normal terminal and approve the dialog, or clear the quarantine flag on the binary:
+
+```bash
+xattr -dr com.apple.quarantine "$(realpath "$(command -v claude)")"
+```
+
+After approving once, subsequent launches (including auto-restore) work normally. (Homebrew often strips quarantine automatically, so this mainly affects direct downloads.)
+
 ## Why does Remote Control disconnect when a session restarts?
 
 RC connections are tied to the tmux session process. When a session is restarted (via `--restart`, `--update`, or a crash), the session process dies and the RC connection drops.
@@ -133,9 +145,12 @@ The session comes back on its own within ~5-10 seconds. Just reconnect RC manual
 
 ```bash
 brew tap pereljon/tap
+brew trust pereljon/tap
 brew install claude-mux
 claude-mux --install
 ```
+
+Run `brew trust pereljon/tap` once. Recent Homebrew skips updating untrusted third-party taps (`Warning: Skipping pereljon/tap because it is not trusted` on `brew update`), which would stop `brew upgrade claude-mux` from seeing new releases.
 
 Update with `brew upgrade claude-mux`. Note: if you installed via Homebrew, `--update` delegates to `brew upgrade` automatically.
 

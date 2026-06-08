@@ -195,7 +195,7 @@ Optional third argument `mode_override` overrides the permission mode for the la
 
 Optional fourth argument `fresh_start` (default `false`): when `true`, omits `-c` from the Claude launch command so Claude Code starts a new conversation instead of resuming the last one. Used by `--restart --fresh`.
 
-Builds a system prompt via `build_system_prompt(session_name, permission_mode)` and passes it via `--append-system-prompt`. The permission mode is passed so Claude can include it in the ready response. The prompt has a header, rules section, and commands section.
+Builds a system prompt via `build_system_prompt(session_name, permission_mode)` and passes it via `--append-system-prompt-file <temp-path>` (the path, not the expanded text, so the prompt is not visible in `ps`). The permission mode is passed so Claude can include it in the ready response. The prompt has a header, rules section, and commands section.
 
 **Header** — environment context:
 ```
@@ -249,12 +249,22 @@ If GitHub SSH accounts are found in `~/.ssh/config`, an additional line is appen
 
 When `ALLOW_CROSS_SESSION_CONTROL=false` (default), the send command note says "to yourself". When `true`, it says "to yourself or any other Claude session".
 
-Writes the launch command to a temp script (`${TMPDIR:-/tmp}/claude-launch-XXXXXX`) and the system prompt to a separate temp file (`${TMPDIR:-/tmp}/claude-prompt-XXXXXX`) to avoid quoting complexity. The temp script uses `trap EXIT` to guarantee self-cleanup. Sends the temp script path to the tmux pane via `send-keys`. Sleeps `SLEEP_BETWEEN` seconds after launching.
+Writes the launch command to a temp script (`${TMPDIR:-/tmp}/claude-launch-XXXXXX`) and the system prompt to a separate `chmod 600` temp file (`${TMPDIR:-/tmp}/claude-prompt-XXXXXX`). The temp script uses `trap EXIT` as a cleanup backstop. Sends the temp script path to the tmux pane via `send-keys`. After the ready handshake the caller deletes the prompt file (Claude has read it at startup). Sleeps `SLEEP_BETWEEN` seconds after launching during `-a`.
 
-Launch command inside temp script (with `$perm_flags` expanded at write time):
+Launch command inside temp script (with `$perm_flags`/marker path expanded at write time). The system prompt is passed by file path (`--append-system-prompt-file`), so it is not visible in `ps`. The wrapper distinguishes a resume-that-failed-to-start (non-zero within ~10s → retry fresh) from a real crash, and on a clean exit (rc 0) removes the marker + temp files and tears down the tmux session:
 ```bash
-claude -c --remote-control <perm_flags> --name '<session_name>' --append-system-prompt '<prompt>' 2>/dev/null || \
-claude --remote-control <perm_flags> --name '<session_name>' --append-system-prompt '<prompt>'
+_marker='<working_dir>/.claudemux-running'   # single-quote-escaped
+_start=$(date +%s)
+claude -c --remote-control <perm_flags> --name '<session>' --append-system-prompt-file '<prompt-file>' 2>/dev/null
+_rc=$?
+if [[ $_rc -ne 0 && $(( $(date +%s) - _start )) -lt 10 ]]; then
+    claude --remote-control <perm_flags> --name '<session>' --append-system-prompt-file '<prompt-file>'
+    _rc=$?
+fi
+if [[ $_rc -eq 0 ]]; then            # clean /exit or Ctrl-C x2 = intent to stop
+    rm -f "$_marker" '<launch-script>' '<prompt-file>'
+    tmux kill-session -t '<session>'  # no lingering shell pane; crash leaves it for the tick
+fi
 ```
 
 After sending the launch command, the script waits for Claude to be genuinely ready via `poll_until_ready` (shared by both launch paths). It auto-accepts the workspace trust prompt and the bypassPermissions warning (option 1 / "Yes, I accept"), then treats the session as ready only when it is not busy (the status line lacks `esc to interrupt` in its bottom lines), a prompt is drawn, and the pane is quiescent (two captures >=1.1s apart match). This avoids the old bug where the `❯` prompt is drawn during a resume-time auto-compaction (~50s) so `Ready?` misfired against the 10s timeout; the timeout is now ~120s. When ready (or on timeout) it sends `Ready?` and expects Claude to respond with "Session ready!" followed by "Running [model] in [mode] mode." All managed directories are the user's own projects. `create_claude_session` runs this synchronously; `launch_single_session` runs it backgrounded so attach is not blocked.

@@ -124,6 +124,8 @@ Auto-restore activates per session **at launch**, not passively. Deploying the n
 
 **The tick does not backfill markers onto running sessions.** `autorestore_walk` only relaunches sessions that should be alive but are *dead*; a running unmarked session has no marker, so `should_be_alive()` is false and it's skipped. And dropping a bare marker onto an old-wrapper session would be unsafe: its old launch script has no clean-exit removal, so a clean `/exit` wouldn't clear the marker and the tick would wrongly resurrect it. Correctness requires the marker **and** the new wrapper together, which only a relaunch provides. (The already-running-skip branches do call `write_running_marker` as a secondary safety net for idempotent `create_claude_session`/`launch_single_session` touches, but that is not the primary activation and is incomplete until relaunch.)
 
+**Operational caveat (macOS Gatekeeper):** a freshly-upgraded `claude` binary may be quarantined ("downloaded from the internet"), so its first launch can stall on a trust dialog. Since the restore tick launches non-interactively, that can hang a restore right after a Claude Code upgrade. Fix: approve `claude` once interactively, or `xattr -dr com.apple.quarantine <claude>`. See the FAQ entry "After upgrading Claude Code, a session won't relaunch / seems stuck on first launch?".
+
 **Consequence:** deploy *and* restart-all must happen together (as `update claude-mux` does in one shot). If you deploy but don't restart, a reboot before the first restart loses the still-unmarked running sessions. Home picks up the new tmux options from the tick within ~60s but never gets a marker (the LaunchAgent always starts home).
 
 ## Extension point: auto-startup (out of scope)

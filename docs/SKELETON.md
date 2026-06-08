@@ -271,17 +271,19 @@ write prompt → /tmp/claude-prompt-XXXXX
 _marker_esc = single-quote-escaped "working_dir/.claudemux-running"
 write launch script → /tmp/claude-launch-XXXXX:
   #!/bin/bash
-  trap cleanup EXIT
-  _prompt=$(cat prompt_file)
+  trap cleanup EXIT                        # backstop temp-file cleanup
   _marker='{_marker_esc}'
   _start=$(date +%s)
   claude {resume} --remote-control {perm} \
     --allow-dangerously-skip-permissions \
-    --name name --append-system-prompt "$_prompt"
+    --name name --append-system-prompt-file prompt_file   # path, not text → not in ps
   _rc=$?
   if rc != 0 AND (now - _start) < 10:     # resume failed to start → retry fresh
     claude (same, without -c) ; _rc=$?
-  [[ _rc == 0 ]] && rm -f "$_marker"       # clean quit (exit 0) → stay dead
+  if _rc == 0:                            # clean quit (/exit, Ctrl-C x2): intent to stop
+    rm -f "$_marker" launch_script prompt_file
+    tmux kill-session -t name             # full teardown (no lingering shell pane)
+  # crash (non-zero) leaves pane+marker for the tick.
   # claude stays a DIRECT child of this script (no subshell) so the
   # 2-level claude_running_in_session check still finds it
 
@@ -292,6 +294,7 @@ tmux send-keys name "bash launch_script" + Enter
 # AND waits out a resume-compaction (busy = "esc to interrupt" in bottom 4 lines;
 # ready = not busy + prompt + quiescent). See poll_until_ready section.
 poll_until_ready(name)        # returns 0 ready / 1 timeout (~120s); logs WARN on timeout
+rm -f prompt_file             # read at startup; delete now (trap is backstop)
 send "Ready?" + Enter         # sent whether ready or timeout (fallback preserved)
 
 # (Tips are no longer sent here. As of v1.15.0 the daily tip and update notice
@@ -330,10 +333,12 @@ write launch script → tmp file:
   _marker='{_marker_esc}' ; _start=$(date +%s)
   claude {resume} --remote-control --permission-mode auto \
     --allow-dangerously-skip-permissions {model_flag} \
-    --name session --append-system-prompt "$prompt"
+    --name session --append-system-prompt-file prompt_file   # path, not text → not in ps
   _rc=$?
   if rc != 0 AND (now - _start) < 10: claude (no -c) ; _rc=$?   # resume-fail → fresh
-  [[ _rc == 0 ]] && rm -f "$_marker"                             # clean quit → stay dead
+  if _rc == 0:                                                  # clean quit → stay dead
+    rm -f "$_marker" launch_script prompt_file
+    tmux kill-session -t session                               # teardown (home then relaunched by agent)
 
 restore_state_clear(LAUNCH_SESSION_NAME)   # -d / caller-restart is user-initiated → un-trip
 write_running_marker(LAUNCH_DIR)            # no-op for home (BASE_DIR)
@@ -349,7 +354,7 @@ if .claudemux-protected exists in dir:
   set @claude-mux-protected = 1
 
 # Backgrounded ready handshake (does not block attach):
-( poll_until_ready(LAUNCH_SESSION_NAME) || true ; send "Ready?" + Enter ) &
+( poll_until_ready(LAUNCH_SESSION_NAME) || true ; rm -f prompt_file ; send "Ready?" + Enter ) &
 ```
 
 ---
@@ -712,3 +717,5 @@ exit 0
 - `should_be_alive()` is the single predicate behind both the restore walk and the `-l` status, so the listing never promises a restore the tick won't perform.
 - `--autolaunch`/`autorestore_walk` must stay one-shot; launchd re-fires it (~60s via `KeepAlive`+`ThrottleInterval=60`), so an internal loop would break the watchdog.
 - The launch wrapper keeps `claude` a direct child of the launch script (no extra subshell), so `claude_running_in_session`'s 2-level process-tree check still finds it.
+- The system prompt is delivered via `--append-system-prompt-file <path>` (not `--append-system-prompt "<text>"`), so it never appears in `ps`. The prompt temp file is deleted right after the ready handshake (Claude reads it once at startup); the `trap` is the backstop.
+- A clean in-pane `/exit` (rc 0) tears down the tmux session (`kill-session`), matching `--shutdown`; a crash (non-zero) deliberately leaves the pane so the restore tick can relaunch into it.

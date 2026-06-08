@@ -24,9 +24,12 @@ claude-mux --update     # works from inside any session, or from the terminal
 
 ```bash
 brew tap pereljon/tap
+brew trust pereljon/tap   # see note below
 brew install claude-mux
 claude-mux --install
 ```
+
+**Trust the tap.** Recent Homebrew skips updating untrusted third-party taps, printing `Warning: Skipping pereljon/tap because it is not trusted` on `brew update`. Until you run `brew trust pereljon/tap`, Homebrew won't refresh the tap, so `brew update` / `brew upgrade claude-mux` won't see new releases. This is a one-time, per-tap step.
 
 To update:
 

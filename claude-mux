@@ -2893,23 +2893,37 @@ create_claude_session() {
     # from a session that ran then crashed (leave the marker for the tick). A
     # non-zero exit within the first ~10s means resume never came up → fresh
     # fallback; a non-zero exit after that is a real crash. A clean exit (rc 0,
-    # i.e. /exit or Ctrl-C ×2) removes the marker so the session stays down.
+    # i.e. /exit or Ctrl-C ×2) removes the marker and tears down the tmux session.
+    # The system prompt is passed via --append-system-prompt-file (path, not the
+    # expanded text) so it is not visible in `ps`; the file is deleted after the
+    # ready handshake (caller) with this trap as a backstop.
     # Keep claude a direct child of this script (no extra subshell) so
     # claude_running_in_session's 2-level check still finds it.
     cat > "$launch_script" << LAUNCH_EOF
 #!/bin/bash
 trap 'rm -f "${launch_script}" "${prompt_file}"' EXIT
 export PATH="$(dirname "$CLAUDE_BIN"):\$PATH"
-_prompt=\$(cat '${prompt_file}')
 _marker='${_marker_esc}'
 _start=\$(date +%s)
-claude ${resume_flag:+${resume_flag} }--remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt "\$_prompt" 2>/dev/null
+# Primary resume: stderr suppressed (we react via exit code only).
+claude ${resume_flag:+${resume_flag} }--remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt-file '${prompt_file}' 2>/dev/null
 _rc=\$?
 if [[ \$_rc -ne 0 && \$(( \$(date +%s) - _start )) -lt 10 ]]; then
-    claude --remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt "\$_prompt"
+    # Last-resort fresh fallback: stderr left visible on purpose so a real failure
+    # surfaces in the pane and the log.
+    claude --remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt-file '${prompt_file}'
     _rc=\$?
 fi
-[[ \$_rc -eq 0 ]] && rm -f "\$_marker"
+if [[ \$_rc -eq 0 ]]; then
+    # Clean exit (/exit or Ctrl-C x2): intent to stop. Remove the marker + temp
+    # files BEFORE the kill-session, so SIGHUP from kill-session can't interrupt
+    # cleanup mid-way (rm runs sequentially first; trap EXIT is harmless backstop).
+    # Then tear down the tmux session so it does not linger as a shell prompt
+    # (this pane is an interactive shell). A crash (non-zero) leaves the pane and
+    # marker so the restore tick resurrects it.
+    rm -f "\$_marker" '${launch_script}' '${prompt_file}'
+    '${TMUX_BIN}' kill-session -t '${session_name}' 2>/dev/null
+fi
 LAUNCH_EOF
     chmod +x "$launch_script"
 
@@ -2931,6 +2945,10 @@ LAUNCH_EOF
     if ! poll_until_ready "$session_name"; then
         log "WARN: '$session_name' not confirmed ready within timeout, sending Ready? anyway"
     fi
+    # Claude has read the prompt file at startup by now (including the resume-fail
+    # fresh fallback, which runs within ~10s). Delete it so it does not linger;
+    # the launch script's trap is the backstop.
+    rm -f "$prompt_file" 2>/dev/null
     "$TMUX_BIN" send-keys -t "$session_name" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
 
     # Protect at launch if .claudemux-protected marker exists in working dir
@@ -3196,23 +3214,31 @@ launch_single_session() {
     # Single-quote-escape the marker path (see create_claude_session).
     local _esc_dir; _esc_dir=${LAUNCH_DIR//\'/\'\\\'\'}
     local _marker_esc="${_esc_dir}/.claudemux-running"
-    # Exit-code wrapper: same clean-quit-vs-crash logic as create_claude_session.
-    # For the home session LAUNCH_DIR is BASE_DIR (no marker written), so the
-    # marker rm is a harmless no-op there.
+    # Exit-code wrapper + prompt-file delivery + clean-exit teardown, same as
+    # create_claude_session. For the home session LAUNCH_DIR is BASE_DIR (no marker
+    # written), so the marker rm is a harmless no-op; the kill-session means a clean
+    # /exit of home tears it down (the LaunchAgent then restarts it, as home is always-on).
     cat > "$launch_script" << LAUNCH_EOF
 #!/bin/bash
 trap 'rm -f "${launch_script}" "${prompt_file}"' EXIT
 export PATH="$(dirname "$CLAUDE_BIN"):\$PATH"
-_prompt=\$(cat '${prompt_file}')
 _marker='${_marker_esc}'
 _start=\$(date +%s)
-claude ${resume_flag:+${resume_flag} }--remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt "\$_prompt" 2>/dev/null
+# Primary resume: stderr suppressed (we react via exit code only).
+claude ${resume_flag:+${resume_flag} }--remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt-file '${prompt_file}' 2>/dev/null
 _rc=\$?
 if [[ \$_rc -ne 0 && \$(( \$(date +%s) - _start )) -lt 10 ]]; then
-    claude --remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt "\$_prompt"
+    # Last-resort fresh fallback: stderr left visible on purpose for diagnosis.
+    claude --remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt-file '${prompt_file}'
     _rc=\$?
 fi
-[[ \$_rc -eq 0 ]] && rm -f "\$_marker"
+if [[ \$_rc -eq 0 ]]; then
+    # Clean exit: remove marker (no-op for home/BASE_DIR) + temp files BEFORE the
+    # kill-session, so SIGHUP can't interrupt cleanup mid-way (rm runs sequentially
+    # first; trap EXIT is harmless backstop). Crash leaves it for the restore tick.
+    rm -f "\$_marker" '${launch_script}' '${prompt_file}'
+    '${TMUX_BIN}' kill-session -t '${LAUNCH_SESSION_NAME}' 2>/dev/null
+fi
 LAUNCH_EOF
     chmod +x "$launch_script"
 
@@ -3243,6 +3269,7 @@ LAUNCH_EOF
     # "Ready?". Backgrounded so the longer ready-wait never blocks attach.
     (
         poll_until_ready "$LAUNCH_SESSION_NAME" || true
+        rm -f "$prompt_file" 2>/dev/null   # read at startup; delete (trap is backstop)
         "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
     ) &
 
