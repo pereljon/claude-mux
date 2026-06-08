@@ -1,6 +1,6 @@
 # claude-mux Code Map
 
-Navigation reference for the `claude-mux` script. Use this to locate functions and config vars. For logic and control flow, see `docs/SKELETON.md`.
+Navigation reference for the `claude-mux` script. Use this to locate functions and config vars. For logic and control flow, see `docs/dev/SKELETON.md`.
 
 **Current version:** 1.15.1 (~4540 lines)
 

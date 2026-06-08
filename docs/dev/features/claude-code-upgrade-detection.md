@@ -86,5 +86,5 @@ print _out (if any); exit 0
 - New tmux option `@claude-mux-claude-id` set in `create_claude_session` + `launch_single_session` (both new and backfill branches) -> CODEMAP tmux-options table.
 - Modified: `on_prompt` (call detection before the cheap-guard; prepend notice) -> CODEMAP/SKELETON.
 - No new config var, no new marker, no version-string dependency.
-- Docs: CODEMAP, SKELETON, CHANGELOG `[Unreleased]`, implentation-spec, ISSUES status note.
+- Docs: CODEMAP, SKELETON, CHANGELOG `[Unreleased]`, implementation-spec, ISSUES status note.
 - Injection: unchanged (the notice is delivered by the hook, not the system prompt).

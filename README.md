@@ -132,9 +132,8 @@ Claude: prints the full list of conversational commands
 ## More
 
 - [CLI Reference](docs/CLI.md) - full command reference for scripting and automation
-- [Guide](docs/guide.md) - configuration, session details, internals, and troubleshooting
+- [Guide](docs/GUIDE.md) - configuration, session details, internals, and troubleshooting
 - [Installation Options](docs/INSTALL.md) - Homebrew, manual install, LaunchAgent setup
 - [FAQ](docs/FAQ.md) - common questions about claude-mux
 - [Known Issues](docs/ISSUES.md) - open bugs, planned features, and resolved issues
 - [Changelog](CHANGELOG.md) - what changed per release
-- [Resilio Sync Guide](docs/resilio-sync-guide.md) - access your project files remotely from iOS, Android, or any device

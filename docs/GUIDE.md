@@ -236,7 +236,7 @@ claude-mux checks GitHub for a newer release about once a day and surfaces it th
 
 Set `UPDATE_CHECK=false` in `~/.claude-mux/config` to turn the whole thing off; `--update` still works on demand. The repo `pereljon/claude-mux` is hardcoded, so forks should disable the check or edit the relevant functions (see the FAQ).
 
-For the internals (the `~/.claude-mux/.update-check` cache and its fields, the daily TTY check, the disowned background refresh and its atomic lock, the per-session 7-day notice throttle, the launch-time version injection, and how `--update` validates and applies the new script) see `implentation-spec.md`, under "Tip and update delivery: the UserPromptSubmit hook".
+For the internals (the `~/.claude-mux/.update-check` cache and its fields, the daily TTY check, the disowned background refresh and its atomic lock, the per-session 7-day notice throttle, the launch-time version injection, and how `--update` validates and applies the new script) see `docs/dev/IMPLEMENTATION-SPEC.md`, under "Tip and update delivery: the UserPromptSubmit hook".
 
 ## Troubleshooting
 

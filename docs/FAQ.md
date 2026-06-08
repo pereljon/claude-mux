@@ -107,7 +107,7 @@ The update check and `--update` command hardcode `pereljon/claude-mux` as the Gi
 
 Remote Control gives you access to the session - you can talk to Claude from the Claude mobile app from anywhere. But files Claude creates or modifies stay on your desktop.
 
-[Resilio Sync](docs/resilio-sync-guide.md) is a peer-to-peer sync tool that complements this well. Sync your Claude projects folder to your mobile device and you can read outputs, open files, and review notes alongside the RC session - no cloud service required. It has native apps for iOS, Android, macOS, Windows, and Linux. Syncthing is an open-source alternative but has no native iOS app.
+A peer-to-peer sync tool like [Resilio Sync](https://www.resilio.com/sync/) or [Syncthing](https://syncthing.net/) complements this well: sync your Claude projects folder to your mobile device and you can read outputs, open files, and review notes alongside the RC session, with no cloud service required. Resilio has native apps for iOS, Android, macOS, Windows, and Linux; Syncthing is open-source but has no native iOS app.
 
 ## Why don't running sessions pick up changes after `brew upgrade`?
 

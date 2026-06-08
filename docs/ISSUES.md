@@ -218,7 +218,7 @@ These are bug-fix patches (x.y.Z), not planned UX minors, so they're tracked in 
 - **Missing/malformed session_id:** run the hook with empty or missing stdin and confirm it exits cleanly without error and produces no output.
 - **RC visibility:** confirm the tip and update notice text actually appear in a Remote Control session (the whole point of this change).
 
-**Touches:** `setup_claude_mux_permissions` (install/remove the UserPromptSubmit hook instead of the Stop hook), `tipotd` dispatch + early-exit (~614-620), `tip_of_day`, `check_for_update`/`get_version_prompt_lines`, new `--update-check-bg` dispatch, config (`TIP_OF_DAY`, `UPDATE_CHECK`), plus docs: implentation-spec.md, docs/CODEMAP.md, docs/SKELETON.md, docs/guide.md, CHANGELOG.md, config.example, README, install.sh. (Not CLAUDE.md - tips are a feature, documented in the spec.)
+**Touches:** `setup_claude_mux_permissions` (install/remove the UserPromptSubmit hook instead of the Stop hook), `tipotd` dispatch + early-exit (~614-620), `tip_of_day`, `check_for_update`/`get_version_prompt_lines`, new `--update-check-bg` dispatch, config (`TIP_OF_DAY`, `UPDATE_CHECK`), plus docs: docs/dev/IMPLEMENTATION-SPEC.md, docs/dev/CODEMAP.md, docs/dev/SKELETON.md, docs/GUIDE.md, CHANGELOG.md, config.example, README, install.sh. (Not CLAUDE.md - tips are a feature, documented in the spec.)
 
 **Code review (2026-06-05) - resolved:** lock race fixed with an atomic `mkdir` directory lock; update throttle made version-aware (`notify_version` in per-session state); per-prompt read path reduced from 3 python3 calls to 2 by merging the stdin-parse and state-read into one call; missing-`matcher` flag verified a non-issue (UserPromptSubmit takes no matcher). The "missing matcher", empty-`session_id`, empty-`tip_date`-on-failure, and `version_gt`-on-cache findings were confirmed safe-as-written.
 
@@ -240,7 +240,7 @@ These are bug-fix patches (x.y.Z), not planned UX minors, so they're tracked in 
 
 **Hook-type growth note:** this is a third hook type (Stop going away in v1.15.0; UserPromptSubmit for tips/updates in v1.15.0; PreCompact here). `setup_claude_mux_permissions` must manage all of them in `.claude/settings.local.json`. Be deliberate about the growth.
 
-**Touches:** `setup_claude_mux_permissions` (register/remove PreCompact hook), the `-s` `/compact` special case (~3750, remove or simplify), a new dispatch entry for the hook, docs: implentation-spec.md, docs/CODEMAP.md, docs/SKELETON.md, docs/guide.md, CHANGELOG.md, README, install.sh. Relates to the `/compact hangs RC connection` entry above.
+**Touches:** `setup_claude_mux_permissions` (register/remove PreCompact hook), the `-s` `/compact` special case (~3750, remove or simplify), a new dispatch entry for the hook, docs: docs/dev/IMPLEMENTATION-SPEC.md, docs/dev/CODEMAP.md, docs/dev/SKELETON.md, docs/GUIDE.md, CHANGELOG.md, README, install.sh. Relates to the `/compact hangs RC connection` entry above.
 
 **Sequence:** independent of v1.15.0 (different hook); order between them is flexible.
 
@@ -278,7 +278,7 @@ Design posture: don't interfere with agent team lifecycle - that's Claude Code's
 
 ### Auto-restore running sessions after reboot
 
-**STATUS: IMPLEMENTED 2026-06-08 (pending release).** Built per `docs/features/auto-restore.md`; reviewed (3 CRITICAL / 3 HIGH / 2 MEDIUM addressed). Docs synced (CODEMAP, SKELETON, spec, CHANGELOG `[Unreleased]`). Not yet deployed to `~/bin` or run through the manual reboot/crash E2E. Implementation notes diverging from the original sketch below: shutdown/status resolve the marker dir via a new `@claude-mux-dir` tmux option (not `pane_current_path`); a user restart/`-d`/setmode clears restore-state to un-trip a crash-looped session; the marker path is single-quote-escaped in the launch wrapper.
+**STATUS: IMPLEMENTED 2026-06-08 (pending release).** Built per `docs/dev/features/auto-restore.md`; reviewed (3 CRITICAL / 3 HIGH / 2 MEDIUM addressed). Docs synced (CODEMAP, SKELETON, spec, CHANGELOG `[Unreleased]`). Not yet deployed to `~/bin` or run through the manual reboot/crash E2E. Implementation notes diverging from the original sketch below: shutdown/status resolve the marker dir via a new `@claude-mux-dir` tmux option (not `pane_current_path`); a user restart/`-d`/setmode clears restore-state to un-trip a crash-looped session; the marker path is single-quote-escaped in the launch wrapper.
 
 Persist running-session state to a per-project marker file so the LaunchAgent can restore the user's working set after a reboot or crash.
 
@@ -412,7 +412,7 @@ Roughly 3 sessions per ~90s window; a 20-session set recovers in a few minutes, 
 
 ### Claude Code upgrade detection
 
-**STATUS: IMPLEMENTED 2026-06-08 (pending release).** Built per `docs/features/claude-code-upgrade-detection.md`; English docs synced (CODEMAP, SKELETON, spec, CHANGELOG `[Unreleased]`). Live-verified (notice fires on a stale `@claude-mux-claude-id`, acks one-shot, quiet thereafter; pre-feature session skips). Implementation matches the design below, with the refinement that one-shot gating is the acknowledge-write to `@claude-mux-claude-id` (no new JSON state field), and the binary id lives in that tmux option (re-captured at launch) rather than the conversation-keyed state, so a restart self-clears. Not yet deployed to `~/bin`.
+**STATUS: IMPLEMENTED 2026-06-08 (pending release).** Built per `docs/dev/features/claude-code-upgrade-detection.md`; English docs synced (CODEMAP, SKELETON, spec, CHANGELOG `[Unreleased]`). Live-verified (notice fires on a stale `@claude-mux-claude-id`, acks one-shot, quiet thereafter; pre-feature session skips). Implementation matches the design below, with the refinement that one-shot gating is the acknowledge-write to `@claude-mux-claude-id` (no new JSON state field), and the binary id lives in that tmux option (re-captured at launch) rather than the conversation-keyed state, so a restart self-clears. Not yet deployed to `~/bin`.
 
 > Naming: this is about the **`claude` executable** (Claude Code itself), NOT the claude-mux script. claude-mux is a script and updates instantly on disk; the `claude` dependency is a separate compiled/packaged binary. "Claude Code binary upgrade detection" was the old, confusing name.
 
@@ -613,7 +613,7 @@ A periodic LaunchAgent tick was discussed alongside this. The auto-restore self-
 
 ### Ready handshake during compact/resume
 
-**STATUS: IMPLEMENTED 2026-06-08 (pending release).** Built per `docs/features/ready-handshake.md`; reviewed (1 HIGH fixed, 2 MEDIUM + 1 LOW assessed). Live-verified on Claude Code v2.1.149: idle session detected ready in ~2s, a mid-turn session correctly never reads ready. New shared helper `poll_until_ready(session, [timeout=120])` (busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt at line start + quiescent, two captures >=1.1s apart identical) replaces the prompt-only 10s loops in both `create_claude_session` (synchronous) and `launch_single_session` (backgrounded). English docs NOT yet synced (CODEMAP/SKELETON/CHANGELOG/spec/CLAUDE.md); not deployed to `~/bin`. HIGH fix: the second quiescence capture guards `|| continue` and the equality requires non-empty, so two failed captures can't false-positive.
+**STATUS: IMPLEMENTED 2026-06-08 (pending release).** Built per `docs/dev/features/ready-handshake.md`; reviewed (1 HIGH fixed, 2 MEDIUM + 1 LOW assessed). Live-verified on Claude Code v2.1.149: idle session detected ready in ~2s, a mid-turn session correctly never reads ready. New shared helper `poll_until_ready(session, [timeout=120])` (busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt at line start + quiescent, two captures >=1.1s apart identical) replaces the prompt-only 10s loops in both `create_claude_session` (synchronous) and `launch_single_session` (backgrounded). English docs NOT yet synced (CODEMAP/SKELETON/CHANGELOG/spec/CLAUDE.md); not deployed to `~/bin`. HIGH fix: the second quiescence capture guards `|| continue` and the equality requires non-empty, so two failed captures can't false-positive.
 
 **Spun-off follow-ups (assessed during the review, NOT built — decided acceptable for v2.0):**
 - **Parallel restart (MEDIUM, deferred).** `create_claude_session` is now synchronous on the ready-wait, so `--restart` (all) and `autorestore_walk` block up to the ~120s timeout per session, sequentially. Worst case (many large sessions resume-compacting at once) makes restart-all/the tick slow (never dangerous; the tick just takes longer). Common case is ~2s/session. Fix = fire session creations in background subshells, but that carries RC-registration-race / `SLEEP_BETWEEN` / caller-last-ordering concerns, so it's its own focused change, not part of ready-handshake. Revisit if restart-all latency is felt in practice.

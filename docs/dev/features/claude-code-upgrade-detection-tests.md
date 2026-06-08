@@ -51,7 +51,7 @@ Companion to `claude-code-upgrade-detection.md`. Manual + shell-assertion proced
 
 - `@claude-mux-claude-id` in CODEMAP tmux-options table; `on_prompt` purpose updated.
 - SKELETON: `on_prompt` gains the pre-guard detection step; launch sections set the option.
-- CHANGELOG `[Unreleased]`, implentation-spec, ISSUES status note.
+- CHANGELOG `[Unreleased]`, implementation-spec, ISSUES status note.
 - `bash -n claude-mux` clean; deploy to `~/bin`; smoke-test a prompt in a session (no spurious notice when binary unchanged).
 
 ## Notes
