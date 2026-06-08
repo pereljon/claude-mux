@@ -44,6 +44,10 @@ Infrastructure, not a framework. Keep sessions alive, get out of the way.
 | `docs/ISSUES.md` | Open bugs, planned features, resolved issues |
 | `docs/CODEMAP.md` | Function index, config vars, dispatch table, marker file registry — for locating things in the script |
 | `docs/SKELETON.md` | Pseudo-code showing script structure, logic flow, and key invariants — for understanding how the script works |
+| `docs/features/<feature>.md` | Per-feature design doc: the implementable spec for a feature, extracted from `docs/ISSUES.md` once it's ready to build |
+| `docs/features/<feature>-tests.md` | Per-feature test plan: happy path, edge cases, verification steps, pre-build and post-build checks |
+
+**Feature design + test docs convention (decided 2026-06-07):** when a planned feature in `docs/ISSUES.md` matures to "ready to build," lift it into a dedicated design doc at `docs/features/<feature>.md` and a matching test plan at `docs/features/<feature>-tests.md`. `docs/ISSUES.md` stays the planned-features tracker; the `docs/features/` pair is the implementable spec + test plan that the build works from. Verify assumptions the design rests on *before* finalizing the design doc, so the docs reflect verified reality, not assumptions.
 
 ## Non-Obvious Behaviors
 
