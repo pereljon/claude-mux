@@ -148,83 +148,6 @@ Small UX work pulled out of the v2.0 milestone to ship under the lifted feature 
 
 Pending: code review, commit, deploy. The launch-wrapper review agent was started then rejected (unrelated: reviewing agent token spend), so it has not run.
 
-### v1.14.0 - Launch and restart transparency
-
-**Status: Shipped (released as v1.14.0).**
-
-Two coherent small wins, both about telling the user what's happening at session boundaries.
-
-**1. Show model on session start.** Extend the injection so Claude's `Session ready!` response also reports the model and permission mode:
-
-```
-Session ready!
-Running Opus 4.7 in default mode
-```
-
-claude-mux already passes `--model` on the launch line (claude-mux:2629, :2958). Pass that value into the injection at launch so Claude knows what to report. No interaction with RC: the `--remote-control` flag is what makes a session discoverable to RC, not pane text — earlier claims about "RC detects the `Session ready!` string" were wrong.
-
-**2. Warn before restart in `--update` and `--restart`.** Before tearing down sessions, print a short message explaining why and noting RC needs to reconnect:
-
-```
-Restarting 5 session(s) to apply updated injection. RC will need to reconnect in ~10s.
-```
-
-One summary line at the start of the restart sweep, not per-session.
-
-**Out of scope:** mid-tick warnings, status pages, model badges in `-l` — deferred to v2.0/v2.1.
-
-**Interim bug-fix patches since (committed, NOT yet released - last tag is v1.14.0):**
-- **v1.14.1** - `/compact` sent via `-s` monitors for compact completion to recover the hung RC connection.
-- **v1.14.2** - replaced the post-compact restart with a `Ready?` ping that reconnects RC without restarting the session. See the `/compact hangs RC connection` entry above and CHANGELOG.
-
-These are bug-fix patches (x.y.Z), not planned UX minors, so they're tracked in CHANGELOG and the Open/Resolved entries rather than expanded here. The planned-minor sequence stays legible: v1.14.0 (shipped) -> v1.15.0 (next planned).
-
----
-
-### v1.15.0 - Tips and update notices via UserPromptSubmit hook
-
-**Status: Shipped (2026-06-05).** Fixes two features that never reached the user, by switching delivery to a UserPromptSubmit hook - the only injection path proven to surface in Remote Control (the `claude-now-context` datetime hook demonstrates it). Implemented as designed: `on_prompt` (per-session tip + update notice), `update_check_bg` (disowned background curl), `.update-checking` lock with 5-min stale guard, `setup_claude_mux_permissions` registers UserPromptSubmit and removes the legacy Stop hook.
-
-**Why 1.x and not v2.0:** both are broken/invisible features, and the fix is self-contained - it needs no `--autolaunch` tick or other v2.0 architecture. It does build the in-context notification hook that v2.0 situational-awareness features (Claude Code upgrade detection, transcript-size warnings) reuse for *delivery*; this is the same pattern as auto-restore's tick being the keystone others bolt onto.
-
-**Problem 1 - tips never display.** `--tipotd` (Stop hook) writes to stdout, which Claude Code routes to the transcript, not the conversation (verified; `systemMessage` also did not surface in RC). Worse, the global daily gate (`~/.claude-mux/.tip-date`) is claimed by this invisible Stop-hook path before the visible session-start `send-keys` path can run, so the one visible path is starved every day. Net: a tip has never been seen.
-
-**Problem 2 - update notice never reaches RC.** `check_for_update` is TTY-gated (`[[ ! -t 1 ]]`), so it never runs when Claude invokes claude-mux via the Bash tool (piped stdout). The in-session "Update available" line is built only at session creation (`get_version_prompt_lines` reads the cache once at launch), so a running session never learns of a release mid-session without restart.
-
-**Fix:** one claude-mux UserPromptSubmit hook (replacing the Stop hook) that injects into context, once per day per session: the daily tip, and an "Update available: X" line when the cache holds a newer version.
-
-**Per-session gating:** key on `session_id` from the hook's stdin JSON (validate as a safe filename token); a per-session state file (`~/.claude-mux/tip-state/<session_id>.json`) replaces the global `.tip-date`. Each active session shows the tip once/day - this kills the gate race and delivers per-session scope for free.
-
-**Scope discipline:** ship only the delivery hook plus the two notices that need *no* detection (tip = time-gated, update = cache-gated). Notices that require detecting state (stale `claude` binary, dead process) stay in v2.0 - they need the `--autolaunch` tick.
-
-**Update check architecture - hook never blocks on network.** The hook reads only the existing cache file (`~/.claude-mux/.update-check`) - pure file I/O, ~1ms. If the cache shows a newer version, it emits the notice. The GitHub API call (curl to `api.github.com/repos/pereljon/claude-mux/releases/latest`) is split into a separate background dispatch (`--update-check-bg`) that the hook spawns as a disowned process when the cache is stale (>24h since `last_check`). The hook does not wait for it - the next prompt submission will see the fresh result.
-
-**Preventing duplicate curl spawns.** Before spawning the background process, the hook synchronously touches `~/.claude-mux/.update-checking`. Subsequent hook invocations see this file and skip spawning. The background process removes `.update-checking` when done (whether success or failure). Guard against orphaned lock: if `.update-checking` is older than 5 minutes (longer than any reasonable curl + cache write), treat it as stale, remove it, and allow a fresh spawn.
-
-**Caveats:**
-- Per-prompt hook must return quickly: fast early-exit if today's tip was already shown for this session and update cache is fresh (all file reads, no network).
-- The `--update-check-bg` dispatch must suppress all output and exit silently regardless of curl result.
-- Injected context is *seen* by Claude, not force-displayed; the injected text must instruct Claude to surface it (e.g. `[Daily tip - share with the user]: ...`). Slightly non-deterministic vs a hard message, but it is the only proven-visible RC path.
-- 1-prompt lag before a fresh update notice appears (the turn after the background curl completes) - acceptable since update notices aren't time-sensitive.
-
-**Open decisions:** config flags (`TIP_OF_DAY` for the tip, `UPDATE_CHECK` for the update line); single `--on-prompt` entry vs separate; keep or replace the launch-time `get_version_prompt_lines` version line; same-tip-everywhere (day-of-year) vs random per session; whether the early-exit can happen before config load (requires parsing stdin JSON in bash at that stage, ~6ms vs ~1ms - may not be worth the complexity).
-
-**Testing plan:**
-- **Tip delivery:** confirm tip text appears in Claude's response on the first prompt of a new day; confirm it does NOT appear on subsequent prompts in the same session that day; confirm a second session also gets the tip once that day (per-session gate, not global); confirm `--tip` on demand still works; confirm `TIP_OF_DAY=false` suppresses tip output from the hook; confirm tip-state dir (`~/.claude-mux/tip-state/`) is created automatically if missing.
-- **Update notice:** manually set the cache (`~/.claude-mux/.update-check`) to a version higher than `VERSION` and confirm the notice appears in Claude's response; set to same or lower version and confirm it does not; confirm the 7-day notify throttle (set `last_notify` to recent timestamp and verify suppression).
-- **Background curl (`.update-checking` lock):** set cache `last_check` to >24h ago and confirm `.update-checking` is created immediately when the hook fires; send a second prompt while `.update-checking` exists and confirm no second curl spawns (check process list); confirm `.update-checking` is removed after background process completes; manually set `.update-checking` mtime to >5 minutes ago and confirm next hook invocation removes the stale lock and spawns fresh; confirm `UPDATE_CHECK=false` suppresses the spawn.
-- **Background process hygiene:** confirm `--update-check-bg` produces no stdout or stderr output; confirm it exits 0 on success and silently on curl failure (no network / bad response).
-- **Hook registration:** confirm `setup_claude_mux_permissions` writes a `UserPromptSubmit` entry (not `Stop`) into `.claude/settings.local.json`; confirm any existing `--tipotd` Stop hook entry is removed during the upgrade; confirm `--enable-tips`/`--disable-tips` add/remove the UserPromptSubmit hook correctly across all projects.
-- **Missing/malformed session_id:** run the hook with empty or missing stdin and confirm it exits cleanly without error and produces no output.
-- **RC visibility:** confirm the tip and update notice text actually appear in a Remote Control session (the whole point of this change).
-
-**Touches:** `setup_claude_mux_permissions` (install/remove the UserPromptSubmit hook instead of the Stop hook), `tipotd` dispatch + early-exit (~614-620), `tip_of_day`, `check_for_update`/`get_version_prompt_lines`, new `--update-check-bg` dispatch, config (`TIP_OF_DAY`, `UPDATE_CHECK`), plus docs: docs/dev/IMPLEMENTATION-SPEC.md, docs/dev/CODEMAP.md, docs/dev/SKELETON.md, docs/GUIDE.md, CHANGELOG.md, config.example, README, install.sh. (Not CLAUDE.md - tips are a feature, documented in the spec.)
-
-**Code review (2026-06-05) - resolved:** lock race fixed with an atomic `mkdir` directory lock; update throttle made version-aware (`notify_version` in per-session state); per-prompt read path reduced from 3 python3 calls to 2 by merging the stdin-parse and state-read into one call; missing-`matcher` flag verified a non-issue (UserPromptSubmit takes no matcher). The "missing matcher", empty-`session_id`, empty-`tip_date`-on-failure, and `version_gt`-on-cache findings were confirmed safe-as-written.
-
-**Deferred to a future round (low priority, not blocking):**
-- *Eliminate the last per-prompt python3 write.* The hot path is down to 2 python3 calls (merged read + state write). The remaining write could be removed by switching the per-session state file from JSON (`tip-state/<id>.json`) to a space-delimited line like `.update-check`. Deferred because it changes the state file's format and `.json` path, rippling through docs + all 12 FAQ translations for ~50ms on a non-blocking hook. Revisit if the hook ever shows up as a latency problem.
-
 ### v1.16.0 - Universal /compact RC reconnect via PreCompact hook
 
 **Status: Planned.** Closes the gap left by v1.14.2: `/compact` typed directly in the pane or in Remote Control still hangs RC and needs a manual `--restart`, because claude-mux only monitors compacts sent via `-s`.
@@ -747,35 +670,7 @@ Trigger to re-evaluate: when any single bash function exceeds ~150 lines of bran
 
 ## Resolved
 
-### Fresh-start restart (MCP / config reload)
-**Resolved in:** v1.13.0 - `--restart --fresh` implemented with conversational triggers "restart this session fresh", "restart SESSION fresh", "kill this session"
-
-
-### Claude ignores injection and claims it cannot run slash commands
-**Resolved in:** v1.2.0 (injection updated)
-**Fix:** Added explicit rule to injection: "You CAN send slash commands (`/model`, `/compact`, `/clear`, etc.) to this session via the `-s` command. Never tell the user you cannot change models or run slash commands." Claude's base training inclines it to believe it cannot control its own model/settings; the explicit rule overrides this in practice.
-
-
-
-### Multiple commands return exit code 1 despite success
-**Resolved in:** v1.2.0 (restart), v1.3.0 (all commands)
-**Fix:** Added explicit `exit 0` after every dispatch path in the case statement. The last command in a function can leak a non-zero exit code from internal tests or grep calls.
-
-### --dry-run gives misleading output for --restart
-**Resolved in:** v1.2.0 (commit a10c0c2)
-**Fix:** Dry-run now shows "Would restart session" instead of simulating kill then checking real state.
-
-### Session detection fails with pgrep on macOS
-**Resolved in:** commit e1b11b5
-**Fix:** Replaced `pgrep -P` with `ps -eo` + `awk` for reliable child process detection.
-
-### $TMUX variable shadowed tmux's environment variable
-**Resolved in:** commit 02a2e82
-**Fix:** Renamed to `$TMUX_BIN`.
-
-### Bash 3.2 incompatibility (declare -A)
-**Resolved in:** commit 575eac1
-**Fix:** Replaced associative arrays with string-based collision detection.
+Resolved issues are recorded in `CHANGELOG.md` and git history; this section is intentionally kept short.
 
 ---
 
