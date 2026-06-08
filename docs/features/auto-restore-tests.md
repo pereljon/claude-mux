@@ -45,6 +45,8 @@ Companion to `auto-restore.md`. Covers pre-build verification (done), behavior/u
 - **T4.3** `restart`/`restart fresh` on a `failed` session clears `tripped`, resets `death_count`, brings it back.
 - **T4.4** No auto-fresh: confirm the guard never silently discards the transcript.
 
+**Test-method note (learned 2026-06-08 E2E):** to exercise the guard cleanly, let each relaunch run **>10s before killing claude**, and drive ticks with `claude-mux --autolaunch`. Killing a *healthy* claude **within 10s** of launch trips the launch wrapper's resume-fail fresh-fallback (it reads the fast death as "resume failed to start" and retries fresh in-pane); that fresh claude can then stack with a tick-driven relaunch, leaving stray processes and a confusing "claude still running after trip" state. The trip *logic* still works (death_count 0→1→2→3, `failed`, home notice, all verified), but the process state is messy. A real crash-loop (poisoned transcript) does NOT have this problem: the fresh-fallback also fails, nothing stacks, and the trip leaves the session cleanly down. Verified end-to-end on a throwaway session: trip at 3 + home notice, then `restart fresh` cleared `tripped` (restore-state file removed) and relaunched.
+
 ## 5. Staggering
 
 - **T5.1** Mark N (e.g., 8) sessions dead, run the tick repeatedly: no more than `STAGGER_CONCURRENCY` (3) are launched per `STARTING_WINDOW` (90s); the rest drain over subsequent ticks.

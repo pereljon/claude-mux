@@ -509,6 +509,16 @@ The hook lives in `.claude/settings.local.json` (highest precedence, safe from a
 
 Both use `set_tip_config()` helper to update the config file and `update_all_project_hooks()` to walk all project dirs.
 
+### do_update(): applying `--update`
+
+`claude-mux --update` (conversational: "update claude-mux") fetches the latest GitHub release tag, then:
+
+- if already current or newer, reports and exits without changes;
+- if installed via Homebrew, delegates to `brew upgrade claude-mux`;
+- otherwise downloads the release asset and validates it before replacing the on-disk script: it must start with a `#!` shebang, be at least 1000 bytes, and contain a matching `VERSION="<latest>"` line. A failed validation aborts without overwriting.
+
+Because claude-mux is a script read fresh from disk on each call, the new version takes effect on the next invocation; running sessions keep their baked-in injection until restarted, so `--update` runs `--restart` afterward (the conversational trigger warns first). The terminal update notice (printed by `check_for_update` on interactive runs, stderr, throttled to once per 7 days per version via the cache's `last_notify`) points the user here.
+
 ### do_uninstall()
 
 Removes all claude-mux traces from Claude Code settings:
