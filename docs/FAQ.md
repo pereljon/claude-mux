@@ -115,11 +115,13 @@ claude-mux is a shell script, not a compiled binary. Any new `claude-mux` comman
 
 The issue is the injection prompt. Each session has a system prompt baked in at creation time (via `--append-system-prompt`). Running sessions keep the old prompt until restarted, regardless of what version is on disk.
 
-After upgrading, restart sessions to pick up the updated injection:
+Restarting also does more than refresh the prompt: it is what **activates auto-restore** for a session. At launch a session writes its `.claudemux-running` marker and installs the current launch wrapper, so a session that has not been restarted since upgrading carries no marker and is **not protected against a crash or reboot**. The restore tick does not retroactively mark a still-running session.
+
+After upgrading, restart sessions to pick up the updated injection and activate auto-restore:
 - Say **"restart all sessions"** inside any running session, or
 - Run `claude-mux --update` (which upgrades and restarts automatically)
 
-Avoid running `brew upgrade claude-mux` directly from a terminal and skipping the restart step - sessions will be running with a mismatched injection prompt.
+Avoid running `brew upgrade claude-mux` directly from a terminal and skipping the restart step - sessions will be running with a mismatched injection prompt and without crash/reboot protection. See the guide's "Updating and upgrading" section for the full picture (including Claude Code binary upgrades).
 
 ## Why does Remote Control disconnect when a session restarts?
 

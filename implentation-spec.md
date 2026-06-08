@@ -257,7 +257,7 @@ claude -c --remote-control <perm_flags> --name '<session_name>' --append-system-
 claude --remote-control <perm_flags> --name '<session_name>' --append-system-prompt '<prompt>'
 ```
 
-After sending the launch command, the script polls (0.5s intervals, up to 10s) for Claude's input prompt or the workspace trust prompt. If the trust prompt is detected, it sends Enter to accept (option 1 is pre-selected). Once the prompt is detected (or timeout expires), it sends `Ready?` and expects Claude to respond with "Session ready!" followed by "Running [model] in [mode] mode." confirming the injection is working and reporting the active model and permission mode. All managed directories are the user's own projects.
+After sending the launch command, the script waits for Claude to be genuinely ready via `poll_until_ready` (shared by both launch paths). It auto-accepts the workspace trust prompt and the bypassPermissions warning (option 1 / "Yes, I accept"), then treats the session as ready only when it is not busy (the status line lacks `esc to interrupt` in its bottom lines), a prompt is drawn, and the pane is quiescent (two captures >=1.1s apart match). This avoids the old bug where the `❯` prompt is drawn during a resume-time auto-compaction (~50s) so `Ready?` misfired against the 10s timeout; the timeout is now ~120s. When ready (or on timeout) it sends `Ready?` and expects Claude to respond with "Session ready!" followed by "Running [model] in [mode] mode." All managed directories are the user's own projects. `create_claude_session` runs this synchronously; `launch_single_session` runs it backgrounded so attach is not blocked.
 
 ### Gitignore template (used by -n)
 
@@ -415,7 +415,7 @@ Per-project state lives in marker files at the project root, not in central conf
 
 **When NOT to use markers:**
 - User-global preferences → `~/.claude-mux/config`
-- Session-runtime state → tmux user options (e.g. `@claude-mux-managed`, `@claude-mux-protected`, `@claude-mux-dir`)
+- Session-runtime state → tmux user options (e.g. `@claude-mux-managed`, `@claude-mux-protected`, `@claude-mux-dir`, `@claude-mux-claude-id`)
 - Cross-session/runtime bookkeeping → central state under `~/.claude-mux/` (e.g. `restore-state/<session>.json` for crash-loop/stagger tracking)
 - Markers are for state that should travel with the project folder.
 
@@ -428,6 +428,14 @@ The keystone of the v2.0 self-healing milestone. A per-project `.claudemux-runni
 - **Crash-loop guard:** `~/.claude-mux/restore-state/<session>.json` tracks `last_attempt_ts`, `death_count`, `tripped`. A death within `AUTORESTORE_MIN_HEALTHY` (300s) of the last attempt is a fast death; after `AUTORESTORE_TRIP_THRESHOLD` (3) consecutive fast deaths the session is tripped (no longer restored, shows `failed` in `-l`, a one-shot notice is routed to home). A user restart/`restart fresh`/setmode/`-d` clears the state via `restore_state_clear()`.
 - **Staggering:** the tick launches at most `STAGGER_CONCURRENCY` sessions per `STARTING_WINDOW`, counting recent attempts via `last_attempt_ts`, in deterministic (sorted) order, home first and outside the batch.
 - **`-l` statuses:** a non-running marked session shows `queued` (tick will restore), `failed` (tripped), or `stopped` (`AUTORESTORE` off / no marker), all derived through the same state so the listing never promises a restore the tick won't perform.
+
+#### Claude Code upgrade detection
+
+A running session keeps the `claude` process spawned from whatever binary was on PATH at launch, so an out-of-band upgrade (`brew upgrade`, npm, curl) does not take effect until the session restarts. Detection is **decoupled from the `--autolaunch` tick**: a stale-binary session is by definition running, so the v1.15.0 `UserPromptSubmit` hook already fires in it.
+
+- **Identity:** `claude_binary_id()` = `realpath(claude):mtime`. A cask upgrade repoints the versioned symlink (realpath changes); an npm/curl in-place upgrade bumps mtime. One signal covers both, with no macOS process introspection.
+- **Capture:** stored at launch in the `@claude-mux-claude-id` tmux option (set in both launch paths, including the already-running backfill branches). A `--restart` re-captures it to the current binary, so a real restart self-clears the staleness; a tmux option (not the conversation-keyed JSON state) is used precisely because the conversation UUID persists across restarts.
+- **Detect + notify:** `detect_claude_upgrade()` runs in `on_prompt` before the tip/update cheap-guard (always-on). It resolves the session via tmux, compares the stored id to the current one, and on change injects a one-shot notice ("Claude Code was upgraded since this session started; say 'restart this session'") then acknowledges by overwriting the option (so it does not repeat until the next upgrade). Silent no-op if not in tmux or the option is unset. Notify-only: never auto-restarts, never auto-upgrades.
 
 ### ensure_gitignore_entry(dir)
 

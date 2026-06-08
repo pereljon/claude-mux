@@ -10,8 +10,9 @@ Read only the section you need - `grep -n "^## <name>" docs/SKELETON.md` for its
 - **How to Maintain** (+ **Non-Obvious Script Structure** - the interspersed pre-dispatch blocks that are easy to miss)
 - **Top-Level Structure** - the 10 phases from shebang to dispatch
 - **Main Dispatch** - the command `case` block
-- **create_claude_session** - session creation, injection, ready poller
+- **create_claude_session** - session creation, injection, ready handshake
 - **launch_single_session** - direct (non-send-keys) launch path
+- **poll_until_ready** - busy/quiescence readiness detector (shared by both launch paths)
 - **build_system_prompt** - the injected system prompt
 - **create_new_project** - new-project scaffolding
 - **autorestore_walk** - the restore tick (relaunch dead-but-marked sessions, staggered, crash-loop guard)
@@ -248,7 +249,7 @@ if tmux session exists:
   if not @claude-mux-managed:
     if claude is running → warn, claim (v1.8 upgrade path)
     else → error: session in use by something else, refuse
-  if claude is running → skip (already alive, nothing to do)
+  if claude is running → backfill @claude-mux-managed/@claude-mux-dir/@claude-mux-claude-id + .claudemux-running marker; skip launch
   else → log "exists but claude not running, relaunching"
 else:
   tmux new-session -d -s name -c dir
@@ -256,6 +257,7 @@ else:
 apply_tmux_options(name)
 set @claude-mux-managed = 1
 set @claude-mux-dir = working_dir     # authoritative source for marker removal
+set @claude-mux-claude-id = claude_binary_id()   # for Claude Code upgrade detection
 
 # Build injection
 prompt = build_system_prompt(name, mode or "auto")
@@ -286,30 +288,11 @@ write launch script → /tmp/claude-launch-XXXXX:
 write_running_marker(working_dir)     # before launch; skipped for home
 tmux send-keys name "bash launch_script" + Enter
 
-# Ready poller: poll pane every 0.5s, up to 10s (20 iterations)
-ready = false
-for i in 1..20:
-  sleep 0.5
-  pane = tmux capture-pane
-
-  if pane contains "Yes, I trust this folder":
-    send Enter          # auto-accept workspace trust prompt
-    sleep 2
-    continue            # don't break: bypassPermissions warning may follow
-
-  if pane contains "Yes, I accept":
-    send Down           # move from "No, exit" to "Yes, I accept"
-    sleep 1             # wait for UI to register selection
-    send Enter
-    sleep 2
-    ready = true
-    break
-
-  if pane matches /^❯|^> /:
-    ready = true
-    break
-
-send "Ready?" + Enter   # whether ready=true or timeout (always send)
+# Ready handshake (synchronous): poll_until_ready handles trust/bypass auto-accept
+# AND waits out a resume-compaction (busy = "esc to interrupt" in bottom 4 lines;
+# ready = not busy + prompt + quiescent). See poll_until_ready section.
+poll_until_ready(name)        # returns 0 ready / 1 timeout (~120s); logs WARN on timeout
+send "Ready?" + Enter         # sent whether ready or timeout (fallback preserved)
 
 # (Tips are no longer sent here. As of v1.15.0 the daily tip and update notice
 #  are injected per-prompt by the on_prompt UserPromptSubmit hook.)
@@ -323,7 +306,7 @@ if .claudemux-protected exists in dir:
 
 ## launch_single_session()
 
-Home session path, used by LaunchAgent and `-d` with HOME_LAUNCH=true. No ready poller.
+Home/`-d` path, used by LaunchAgent and `-d`. Ready handshake runs *backgrounded* (`poll_until_ready` in a `( ) &`) so the longer ready-wait never blocks attach.
 
 ```
 # Read globals: LAUNCH_DIR, LAUNCH_SESSION_NAME, HOME_LAUNCH, FRESH_START
@@ -360,10 +343,43 @@ tmux new-session -d -s name -c dir "bash launch_script"
 
 set @claude-mux-managed = 1
 set @claude-mux-dir = LAUNCH_DIR
+set @claude-mux-claude-id = claude_binary_id()
 
 if .claudemux-protected exists in dir:
   set @claude-mux-protected = 1
+
+# Backgrounded ready handshake (does not block attach):
+( poll_until_ready(LAUNCH_SESSION_NAME) || true ; send "Ready?" + Enter ) &
 ```
+
+---
+
+## poll_until_ready(session, [timeout=120])
+
+Shared readiness detector for both launch paths. The mere presence of the `❯`
+prompt does NOT mean ready (it is drawn during a resume-time auto-compaction that
+can run ~50s).
+
+```
+start = now
+loop:
+  if now - start >= timeout: return 1            # caller still sends Ready? (fallback)
+  sleep 0.5
+  pane = capture-pane(session)  (continue on failure)
+  if pane has "Yes, I trust this folder": send Enter; sleep 2; continue   # pre-ready
+  if pane has /yes.*accept/i:              send Down; sleep 1; send Enter; sleep 2; continue
+  if bottom-4(pane) has "esc to interrupt": continue          # BUSY (turn or compaction)
+  if pane lacks ^❯ / "^> ":                continue           # no prompt yet
+  snap1 = trailing-ws-normalize(pane)
+  sleep 1.2
+  snap2 = capture-pane(session) (continue on failure); normalize
+  if bottom-4(snap2) has "esc to interrupt": continue          # became busy again
+  if snap1 non-empty AND snap1 == snap2: return 0              # ready (quiescent)
+```
+
+Quiescence is the version-proof backstop: a working screen animates (glyph + timer
++ token counter), so two snapshots differ even if the "esc to interrupt" string
+check is ever defeated.
 
 ---
 
@@ -625,7 +641,18 @@ print tips[index]   # no gating; --tip always works, on_prompt gates per-session
 # Injected stdout is seen by Claude (and reaches Remote Control), unlike the
 # old Stop hook whose stdout was transcript-only.
 
-if TIP_OF_DAY != true AND UPDATE_CHECK != true → exit 0   # cheap guard
+# Claude Code upgrade detection (always-on; needs no stdin/session_id, so it runs
+# BEFORE the cheap guard). detect_claude_upgrade():
+#   sess = tmux display-message -p '#S'        (needs $TMUX, inherited by the hook)
+#   id0  = tmux show-options -v @claude-mux-claude-id   (empty → skip: not in tmux / pre-feature)
+#   id_now = claude_binary_id()  (= realpath(claude):mtime)
+#   if id_now != id0:
+#     echo "[claude-mux — tell the user, in their conversation language]: Claude Code was upgraded … restart this session"
+#     tmux set-option @claude-mux-claude-id id_now   # ack → one-shot until next upgrade
+bin_notice = detect_claude_upgrade()
+
+if TIP_OF_DAY != true AND UPDATE_CHECK != true:   # cheap guard
+  print bin_notice (if any); exit 0               # still flush the always-on notice
 
 read stdin JSON → session_id (via python3)
 if session_id not safe token ([A-Za-z0-9_-]{1,128}) → exit 0
@@ -634,14 +661,14 @@ state = ~/.claude-mux/tip-state/<session_id>.json  # {tip_date, update_notify, n
 
 # Daily tip (per session)
 if TIP_OF_DAY and state.tip_date != today:
-  out += "[claude-mux tip — share this with the user]: " + tip_of_day()
+  out += "[claude-mux tip — share with the user, in their conversation language]: " + tip_of_day()
   new tip_date = today
 
 # Update notice (cache-gated; 7-day throttle per session, version-aware)
 if UPDATE_CHECK:
   read ~/.claude-mux/.update-check → last_check, latest, _
   if latest > VERSION and (notified never, or >7d ago, or latest != notify_version):
-    out += "[claude-mux update available — tell the user]: ..."
+    out += "[claude-mux update available — tell the user, in their conversation language]: ..."
     new update_notify = now; new notify_version = latest
   if cache stale (>24h):
     lock dir = ~/.claude-mux/.update-checking
@@ -651,6 +678,7 @@ if UPDATE_CHECK:
     # else: in-flight check, skip
 
 if state changed: write state file
+out = bin_notice + out   # prepend the always-on upgrade notice
 print out   # may be empty
 exit 0
 ```
@@ -678,7 +706,7 @@ exit 0
 - Sessions are only touched if `@claude-mux-managed=1` is set in tmux — this prevents accidental collision with non-claude-mux tmux sessions.
 - Protected sessions (`@claude-mux-protected=1`) are skipped by `shutdown_claude_sessions()` unless `FORCE=true`. `--restart` always sets `FORCE=true` (restart ≠ permanent kill).
 - Caller-last ordering in full restart: the session running the restart script cannot kill itself mid-execution — it separates itself from the list and uses a background subshell with `disown` to handle its own restart.
-- The ready poller always sends `Ready?` even on timeout — a slow-starting session still gets the handshake, just later than expected.
+- `poll_until_ready` keys readiness on the `esc to interrupt` busy signal + quiescence, not the mere presence of the `❯` prompt (which is drawn during a resume-time compaction). It still sends `Ready?` on timeout (~120s) so a slow session eventually gets the handshake.
 - Temp launch scripts clean themselves up via `trap ... EXIT` — no orphaned files even if claude crashes.
 - Auto-restore marker presence ⇒ session should be alive. The marker is cleared exactly two ways, both = intent to stop: `--shutdown` (`remove_running_marker` before kill) or a clean in-pane exit (rc 0, the launch wrapper removes it). A crash/`kill-session`/reboot leaves it, so the tick restores it.
 - `should_be_alive()` is the single predicate behind both the restore walk and the `-l` status, so the listing never promises a restore the tick won't perform.

@@ -115,6 +115,17 @@ for s in ordered(down)[:slots]:        # deterministic (sorted) order for v1
 
 On by default (headline reliability feature; opt-in would bury it). Single global `AUTORESTORE=true/false` config var ships from the start as the escape hatch (default `true`), covering the resource-cost concern and tmux-native surprise. Marker lifecycle is independent of the flag: markers are written/removed normally; `AUTORESTORE` only gates whether the tick *acts*.
 
+## Activation on upgrade (operational)
+
+Auto-restore activates per session **at launch**, not passively. Deploying the new script is two steps:
+
+1. **Deploy:** `cp claude-mux ~/bin/` (or `brew upgrade`). All future invocations and the LaunchAgent tick now run the new code, but already-running sessions are unchanged: launched by the old script, they have no `.claudemux-running` marker, no `@claude-mux-dir`/`@claude-mux-claude-id` options, and the **old launch wrapper** (no clean-exit marker removal).
+2. **Restart the sessions** ("restart all sessions", or `update claude-mux`/`--update`, which calls `--restart`). Each session is recreated via `create_claude_session`'s launch path, which installs the new wrapper, writes the marker, and sets the options together. Only after this is the session under auto-restore.
+
+**The tick does not backfill markers onto running sessions.** `autorestore_walk` only relaunches sessions that should be alive but are *dead*; a running unmarked session has no marker, so `should_be_alive()` is false and it's skipped. And dropping a bare marker onto an old-wrapper session would be unsafe: its old launch script has no clean-exit removal, so a clean `/exit` wouldn't clear the marker and the tick would wrongly resurrect it. Correctness requires the marker **and** the new wrapper together, which only a relaunch provides. (The already-running-skip branches do call `write_running_marker` as a secondary safety net for idempotent `create_claude_session`/`launch_single_session` touches, but that is not the primary activation and is incomplete until relaunch.)
+
+**Consequence:** deploy *and* restart-all must happen together (as `update claude-mux` does in one shot). If you deploy but don't restart, a reboot before the first restart loses the still-unmarked running sessions. Home picks up the new tmux options from the tick within ~60s but never gets a marker (the LaunchAgent always starts home).
+
 ## Extension point: auto-startup (out of scope)
 
 A future `.claudemux-autostart` per-project marker = declarative "always keep this up" (generalizes what `home` already does). Drops into `should_be_alive()` as a second OR clause with no rework. Not built in v2.0.

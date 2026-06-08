@@ -2,7 +2,7 @@
 
 Navigation reference for the `claude-mux` script. Use this to locate functions and config vars. For logic and control flow, see `docs/SKELETON.md`.
 
-**Current version:** 1.15.1 (~4475 lines)
+**Current version:** 1.15.1 (~4525 lines)
 
 ## How to Use
 
@@ -115,29 +115,32 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `setup_claude_mux_permissions` | 2526 | `(project_dir)` | Add claude-mux to allow list; register UserPromptSubmit `--on-prompt` hook, remove legacy Stop `--tipotd` hook |
 | `setup_multi_coder_files` | 2677 | `(project_dir)` | Create AGENTS.md / GEMINI.md symlinks to CLAUDE.md |
 | `detect_github_ssh_accounts` | 2724 | `()` | Parse `~/.ssh/config` for GitHub accounts; set `GITHUB_SSH_INFO` |
-| `create_claude_session` | 2753 | `(session_name, working_dir, [mode_override], [fresh_start])` | Core launcher: tmux session, set `@claude-mux-dir`, write `.claudemux-running`, write launch script (exit-code wrapper), poll for ready, send Ready? |
-| `migrate_stray_sessions` | 2934 | `()` | Claim existing tmux sessions that have Claude running but lack managed marker |
-| `discover_projects` | 2990 | `()` | Scan BASE_DIR for directories with `.claude/`; return list |
-| `ensure_base_dir` | 3020 | `()` | Create BASE_DIR if it doesn't exist |
-| `start_sessions` | 3032 | `()` | Launch all discovered projects (`-a`) |
-| `launch_single_session` | 3081 | `()` | Home/LaunchAgent/`-d` path: sets `@claude-mux-dir`, marker, exit-code wrapper; uses LAUNCH_DIR, LAUNCH_SESSION_NAME, HOME_LAUNCH |
+| `poll_until_ready` | 2762 | `(session, [timeout=120])` | Wait until a session is genuinely ready: busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt + quiescent. Handles trust/bypass auto-accept. Returns 0 ready / 1 timeout |
+| `create_claude_session` | 2802 | `(session_name, working_dir, [mode_override], [fresh_start])` | Core launcher: tmux session, set `@claude-mux-dir`/`@claude-mux-claude-id`, write `.claudemux-running`, write launch script (exit-code wrapper), `poll_until_ready`, send Ready? |
+| `migrate_stray_sessions` | 2952 | `()` | Claim existing tmux sessions that have Claude running but lack managed marker |
+| `discover_projects` | 3008 | `()` | Scan BASE_DIR for directories with `.claude/`; return list |
+| `ensure_base_dir` | 3038 | `()` | Create BASE_DIR if it doesn't exist |
+| `start_sessions` | 3050 | `()` | Launch all discovered projects (`-a`) |
+| `launch_single_session` | 3099 | `()` | Home/LaunchAgent/`-d` path: sets `@claude-mux-dir`/`@claude-mux-claude-id`, marker, exit-code wrapper, backgrounded `poll_until_ready`; uses LAUNCH_DIR, LAUNCH_SESSION_NAME, HOME_LAUNCH |
 | `encode_claude_path` | 3259 | `(path)` | URL-encode a path for Claude's project directory naming |
 | `tip_of_day` | 3267 | `()` | Select and print one tip (no gating; used by `--tip` and `on_prompt`) |
-| `on_prompt` | 3332 | `()` | UserPromptSubmit hook: inject per-session daily tip + update notice; spawn background update check (`--on-prompt`) |
-| `update_check_bg` | 3440 | `()` | Disowned background GitHub release check; refresh cache, clear lock (`--update-check-bg`) |
-| `set_tip_config` | 3470 | `(enabled)` | Write TIP_OF_DAY to config |
-| `update_all_project_hooks` | 3487 | `()` | Walk all projects and call `setup_claude_mux_permissions` |
-| `enable_tips` | 3503 | `()` | Set TIP_OF_DAY=true, update all hooks |
-| `disable_tips` | 3510 | `()` | Set TIP_OF_DAY=false, update all hooks |
-| `do_uninstall` | 3522 | `()` | Remove plist, hooks (Stop + UserPromptSubmit), permissions, optionally config |
-| `save_template_command` | 3639 | `(name, [dir])` | Copy CLAUDE.md from dir (or current project) to templates dir |
-| `rename_move_command` | 3699 | `(src, dst, mode)` | Rename or move a project with history migration |
-| `list_templates` | 3880 | `()` | Print available templates from TEMPLATES_DIR |
-| `apply_template` | 3905 | `(template_name, project_dir)` | Copy template to project's CLAUDE.md |
-| `create_new_project` | 3958 | `()` | `-n` path: mkdir, git init, apply template, launch session |
-| `notify_home` | 4016 | `(msg)` | Best-effort one-line notice to the home session (only if home looks idle) |
-| `autorestore_walk` | 4032 | `()` | Restore tick: relaunch should-be-alive but dead sessions, staggered, with crash-loop guard |
-| `autolaunch_dispatch` | 4110 | `()` | LaunchAgent entry point; starts home then calls `autorestore_walk` (mode `home`) |
+| `claude_binary_id` | 3330 | `()` | Identity of the `claude` executable: `realpath:mtime` (cask realpath or in-place mtime changes on upgrade) |
+| `detect_claude_upgrade` | 3344 | `()` | Compare `@claude-mux-claude-id` vs current; echo one-shot upgrade notice and ack the option |
+| `on_prompt` | 3364 | `()` | UserPromptSubmit hook: Claude Code upgrade notice (always-on) + per-session daily tip + update notice; spawn bg update check (`--on-prompt`) |
+| `update_check_bg` | 3487 | `()` | Disowned background GitHub release check; refresh cache, clear lock (`--update-check-bg`) |
+| `set_tip_config` | 3517 | `(enabled)` | Write TIP_OF_DAY to config |
+| `update_all_project_hooks` | 3534 | `()` | Walk all projects and call `setup_claude_mux_permissions` |
+| `enable_tips` | 3550 | `()` | Set TIP_OF_DAY=true, update all hooks |
+| `disable_tips` | 3557 | `()` | Set TIP_OF_DAY=false, update all hooks |
+| `do_uninstall` | 3569 | `()` | Remove plist, hooks (Stop + UserPromptSubmit), permissions, optionally config |
+| `save_template_command` | 3686 | `(name, [dir])` | Copy CLAUDE.md from dir (or current project) to templates dir |
+| `rename_move_command` | 3746 | `(src, dst, mode)` | Rename or move a project with history migration |
+| `list_templates` | 3927 | `()` | Print available templates from TEMPLATES_DIR |
+| `apply_template` | 3952 | `(template_name, project_dir)` | Copy template to project's CLAUDE.md |
+| `create_new_project` | 4005 | `()` | `-n` path: mkdir, git init, apply template, launch session |
+| `notify_home` | 4063 | `(msg)` | Best-effort one-line notice to the home session (only if home looks idle) |
+| `autorestore_walk` | 4079 | `()` | Restore tick: relaunch should-be-alive but dead sessions, staggered, with crash-loop guard |
+| `autolaunch_dispatch` | 4158 | `()` | LaunchAgent entry point; starts home then calls `autorestore_walk` (mode `home`) |
 
 ---
 
@@ -203,6 +206,7 @@ Per-project state files. All use `.claudemux-` prefix. Auto-added to `.gitignore
 | `@claude-mux-managed` | `create_claude_session`, `launch_single_session` | Session is managed by claude-mux |
 | `@claude-mux-protected` | `create_claude_session` at launch (if marker present) | Session is protected |
 | `@claude-mux-dir` | `create_claude_session`, `launch_single_session` at launch | Recorded launch (project-root) dir; authoritative source for marker removal (`session_marker_dir`) |
+| `@claude-mux-claude-id` | `create_claude_session`, `launch_single_session` at launch; re-acked by `detect_claude_upgrade` | `claude` binary identity at launch (`realpath:mtime`) for Claude Code upgrade detection |
 
 ---
 
@@ -210,5 +214,5 @@ Per-project state files. All use `.claudemux-` prefix. Auto-added to `.gitignore
 
 | Function | Used for | tmux method | Ready poller |
 |---|---|---|---|
-| `create_claude_session` | All regular sessions (`-d`, `-n`, `--restart`) | `send-keys "bash launch_script"` into existing pane | Yes - polls pane 20×0.5s, sends Ready? |
-| `launch_single_session` | Home session (LaunchAgent, `-d` with HOME_LAUNCH=true) | `new-session ... "bash launch_script"` as initial command | No - Claude starts directly |
+| `create_claude_session` | `-n`, `--restart`, setmode | `send-keys "bash launch_script"` into existing pane | Yes, synchronous - `poll_until_ready` (busy + quiescence, ~120s), then Ready? |
+| `launch_single_session` | `-d` and home (LaunchAgent) | `new-session ... "bash launch_script"` as initial command | Yes, backgrounded - `poll_until_ready` in a `( ) &`, then Ready? |

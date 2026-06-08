@@ -201,6 +201,33 @@ When `TIP_OF_DAY` is `true` (default), the `UserPromptSubmit` hook (`claude-mux 
 
 Each active session shows the tip once per calendar day (the first prompt of the day). Because it goes through UserPromptSubmit, the tip is visible in the conversation and in Remote Control - unlike the pre-v1.15.0 Stop-hook delivery, which was never seen. Say "disable tips" to turn it off (the hook stays registered if `UPDATE_CHECK` is still on, to keep delivering update notices), or "tip" for one on demand (`--tip` always works regardless of `TIP_OF_DAY`). `TIP_MODE` (`daily` or `random`) controls selection.
 
+## Updating and upgrading
+
+There are three distinct "upgrades" in play, and they are easy to conflate. They share one rule: **a running session does not change until it is restarted.**
+
+### 1. Upgrading claude-mux itself
+
+Run `update claude-mux` (or `claude-mux --update`; Homebrew users can also `brew upgrade claude-mux`). claude-mux is a shell script read fresh from disk on each call, so the new version takes effect on the next invocation. `--update` restarts running sessions automatically so they pick up the new injected prompt (the conversational trigger warns first). The version-check and notice machinery is detailed in "Update Check" below; the command reference is in `docs/CLI.md`.
+
+### 2. Restarting to activate changes
+
+A session bakes its system prompt in at launch (`--append-system-prompt`), so an upgraded script does not alter a running session until that session is restarted. As of the v2.0 self-healing work, a restart does more than refresh the prompt. At launch it also:
+
+- writes the `.claudemux-running` auto-restore marker and the `@claude-mux-dir` / `@claude-mux-claude-id` session options, and
+- installs the current launch wrapper (which removes the marker on a clean `/exit`).
+
+So after upgrading to a version that has auto-restore, **restart your sessions to activate it.** Until a session is restarted it carries no marker and is not protected against a crash or reboot, and the restore tick does not retroactively mark a still-running session. `update claude-mux` does the deploy-and-restart in one step; if you `brew upgrade` (or copy the script) manually, follow it with "restart all sessions". See the FAQ: "Why don't running sessions pick up changes after `brew upgrade`?".
+
+### 3. Upgrading Claude Code (the `claude` binary)
+
+This is separate from claude-mux. The `claude` executable is upgraded out of band (`brew upgrade`, npm, the curl installer). A running session keeps the binary it launched with, so it keeps running the old Claude Code until restarted. claude-mux records each session's `claude` binary identity at launch and, on the next prompt, injects a one-shot notice when it changes:
+
+```
+Claude Code was upgraded since this session started; say "restart this session" to load the new binary.
+```
+
+It is notify-only: claude-mux never restarts the session or upgrades Claude Code for you. Say "restart this session" to load the new binary.
+
 ## Update Check
 
 claude-mux checks GitHub for newer releases and surfaces them three ways: a one-line notice in the terminal, an "Update available" line injected into each session's system prompt at launch (shown in the block above), and - as of v1.15.0 - an in-conversation notice injected per prompt by the `UserPromptSubmit` hook (the only path that reaches a running session, including Remote Control). The whole mechanism is gated by the `UPDATE_CHECK` config option (default `true`).

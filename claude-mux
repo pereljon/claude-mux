@@ -2750,6 +2750,55 @@ detect_github_ssh_accounts() {
     GITHUB_SSH_INFO=" GitHub SSH accounts configured in ~/.ssh/config: ${joined}. Use the host alias as the git remote, e.g. git clone git@github.com-${accounts[0]}:org/repo.git. For gh CLI operations (repo create, PR create, etc.), run \`gh auth switch --user <account>\` first to target the correct GitHub account. Before any gh command, check \`gh auth status\` to verify the active account matches the repo's remote."
 }
 
+# Wait until a session is genuinely ready for input, not merely showing the ❯
+# prompt. A session is BUSY whenever the bottom status lines contain "esc to
+# interrupt" — present for a full turn AND a resume-time auto-compaction (which
+# can run ~50s with the ❯ already drawn). Ready = not busy, prompt present, and
+# quiescent (two captures ≥1.1s apart identical after trailing-whitespace
+# normalize). Quiescence is the version-proof backstop: a working screen animates
+# (glyph + timer + token counter), so snapshots differ even if the string check
+# is ever defeated. Auto-accepts the trust / bypassPermissions prompts, gated to
+# before ready. Returns 0 when ready, 1 on timeout (~120s; compaction measured ~50s).
+poll_until_ready() {
+    local session="$1" timeout="${2:-120}"
+    local start pane snap1 snap2
+    start=$(date +%s)
+    while :; do
+        (( $(date +%s) - start >= timeout )) && return 1
+        sleep 0.5
+        pane=$("$TMUX_BIN" capture-pane -t "$session" -p 2>/dev/null) || continue
+        # Pre-ready auto-accepts (the user's own projects).
+        if echo "$pane" | grep -q "Yes, I trust this folder"; then
+            log "Auto-accepting trust prompt for '$session'"
+            "$TMUX_BIN" send-keys -t "$session" Enter
+            sleep 2
+            continue   # a bypassPermissions warning may follow immediately
+        fi
+        # bypassPermissions warning: "No, exit" (selected) + "Yes, I accept". Send
+        # Down to option 2, wait 1s for the UI to register, then Enter.
+        if echo "$pane" | grep -qi "yes.*accept"; then
+            log "Auto-accepting bypassPermissions warning for '$session'"
+            "$TMUX_BIN" send-keys -t "$session" Down
+            sleep 1
+            "$TMUX_BIN" send-keys -t "$session" Enter
+            sleep 2
+            continue
+        fi
+        # Busy? Scope the scan to the bottom 4 lines so transcript body can't match.
+        echo "$pane" | tail -4 | grep -q "esc to interrupt" && continue
+        # Prompt drawn at line start?
+        echo "$pane" | grep -qE '^❯|^> ' || continue
+        # Quiescence: confirm with a second capture ≥1.1s later, both normalized.
+        snap1=$(printf '%s' "$pane" | sed 's/[[:space:]]*$//')
+        sleep 1.2
+        snap2=$("$TMUX_BIN" capture-pane -t "$session" -p 2>/dev/null) || continue   # capture failed → retry
+        snap2=$(printf '%s' "$snap2" | sed 's/[[:space:]]*$//')
+        echo "$snap2" | tail -4 | grep -q "esc to interrupt" && continue   # became busy again
+        # Require non-empty + identical, so two failed/empty captures can't read as ready.
+        [[ -n "$snap1" && "$snap1" == "$snap2" ]] && return 0
+    done
+}
+
 create_claude_session() {
     local session_name="$1"
     local working_dir="$2"
@@ -2781,6 +2830,7 @@ create_claude_session() {
             # Mark as claude-mux-managed (idempotent — handles v1.8 upgrades)
             [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" set-option -t "$session_name" @claude-mux-managed 1 2>/dev/null
             [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" set-option -t "$session_name" @claude-mux-dir "$working_dir" 2>/dev/null
+            [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" set-option -t "$session_name" @claude-mux-claude-id "$(claude_binary_id)" 2>/dev/null
             write_running_marker "$working_dir"   # backfill auto-restore marker for live sessions
             log "Session '$session_name' already running claude, skipping"
             return
@@ -2799,6 +2849,7 @@ create_claude_session() {
     apply_tmux_options "$session_name"
     "$TMUX_BIN" set-option -t "$session_name" @claude-mux-managed 1 2>/dev/null
     "$TMUX_BIN" set-option -t "$session_name" @claude-mux-dir "$working_dir" 2>/dev/null
+    "$TMUX_BIN" set-option -t "$session_name" @claude-mux-claude-id "$(claude_binary_id)" 2>/dev/null
 
     # Build system prompt — pass permission mode so Claude reports it in the ready response
     local tmux_prompt
@@ -2872,48 +2923,15 @@ LAUNCH_EOF
         return
     fi
 
-    # Wait for Claude to be ready (trust prompt, bypassPermissions warning, or input
-    # prompt), then send "ready". Polls every 0.5s up to 10s. Auto-accepts the trust
-    # prompt and bypassPermissions warning (all managed dirs are the user's own projects).
-    log "Waiting for Claude to start in '$session_name'..."
-    local _poll=0
-    local _ready=false
-    while [[ $_poll -lt 20 ]]; do
-        sleep 0.5
-        (( _poll++ ))
-        local _pane
-        _pane=$("$TMUX_BIN" capture-pane -t "$session_name" -p 2>/dev/null) || continue
-        if echo "$_pane" | grep -q "Yes, I trust this folder"; then
-            log "Auto-accepting trust prompt for '$session_name'"
-            "$TMUX_BIN" send-keys -t "$session_name" Enter
-            sleep 2
-            # Don't break — a bypassPermissions warning may appear immediately after
-            # the trust prompt on first launch of a new project in bypassPermissions mode.
-            continue
-        fi
-        # bypassPermissions warning: options are "No, exit" (selected) and "Yes, I accept".
-        # Must send Down to move to option 2, then wait 1s for UI to register, then Enter.
-        if echo "$_pane" | grep -qi "yes.*accept"; then
-            log "Auto-accepting bypassPermissions warning for '$session_name'"
-            "$TMUX_BIN" send-keys -t "$session_name" Down
-            sleep 1
-            "$TMUX_BIN" send-keys -t "$session_name" Enter
-            sleep 2
-            _ready=true
-            break
-        fi
-        # Check if Claude is at the input prompt (❯ or >)
-        if echo "$_pane" | grep -qE '^❯|^> '; then
-            _ready=true
-            break
-        fi
-    done
-    if [[ "$_ready" == "true" ]]; then
-        "$TMUX_BIN" send-keys -t "$session_name" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
-    else
-        log "WARN: Claude prompt not detected in '$session_name' after 10s, sending ready anyway"
-        "$TMUX_BIN" send-keys -t "$session_name" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
+    # Wait until Claude is genuinely ready (handles the trust / bypassPermissions
+    # prompts and waits out a resume-time compaction), then send "Ready?". The
+    # detector keys on the "esc to interrupt" busy signal + quiescence, not the
+    # mere presence of the ❯ prompt (which is drawn during compaction).
+    log "Waiting for Claude to be ready in '$session_name'..."
+    if ! poll_until_ready "$session_name"; then
+        log "WARN: '$session_name' not confirmed ready within timeout, sending Ready? anyway"
     fi
+    "$TMUX_BIN" send-keys -t "$session_name" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
 
     # Protect at launch if .claudemux-protected marker exists in working dir
     if [[ -f "$working_dir/.claudemux-protected" ]]; then
@@ -3122,6 +3140,7 @@ launch_single_session() {
             # Mark as claude-mux-managed (idempotent — handles v1.8 upgrades)
             "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-managed 1 2>/dev/null
             "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-dir "$LAUNCH_DIR" 2>/dev/null
+            "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-claude-id "$(claude_binary_id)" 2>/dev/null
             write_running_marker "$LAUNCH_DIR"   # backfill auto-restore marker for live sessions
             # Re-apply protection if marker exists (handles in-place upgrade and idempotent --autolaunch)
             if [[ -f "$LAUNCH_DIR/.claudemux-protected" ]]; then
@@ -3211,6 +3230,7 @@ LAUNCH_EOF
     apply_tmux_options "$LAUNCH_SESSION_NAME"
     "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-managed 1 2>/dev/null
     "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-dir "$LAUNCH_DIR" 2>/dev/null
+    "$TMUX_BIN" set-option -t "$LAUNCH_SESSION_NAME" @claude-mux-claude-id "$(claude_binary_id)" 2>/dev/null
 
     # Protect at launch if .claudemux-protected marker exists in working dir
     if [[ -f "$LAUNCH_DIR/.claudemux-protected" ]]; then
@@ -3218,31 +3238,11 @@ LAUNCH_EOF
         log "Session '$LAUNCH_SESSION_NAME' is protected (marker: $LAUNCH_DIR/.claudemux-protected)"
     fi
 
-    # Background: poll for Claude to be ready, then send "ready" message.
-    # Uses same polling approach as create_claude_session but backgrounded
-    # so it doesn't block attach.
+    # Background: wait until Claude is ready (same detector as create_claude_session,
+    # incl. trust/bypass auto-accept and the busy/quiescence check), then send
+    # "Ready?". Backgrounded so the longer ready-wait never blocks attach.
     (
-        _poll=0
-        while [[ $_poll -lt 20 ]]; do
-            sleep 0.5
-            (( _poll++ ))
-            _pane=$("$TMUX_BIN" capture-pane -t "$LAUNCH_SESSION_NAME" -p 2>/dev/null) || continue
-            if echo "$_pane" | grep -q "Yes, I trust this folder"; then
-                "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
-                sleep 2
-                # Don't break — a bypassPermissions warning may appear immediately after
-                # the trust prompt on first launch of a new project in bypassPermissions mode.
-                continue
-            fi
-            if echo "$_pane" | grep -qi "yes.*accept"; then
-                "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Down 2>/dev/null
-                sleep 1
-                "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
-                sleep 2
-                break
-            fi
-            echo "$_pane" | grep -qE '^❯|^> ' && break
-        done
+        poll_until_ready "$LAUNCH_SESSION_NAME" || true
         "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$LAUNCH_SESSION_NAME" Enter 2>/dev/null
     ) &
 
@@ -3324,15 +3324,55 @@ tip_of_day() {
     printf '%s\n' "${tips[$idx]}"
 }
 
+# Identity of the claude executable: resolved path + mtime. Changes on a cask
+# upgrade (versioned realpath repoints) and on an in-place npm/curl upgrade (mtime
+# bumps), so one signal covers both. No macOS process introspection needed.
+claude_binary_id() {
+    local rp
+    rp=$(realpath "$CLAUDE_BIN" 2>/dev/null || readlink -f "$CLAUDE_BIN" 2>/dev/null || echo "$CLAUDE_BIN")
+    local mt
+    mt=$(stat -f %m "$rp" 2>/dev/null || stat -c %Y "$rp" 2>/dev/null || echo 0)
+    printf '%s:%s' "$rp" "$mt"
+}
+
+# Claude Code upgrade detection (always-on). Compares the session's launch-time
+# binary id (@claude-mux-claude-id) against the current one; on change, echoes a
+# one-shot notice and acknowledges by overwriting the option, so it does not
+# repeat until the next upgrade. Uses the tmux session (inherited $TMUX in the
+# hook), not stdin, so it runs even when tips/update notices are off. Silent
+# no-op if not in tmux or the option is unset (pre-feature session).
+detect_claude_upgrade() {
+    local _sess
+    _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null) || return 0
+    [[ -z "$_sess" ]] && return 0
+    local _id0
+    _id0=$("$TMUX_BIN" show-options -t "$_sess" -v @claude-mux-claude-id 2>/dev/null)
+    [[ -z "$_id0" ]] && return 0
+    local _id_now
+    _id_now=$(claude_binary_id)
+    if [[ "$_id_now" != "$_id0" ]]; then
+        echo "[claude-mux — tell the user, in their conversation language]: Claude Code was upgraded since this session started; say \"restart this session\" to load the new binary."
+        "$TMUX_BIN" set-option -t "$_sess" @claude-mux-claude-id "$_id_now" 2>/dev/null
+    fi
+}
+
 # UserPromptSubmit hook handler. Injects (via stdout) a daily tip and an update
 # notice into the conversation context — the only delivery path proven to surface
 # in Remote Control. Gated per session (keyed on the session_id from the hook's
 # stdin JSON). Must return fast and never block on the network: the GitHub API
 # call is delegated to a disowned --update-check-bg process.
 on_prompt() {
-    # Cheap guard: if both features are off there is nothing to inject — skip the
-    # stdin parse and state I/O entirely.
-    [[ "${TIP_OF_DAY:-true}" != "true" && "${UPDATE_CHECK:-true}" != "true" ]] && exit 0
+    # Claude Code upgrade detection is always-on and needs no stdin/session_id, so
+    # it runs before the tip/update cheap-guard (which can exit early).
+    local _bin_notice
+    _bin_notice=$(detect_claude_upgrade)
+
+    # Cheap guard: if both features are off there is nothing else to inject — skip
+    # the stdin parse and state I/O, but still flush any upgrade notice.
+    if [[ "${TIP_OF_DAY:-true}" != "true" && "${UPDATE_CHECK:-true}" != "true" ]]; then
+        [[ -n "$_bin_notice" ]] && printf '%s\n' "$_bin_notice"
+        exit 0
+    fi
 
     local _state_dir="$CLAUDE_MUX_DIR/tip-state"
     local _today _now
@@ -3362,8 +3402,12 @@ except Exception:
 print(sid, tip_date, un, nv)
 ' "$_state_dir" 2>/dev/null)
 
-    # No valid session_id → nothing was printed → bail silently.
-    [[ -z "$_sid" ]] && exit 0
+    # No valid session_id → no tip/update work possible, but still flush the
+    # always-on upgrade notice (it does not depend on session_id).
+    if [[ -z "$_sid" ]]; then
+        [[ -n "$_bin_notice" ]] && printf '%s\n' "$_bin_notice"
+        exit 0
+    fi
     local _state_file="$_state_dir/$_sid.json"
     [[ "$_tip_date" == "_" ]] && _tip_date=""
     [[ "$_notify_version" == "_" ]] && _notify_version=""
@@ -3376,7 +3420,7 @@ print(sid, tip_date, un, nv)
         local _tip
         _tip=$(tip_of_day 2>/dev/null || true)
         if [[ -n "$_tip" ]]; then
-            _out+="[claude-mux tip — share this with the user]: $_tip"$'\n'
+            _out+="[claude-mux tip — share with the user, in their conversation language]: $_tip"$'\n'
             _new_tip_date="$_today"
         fi
     fi
@@ -3396,7 +3440,7 @@ print(sid, tip_date, un, nv)
         # window).
         if [[ -n "$_latest" ]] && version_gt "$_latest" "$VERSION"; then
             if (( _update_notify == 0 || _now - _update_notify >= 604800 )) || [[ "$_latest" != "$_notify_version" ]]; then
-                _out+="[claude-mux update available — tell the user]: version $_latest is out (current: $VERSION). Suggest they say \"update claude-mux\"."$'\n'
+                _out+="[claude-mux update available — tell the user, in their conversation language]: version $_latest is out (current: $VERSION). Suggest they say \"update claude-mux\"."$'\n'
                 _new_notify="$_now"
                 _new_notify_version="$_latest"
             fi
@@ -3428,6 +3472,9 @@ print(sid, tip_date, un, nv)
 json.dump({"tip_date": sys.argv[2], "update_notify": int(sys.argv[3]), "notify_version": sys.argv[4]}, open(sys.argv[1],"w"))' \
             "$_state_file" "$_new_tip_date" "$_new_notify" "$_new_notify_version" 2>/dev/null || true
     fi
+
+    # Prepend the always-on upgrade notice (computed before the cheap-guard).
+    [[ -n "$_bin_notice" ]] && _out="${_bin_notice}"$'\n'"${_out}"
 
     # Emit accumulated notices; UserPromptSubmit injects stdout into context.
     [[ -n "$_out" ]] && printf '%s' "$_out"
