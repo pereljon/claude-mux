@@ -278,6 +278,8 @@ This confirms the session is alive and reports the active model and permission m
 
 Slash commands (e.g. `/model`, `/clear`) are [not natively supported](https://github.com/anthropics/claude-code/issues/30674) in RC sessions. claude-mux works around this - each session is injected with `claude-mux -s` so Claude can send slash commands to itself via tmux.
 
+`/compact` gets additional handling: a `PreCompact` hook spawns a background monitor that detects when the compaction finishes and sends `Ready?` to reconnect the RC WebSocket. This fires for every `/compact` regardless of trigger - manual, auto-compact, or RC-sent.
+
 ## Logs
 
 - `~/Library/Logs/claude-mux.log` - all script actions with UTC timestamps (configurable via `LOG_DIR`)
