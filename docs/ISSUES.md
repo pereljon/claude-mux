@@ -142,24 +142,9 @@ Small UX work pulled out of the v2.0 milestone to ship under the lifted feature 
 
 **SHIPPED in v2.0.0** (`f385e19`). System prompt passed via `--append-system-prompt-file` (out of `ps`); temp file deleted post-handshake; tmux session killed on clean `/exit` (rc 0). Both launch heredocs updated. See CLAUDE.md "Non-Obvious Behaviors" for the rationale.
 
-### v1.16.0 - Universal /compact RC reconnect via PreCompact hook
+### Universal /compact RC reconnect via PreCompact hook
 
-**Status: Planned.** Closes the gap left by v1.14.2: `/compact` typed directly in the pane or in Remote Control still hangs RC and needs a manual `--restart`, because claude-mux only monitors compacts sent via `-s`.
-
-**Mechanism:** register a Claude Code `PreCompact` hook. It fires for *every* compact regardless of trigger - manual `/compact`, RC, or `-s` (verified firing in practice: `hook_event_name:"PreCompact","trigger:"manual"`). The hook spawns the same disowned post-compact monitor v1.14.2 already uses: resolve its own session (via `$TMUX_PANE` / stdin `session_id`), poll the pane for compact completion, then send `Ready?` to generate the turn activity that reconnects the hung RC WebSocket. No user action needed.
-
-**Supersedes** the `-s`-only monitor in v1.14.2 with a universal one - the `-s` `/compact` special case (~3750) can then be removed or left as a no-op since the PreCompact hook covers it.
-
-**Caveats / verify first:**
-- Confirm a disowned monitor spawned from a PreCompact hook survives and that `send-keys` lands correctly *after* compaction completes (same uncertainty class as the original `-s` monitor before it was verified).
-- Confirm PreCompact fires for auto-compaction (`trigger:"auto"`), not just manual - so long-session startup auto-compacts are covered too.
-- Why not UserPromptSubmit: it fires only when a prompt is submitted (impossible from a hung RC) and augments an existing turn rather than generating the turn-activity that reconnects RC. PreCompact is the correct event.
-
-**Hook-type growth note:** this is a third hook type (Stop going away in v1.15.0; UserPromptSubmit for tips/updates in v1.15.0; PreCompact here). `setup_claude_mux_permissions` must manage all of them in `.claude/settings.local.json`. Be deliberate about the growth.
-
-**Touches:** `setup_claude_mux_permissions` (register/remove PreCompact hook), the `-s` `/compact` special case (~3750, remove or simplify), a new dispatch entry for the hook, docs: docs/dev/IMPLEMENTATION-SPEC.md, docs/dev/CODEMAP.md, docs/dev/SKELETON.md, docs/GUIDE.md, CHANGELOG.md, README, install.sh. Relates to the `/compact hangs RC connection` entry above.
-
-**Sequence:** independent of v1.15.0 (different hook); order between them is flexible.
+**SHIPPED in v2.0.1.** `PreCompact` hook (`--on-compact`) fires before every compact regardless of trigger; disowned monitor polls for prompt return and sends `Ready?`. Replaces the `-s`-only v1.14.2 special case, which was removed.
 
 ## v2.0 Milestone
 

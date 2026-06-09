@@ -2,7 +2,7 @@
 
 Navigation reference for the `claude-mux` script. Use this to locate functions and config vars. For logic and control flow, see `docs/dev/SKELETON.md`.
 
-**Current version:** 2.0.0 (~4555 lines)
+**Current version:** 2.0.1 (~4560 lines)
 
 ## How to Use
 
@@ -126,8 +126,9 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `tip_of_day` | 3286 | `()` | Select and print one tip (no gating; used by `--tip` and `on_prompt`) |
 | `claude_binary_id` | 3349 | `()` | Identity of the `claude` executable: `realpath:mtime` (cask realpath or in-place mtime changes on upgrade) |
 | `detect_claude_upgrade` | 3363 | `()` | Compare `@claude-mux-claude-id` vs current; echo one-shot upgrade notice and ack the option |
-| `on_prompt` | 3383 | `()` | UserPromptSubmit hook: Claude Code upgrade notice (always-on) + per-session daily tip + update notice; spawn bg update check (`--on-prompt`) |
-| `update_check_bg` | 3506 | `()` | Disowned background GitHub release check; refresh cache, clear lock (`--update-check-bg`) |
+| `on_compact` | 3515 | `()` | PreCompact hook: spawn disowned monitor that polls for prompt return post-compact, then sends Ready? to reconnect RC (`--on-compact`) |
+| `on_prompt` | 3573 | `()` | UserPromptSubmit hook: Claude Code upgrade notice (always-on) + per-session daily tip + update notice; spawn bg update check (`--on-prompt`) |
+| `update_check_bg` | 3698 | `()` | Disowned background GitHub release check; refresh cache, clear lock (`--update-check-bg`) |
 | `set_tip_config` | 3536 | `(enabled)` | Write TIP_OF_DAY to config |
 | `update_all_project_hooks` | 3553 | `()` | Walk all projects and call `setup_claude_mux_permissions` |
 | `enable_tips` | 3569 | `()` | Set TIP_OF_DAY=true, update all hooks |
@@ -170,6 +171,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `--move SRC DST` | `move` | `rename_move_command` |
 | `--save-template NAME` | `save-template` | `save_template_command` |
 | `--tip` | `tip` | `tip_of_day` |
+| `--on-compact` | `on-compact` | `on_compact` (PreCompact hook) |
 | `--on-prompt` | `on-prompt` | `on_prompt` (UserPromptSubmit hook) |
 | `--update-check-bg` | `update-check-bg` | `update_check_bg` (background, disowned) |
 | `--tipotd` | `tipotd` | legacy no-op (early exit; pre-v1.15.0 Stop hooks) |

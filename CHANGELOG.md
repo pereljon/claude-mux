@@ -2,6 +2,14 @@
 
 All notable changes to claude-mux are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-06-09
+
+### Fixed
+- **Universal `/compact` RC reconnect via PreCompact hook**: `/compact` typed directly in the pane, triggered by auto-compact, or sent via `claude-mux -s SESSION /compact` all now reconnect Remote Control. A new `PreCompact` hook (`--on-compact`) fires before every compact regardless of trigger, spawning a disowned monitor that polls for the prompt to return (up to 120s) then sends `Ready?`. The previous v1.14.2 fix only covered the `-s /compact` path; the new hook covers all cases universally.
+
+### Removed
+- The `-s /compact` special-case monitor (v1.14.2). RC reconnect is now handled entirely by the `PreCompact` hook registered in each project's `settings.local.json`.
+
 ## [2.0.0] - 2026-06-08
 
 ### Added

@@ -126,15 +126,16 @@ The script sources `~/.claude-mux/config` after setting defaults, so any variabl
       than interrupt an in-progress compact. A has-session guard prevents pinging a
       session that was intentionally killed. The disown prevents SIGHUP from killing
       the subshell if the parent exits first. Only fires for compacts initiated via
-      `-s`; directly-typed or RC-typed `/compact` bypasses claude-mux and is not
-      monitored (see docs/ISSUES.md, upstream anthropics/claude-code#34255).
+      All compact paths — including directly-typed or RC-triggered `/compact` — are
+      now covered universally via the `PreCompact` hook (`--on-compact`). The `-s`
+      path no longer has a special-case monitor; the PreCompact hook handles it.
 11. 45-second startup delay (skipped when stdout is a terminal or in dry-run) for LaunchAgent login use
 12. Check dependencies (tmux, claude)
 13. Dispatch:
     - start: discover_projects → migrate_stray_sessions → create sessions
     - launch (-d): migrate stray in target dir → create session → attach
     - new (-n): create dir (if -p) → git init → .gitignore → create session → attach
-    - send (-s): tmux send-keys to named session; /compact spawns a monitor that sends Ready? after completion to reconnect RC
+    - send (-s): tmux send-keys to named session; RC reconnect after /compact handled by PreCompact hook
     - list (-l): show active sessions (running + stopped)
     - list-all (-L): show all projects (active + idle)
     - shutdown: send /exit → poll → kill tmux sessions (all managed, or specific session(s))
@@ -484,6 +485,9 @@ The injected text *instructs* Claude to surface it (the notice is seen, not forc
 ```json
 {
   "hooks": {
+    "PreCompact": [{
+      "hooks": [{"type": "command", "command": "/path/to/claude-mux --on-compact", "timeout": 10}]
+    }],
     "UserPromptSubmit": [{
       "hooks": [{"type": "command", "command": "/path/to/claude-mux --on-prompt", "timeout": 5}]
     }]
@@ -491,9 +495,11 @@ The injected text *instructs* Claude to surface it (the notice is seen, not forc
 }
 ```
 
-The hook lives in `.claude/settings.local.json` (highest precedence, safe from array-replace merge behavior in Claude Code's settings hierarchy).
+The hooks live in `.claude/settings.local.json` (highest precedence, safe from array-replace merge behavior in Claude Code's settings hierarchy).
 
-**Lifecycle:** Managed by `setup_claude_mux_permissions()`. The hook is registered when **either** `TIP_OF_DAY` or `UPDATE_CHECK` is enabled (it serves both), and removed only when both are off. The same function removes any legacy `Stop --tipotd` hook from pre-upgrade projects.
+**`on_compact()` lifecycle:** Managed by `setup_claude_mux_permissions()`. Always registered (not gated on `TIP_OF_DAY` or `UPDATE_CHECK`). Removed by `--uninstall`. Fires for every `/compact` regardless of trigger (manual, auto-compact, or via `-s`); spawns a disowned monitor that polls the pane for prompt return (up to 120s) then sends `Ready?` to reconnect RC.
+
+**`on_prompt()` lifecycle:** Managed by `setup_claude_mux_permissions()`. Registered when **either** `TIP_OF_DAY` or `UPDATE_CHECK` is enabled (it serves both), and removed only when both are off. The same function removes any legacy `Stop --tipotd` hook from pre-upgrade projects.
 
 - **Added by:** `--install`; `-d`/session launch (`create_claude_session()`); `-n`/new project; `--restart`; `launch_single_session()` (home/LaunchAgent); `--enable-tips` (walks all projects).
 - **Removed by:** `--delete` (project removed); `--disable-tips` *only if* `UPDATE_CHECK` is also off; `--uninstall` (full teardown).

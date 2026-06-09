@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.0"
+VERSION="2.0.1"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -231,6 +231,7 @@ Self-targeting (works inside sessions):
                            both "/path/to" and "/path/to/SESSION" work).
                            Both: --force overrides protection; --dry-run previews steps
   --tip                    Print a tip (standalone; no daily gate)
+  --on-compact             Internal: PreCompact hook (reconnects RC after compact)
   --on-prompt              Internal: UserPromptSubmit hook (daily tip + update notice)
   --update-check-bg        Internal: background GitHub release check (refreshes cache)
   --enable-tips            Enable daily tips (registers the on-prompt hook)
@@ -575,6 +576,7 @@ while [[ $# -gt 0 ]]; do
         -h|--help)        usage; exit 0 ;;
         --tip)            set_command "--tip" "tip"; shift ;;
         --tipotd)         set_command "--tipotd" "tipotd"; shift ;;
+        --on-compact)     set_command "--on-compact" "on-compact"; shift ;;
         --on-prompt)      set_command "--on-prompt" "on-prompt"; shift ;;
         --update-check-bg) set_command "--update-check-bg" "update-check-bg"; shift ;;
         --enable-tips)    set_command "--enable-tips" "enable-tips"; shift ;;
@@ -2570,6 +2572,13 @@ has_hook = any(
 )
 if hook_enabled != has_hook:
     sys.exit(1)
+# PreCompact --on-compact hook must always be present
+has_compact_hook = any(
+    any(h.get('command', '').endswith('--on-compact') for h in entry.get('hooks', []))
+    for entry in hooks.get('PreCompact', [])
+)
+if not has_compact_hook:
+    sys.exit(1)
 sys.exit(0)
 PYEOF
         then
@@ -2652,8 +2661,20 @@ elif not hook_enabled and has_hook:
         if not any(h.get('command', '').endswith('--on-prompt') for h in entry.get('hooks', []))
     ]
 
+# PreCompact --on-compact hook (RC reconnect after compact). Always-on.
+pc_hooks = hooks.setdefault('PreCompact', [])
+compact_cmd = f'{b} --on-compact'
+has_compact_hook = any(
+    any(h.get('command', '').endswith('--on-compact') for h in entry.get('hooks', []))
+    for entry in pc_hooks
+)
+if not has_compact_hook:
+    pc_hooks.append({
+        'hooks': [{'type': 'command', 'command': compact_cmd, 'timeout': 10}]
+    })
+
 # Drop emptied hook lists / hooks key.
-for key in ('Stop', 'UserPromptSubmit'):
+for key in ('Stop', 'UserPromptSubmit', 'PreCompact'):
     if key in hooks and not hooks[key]:
         del hooks[key]
 if not hooks:
@@ -3512,6 +3533,40 @@ json.dump({"tip_date": sys.argv[2], "update_notify": int(sys.argv[3]), "notify_v
     exit 0
 }
 
+# PreCompact hook handler. Spawns a disowned background monitor that polls for
+# the prompt to return after compact completes, then sends "Ready?" to reconnect
+# Remote Control. Fires for every /compact regardless of how it was triggered
+# (manual, auto, or via -s). Returns immediately — Claude Code waits for the
+# hook to exit before starting the compact.
+on_compact() {
+    local _sess
+    _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null) || return 0
+    [[ -z "$_sess" ]] && return 0
+    (
+        # Lead-in: wait for /compact to clear the prompt before polling.
+        sleep 5
+        # Poll every 0.5s, up to 120s (240 iterations) for prompt to return.
+        _cpoll=0; _found=false; _cpane=""
+        while [[ $_cpoll -lt 240 ]]; do
+            sleep 0.5
+            _cpane=$("$TMUX_BIN" capture-pane -t "$_sess" -p 2>/dev/null) || break
+            echo "$_cpane" | grep -qE '^❯|^> ' && { _found=true; break; }
+            (( _cpoll++ ))
+        done
+        if [[ "$_found" != "true" ]]; then
+            log "Compact monitor timed out for '$_sess'; skipping RC reconnect"
+            exit 0
+        fi
+        # Guard: don't ping a session that was intentionally killed.
+        "$TMUX_BIN" has-session -t "$_sess" 2>/dev/null || exit 0
+        sleep 2
+        log "Compact complete in '$_sess'; sending Ready? to reconnect RC"
+        "$TMUX_BIN" send-keys -t "$_sess" -l "Ready?" 2>/dev/null \
+            && "$TMUX_BIN" send-keys -t "$_sess" Enter 2>/dev/null
+    ) &
+    disown
+}
+
 # Background update check spawned (disowned) by on_prompt. Performs the GitHub
 # API call, refreshes the update cache, and clears the in-flight lock. Produces
 # no output and always exits 0 — it must never disturb the session.
@@ -3624,9 +3679,9 @@ except Exception: sys.exit(1)
 
 changed = False
 
-# Remove claude-mux hooks: legacy Stop --tipotd and UserPromptSubmit --on-prompt
+# Remove claude-mux hooks: legacy Stop --tipotd, UserPromptSubmit --on-prompt, PreCompact --on-compact
 hooks = d.get('hooks', {})
-for key, suffix in (('Stop', '--tipotd'), ('UserPromptSubmit', '--on-prompt')):
+for key, suffix in (('Stop', '--tipotd'), ('UserPromptSubmit', '--on-prompt'), ('PreCompact', '--on-compact')):
     entries = hooks.get(key, [])
     kept = [
         entry for entry in entries
@@ -4220,7 +4275,7 @@ check_for_update
 # Commands that don't need config: install, update, list-templates, send,
 # shutdown, autolaunch (LaunchAgent context — handled in autolaunch_dispatch).
 case "$COMMAND" in
-    install|update|list-templates|send|shutdown|autolaunch|uninstall|on-prompt|update-check-bg)
+    install|update|list-templates|send|shutdown|autolaunch|uninstall|on-compact|on-prompt|update-check-bg)
         # Skip config-required check; these can run without config.
         # Hook commands (on-prompt, update-check-bg) must never prompt or error
         # when config is missing — they exit silently in their handlers.
@@ -4263,6 +4318,7 @@ case "$COMMAND" in
     list-all) status_claude_sessions true; exit 0 ;;
     list-templates) list_templates; exit 0 ;;
     tip)           tip_of_day; exit 0 ;;
+    on-compact)    on_compact; exit 0 ;;
     on-prompt)     on_prompt; exit 0 ;;
     update-check-bg) update_check_bg; exit 0 ;;
     enable-tips)   enable_tips; exit 0 ;;
@@ -4297,32 +4353,6 @@ case "$COMMAND" in
             exit 1
         fi
         "$TMUX_BIN" send-keys -t "$SEND_SESSION" -l "$SEND_COMMAND" && "$TMUX_BIN" send-keys -t "$SEND_SESSION" Enter
-        if [[ "$SEND_COMMAND" == "/compact" && "$DRY_RUN" != "true" ]]; then
-            log "Compact sent to '$SEND_SESSION'; monitoring for completion to reconnect RC"
-            (
-                # Lead-in: wait for /compact to clear the prompt before polling
-                sleep 5
-                # Poll every 0.5s, up to 60s (120 × 0.5s) for prompt to return
-                _cpoll=0
-                _found=false
-                while [[ $_cpoll -lt 120 ]]; do
-                    sleep 0.5
-                    _cpane=$("$TMUX_BIN" capture-pane -t "$SEND_SESSION" -p 2>/dev/null) || break
-                    echo "$_cpane" | grep -qE '^❯|^> ' && { _found=true; break; }
-                    (( _cpoll++ ))
-                done
-                if [[ "$_found" != "true" ]]; then
-                    log "Compact monitor timed out for '$SEND_SESSION'; skipping RC reconnect"
-                    exit 0
-                fi
-                # Guard: don't ping a session that was intentionally killed
-                "$TMUX_BIN" has-session -t "$SEND_SESSION" 2>/dev/null || exit 0
-                sleep 2
-                log "Compact complete in '$SEND_SESSION'; sending Ready? to reconnect RC"
-                "$TMUX_BIN" send-keys -t "$SEND_SESSION" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$SEND_SESSION" Enter 2>/dev/null
-            ) &
-            disown
-        fi
         exit 0
         ;;
     shutdown) shutdown_claude_sessions; exit $? ;;
