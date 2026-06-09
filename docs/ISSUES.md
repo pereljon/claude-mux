@@ -140,13 +140,7 @@ Small UX work pulled out of the v2.0 milestone to ship under the lifted feature 
 
 ### Launch-wrapper hardening
 
-**STATUS: BUILT + live-verified 2026-06-08; English docs done; CODE REVIEW NOT YET RUN; UNCOMMITTED.** Ships with the v2.0 release (no separate feature doc). Three changes to both generated launch heredocs (`create_claude_session`, `launch_single_session`):
-
-1. **Prompt out of `ps`** - pass the system prompt via `--append-system-prompt-file '<prompt_file>'` (path, not the expanded text) on both the primary and resume-fail `claude` invocations; drop the `_prompt=$(cat ...)` line. Verified: claude argv shows only the path; claude reads the file once at startup (deleting it mid-session left the injected instruction in effect). Assumes the flag is supported (current Claude Code has it; older `claude` would fail to launch).
-2. **Delete the prompt temp file after the ready handshake** - the caller `rm -f "$prompt_file"` once `poll_until_ready` returns (synchronous in `create_claude_session`; in the backgrounded subshell in `launch_single_session`). Shrinks on-disk lifetime to the startup window; the launch script `trap` is the backstop.
-3. **Kill the tmux session on a clean `/exit` (rc 0)** - the wrapper's clean-exit branch removes the marker + temp files and `kill-session`s, fixing the `create_claude_session` lingering shell-prompt pane. Only on rc 0; a crash leaves the pane + marker for the restore tick. A clean `/exit` of home kills it, then the LaunchAgent restarts it (~60s).
-
-Pending: code review, commit, deploy. The launch-wrapper review agent was started then rejected (unrelated: reviewing agent token spend), so it has not run.
+**SHIPPED in v2.0.0** (`f385e19`). System prompt passed via `--append-system-prompt-file` (out of `ps`); temp file deleted post-handshake; tmux session killed on clean `/exit` (rc 0). Both launch heredocs updated. See CLAUDE.md "Non-Obvious Behaviors" for the rationale.
 
 ### v1.16.0 - Universal /compact RC reconnect via PreCompact hook
 
@@ -201,169 +195,11 @@ Design posture: don't interfere with agent team lifecycle - that's Claude Code's
 
 ### Auto-restore running sessions after reboot
 
-**STATUS: IMPLEMENTED 2026-06-08 (pending release).** Built per `docs/dev/features/auto-restore.md`; reviewed (3 CRITICAL / 3 HIGH / 2 MEDIUM addressed). Docs synced (CODEMAP, SKELETON, spec, CHANGELOG `[Unreleased]`). Not yet deployed to `~/bin` or run through the manual reboot/crash E2E. Implementation notes diverging from the original sketch below: shutdown/status resolve the marker dir via a new `@claude-mux-dir` tmux option (not `pane_current_path`); a user restart/`-d`/setmode clears restore-state to un-trip a crash-looped session; the marker path is single-quote-escaped in the launch wrapper.
-
-Persist running-session state to a per-project marker file so the LaunchAgent can restore the user's working set after a reboot or crash.
-
-**Marker:** `.claudemux-running` in each project folder.
-
-**Lifecycle:**
-- On session start (`-d`, `-n`, `--restart`): write `.claudemux-running` first, then start tmux/Claude.
-- On `--shutdown`: remove `.claudemux-running` first, then kill tmux. Order matters - prevents a race where a concurrent `--restore-autostart` could relaunch a session that's mid-shutdown.
-- Survives crash, reboot, SIGKILL - that persistence is the whole point.
-- `home` folder gets no marker; LaunchAgent always starts home.
-- The marker matches what `claude-mux -l` reports as "running" - single concept, single name.
-
-**Restore flow:**
-- Extend `--autolaunch` (the flag the LaunchAgent already calls). After ensuring `home` is up, walk `PROJECT_DIRS` for `.claudemux-running` markers and launch any whose **`claude` process isn't alive**.
-- **Liveness predicate is `claude_running_in_session`, NOT `tmux has-session`.** This is load-bearing. A "zombie" (tmux pane alive, `claude` process dead) is the *same* failure as a fully-dead session and must be resurrected the same way. If the loop gated on `has-session`, it would see the zombie's live tmux pane, conclude "already up," and skip it - leaving it dead. Gating on `claude_running_in_session` subsumes zombie recovery into this one loop at zero extra cost, which is why no standalone zombie detector is needed. (Caveat: `claude_running_in_session` currently only checks 2 process levels deep - see the open issue of the same name; deepen it if the launch wrapper ever adds nesting.)
-- Pure bash loop in the script - no involvement from home's Claude turn, no injection delays, no token cost.
-- Because the LaunchAgent re-fires `--autolaunch` on `KeepAlive` (every `ThrottleInterval`, currently 60s), the same loop self-heals mid-day crashes: any tracked session whose `claude` dies comes back on the next tick. Boot recovery and runtime watchdog from a single code path.
-
-**Shared infrastructure note:** the `--autolaunch` tick is the keystone for self-healing. Zombie recovery needs no separate pass - it falls out of the liveness predicate above. Note that **Claude Code upgrade detection does NOT ride this tick** (it rides the on-prompt hook instead - see that section), so the tick's only riders beyond auto-restore itself are optional housekeeping (lower priority): the transcript-size warning, `.update-check` cache refresh, log rotation.
-
-**Intentional stop vs crash: exit-code branch in the launch wrapper (DECIDED — option b).**
-
-The central UX risk of "marker ⇒ alive" is the resurrection surprise: if every dead session comes back, how does a user stop one for good? Resolved by branching on `claude`'s exit code inside the launch wrapper. Clean quit → remove the marker (stay dead); abnormal exit → leave the marker (resurrect).
-
-Exit codes verified empirically (capture-pane experiment, Claude Code v2.1.149, 2026-06-06):
-
-| Exit path | Exit code | Treatment |
-|---|---|---|
-| `/exit` | **0** | intentional → remove marker, stay dead |
-| Ctrl-C ×2 | **0** | intentional → remove marker, stay dead |
-| Ctrl-D | (does not exit Claude Code) | n/a |
-| SIGTERM | **143** (128+15) | crash → keep marker, resurrect |
-| SIGKILL | **137** (128+9) | crash → keep marker, resurrect |
-
-Clean quits return 0; crashes return non-zero. So the wrapper does:
-
-```bash
-claude … ; rc=$?
-[[ $rc -eq 0 ]] && rm -f "$working_dir/.claudemux-running"   # intentional → stay dead
-# non-zero → marker stays → --autolaunch tick resurrects within ~60s
-```
-
-This gives the ideal behavior with **no opt-in and no surprise**: a user who types `/exit` (or Ctrl-C ×2) in the pane is taken at their word; a crash self-heals.
-
-**Interaction with `--shutdown` / `--restart` (both exit via `/exit`, rc=0):**
-- `--shutdown` already removes the marker itself before killing; the wrapper's rc=0 removal is redundant and harmless.
-- `--restart` sends `/exit` (wrapper removes marker), then relaunches and re-writes the marker. Safe as long as restart waits for full exit before relaunching (it does today). The wrapper branch therefore only *changes* behavior for the two previously-uncovered cases: **manual `/exit` and crash.**
-
-**Implementation caveats:**
-- The current retry fallback (`claude … || claude …`, claude-mux:~2654-2655) must be restructured so the branch reads the *final* claude's exit code, not the `||` chain's result.
-- Re-verify exit codes on major Claude Code bumps (cheap). 0-vs-128+signal is POSIX convention, unlikely to change.
-
-**Behavior change to call out in release notes:** `tmux kill-session` (and any crash) on a claude-mux project will now be auto-resurrected within ~60s as long as the marker is present, because an abnormal exit returns non-zero. To truly stop a session, type `/exit` in the pane (clean exit, removes the marker) or use `claude-mux --shutdown`.
-
-**Resurrection policy: resume + crash-loop guard (DECIDED).**
-
-- **Resume, not fresh.** Resurrection uses `claude -c`. Bringing back the working set is the whole point; fresh would defeat it. The only failure mode is a transcript-poisoned crash-loop (huge transcript → startup auto-compaction → OOM/hang, where resume reloads the killer). The guard below catches that; it is not a reason to default to fresh.
-- **Crash-loop detection via uptime delta, not wall-clock counting.** The real signal is "did the resurrection survive," measurable from timestamps without needing the ready-handshake result:
-  - Store `last_attempt_ts` each time the tick launches a session.
-  - When a tick finds a marked session dead, `uptime ≈ now - last_attempt_ts`. If `uptime < MIN_HEALTHY` → died fast → `death_count++`. If `uptime ≥ MIN_HEALTHY` → ran fine → reset `death_count = 0` (isolated crash, not a loop).
-  - This self-distinguishes a fast crash-loop (counts up ~1/tick) from a long-lived session that crashed once (delta large → reset). At the 60s tick cadence a true loop trips in ~3 min; healthy sessions never accumulate.
-- **Constants (pinned):** `MIN_HEALTHY = 5 min`, trip threshold = `3`.
-- **On trip: stop + notify + suggest fresh. Do NOT auto-fresh.**
-  - Stop resurrecting. Keep the `.claudemux-running` marker (intent unchanged) but set `tripped=true` in health state; the tick skips tripped sessions. A user `restart` / `restart fresh` clears `tripped` and resets the counter.
-  - Surface a `failed` / needs-attention badge in `-l` (persistent, RC-visible), plus a one-shot notice routed to the always-alive `home` session via the v1.15.0 hook: *"Session X crash-looped 3× and was stopped. Likely a poisoned transcript - say 'restart X fresh' to start it clean."*
-  - **Why not auto-fresh-once?** After 3 resume-deaths the transcript is the likely culprit, so fresh would probably fix it - but auto-fresh silently discards the user's context, a decision the user should make, and the brief workflow that would soften it does not exist until v2.1. Keep v2.0 conservative. Auto-fresh-once is a candidate v2.1 enhancement once briefs exist.
-- **Health-state location:** `~/.claude-mux/restore-state/<session>.json` (central, mirroring `tip-state/`), NOT a `.claudemux-*` project marker. Crash-loop counting is runtime health state, not project-semantic state (per CLAUDE.md "when NOT to use marker files: truly session-runtime state"). It also cannot live in a tmux user option, since the session is dead exactly when the counter must be read. Keeping it central preserves `.claudemux-running` as a clean boolean intent marker.
-
-```json
-// ~/.claude-mux/restore-state/<session>.json
-{ "last_attempt_ts": 1780000000, "death_count": 0, "tripped": false }
-```
-
-Tick algorithm (per dead-but-marked session):
-```
-read restore-state (death_count, last_attempt_ts, tripped)
-if tripped: skip
-uptime = now - last_attempt_ts
-if uptime < MIN_HEALTHY:  death_count++
-else:                     death_count = 0
-if death_count >= 3:
-    tripped = true; write state; badge -l "failed"; notify home; skip
-else:
-    launch (claude -c); last_attempt_ts = now; write state
-```
-
-**Default-on + global `AUTORESTORE` opt-out (DECIDED).** Auto-restore is on by default (it's the headline reliability feature; opt-in would bury it - most users never flip flags). A single global `AUTORESTORE=true/false` config var ships from the start as the escape hatch, default `true`. Rationale: option (b)'s exit-code branch already removed the resurrection *surprise*, but the one un-mitigated concern is *resource/token cost of mass restore* with no user control - a one-line opt-out is cheap insurance against that (and against the tmux-native-user surprise). The marker lifecycle is independent of this flag: markers are written/removed normally regardless; `AUTORESTORE` only gates whether the tick *acts* on them, so toggling it off leaves markers inert (sessions show `stopped`) and toggling back on resumes honoring them.
-
-**Restore-enabled predicate: one helper, `should_be_alive()`.** Both the tick (what to launch) and `-l` (what status to show) consult one helper, so the listing never promises a restore the tick won't perform:
-```
-should_be_alive(session) ⇔
-    (.claudemux-running present AND AUTORESTORE on AND not crash-loop-tripped)   # auto-restore
-    OR (.claudemux-autostart present)                                            # always-on (future)
-```
-**Auto-startup is out of v2.0 scope**, but the predicate is written generic now so a future `.claudemux-autostart` per-project marker (declarative "always keep this up," generalizing what `home` already does via the LaunchAgent) drops in with zero rework. `AUTORESTORE` is a **global boolean for v1**; because both the tick and `-l` route through this one helper, making it per-project later (e.g. a `.claudemux-no-restore` marker) touches only the helper, not `-l`.
-
-**Staggering (DECIDED — avoid the reboot thundering-herd).** After a reboot, N marked sessions are all down; launching them at once means N concurrent `claude -c`, some hitting the ~50s startup compaction together. Stagger across the existing ~60s ticks, capping concurrency by counting recent launches via the `last_attempt_ts` already stored for the crash-loop guard (no new state):
-```
-# Constants: STAGGER_CONCURRENCY=3 (configurable), STARTING_WINDOW=90s
-ensure home is up first        # home is always-on, NOT part of the staggered batch
-down = [ s in PROJECT_DIRS if should_be_alive(s) and not claude_running_in_session(s) ]
-in_flight = count(s where now - last_attempt_ts(s) < STARTING_WINDOW)
-slots = STAGGER_CONCURRENCY - in_flight
-for s in ordered(down)[:slots]:           # deterministic order (sorted) for v1
-    last_attempt_ts(s) = now; launch(s, resume)
-```
-Roughly 3 sessions per ~90s window; a 20-session set recovers in a few minutes, no spike. Refinement (optional): the parked `starting` flag, if built, could free a slot the instant a session is truly ready instead of waiting out the window - but the time-window pacing works on its own and self-heals a stuck startup.
-
-**Sizing rationale for `STAGGER_CONCURRENCY=3`:** measured idle per-session footprint is ~80-110 MB RSS / ~0% CPU (2026-06-07), so **local resources are not the constraint** (10 concurrent ≈ ~1 GB, trivial). The only plausible limit is API-side (token burst / rate limits), which can't be measured locally. So 3 is a moderate default chosen as API-burst insurance, not a local-resource necessity - **configurable, tune from real reboot experience.** (Per-session *startup-peak* RSS/CPU was left unmeasured by choice; the idle footprint was conclusive enough that local isn't the binding factor.)
-
-**Listing statuses (`-l`).** The restore lifecycle adds two statuses, both derived from state already tracked (marker + restore-state + the `should_be_alive`/`AUTORESTORE` check) - no `capture-pane`:
-
-| Condition | Status |
-|---|---|
-| marker + claude alive (+ protected) | `running` / `protected` |
-| marker + claude dead + `should_be_alive` + not tripped | `queued` (will be restored) |
-| marker + claude dead + crash-loop tripped | `failed` |
-| marker + claude dead + `AUTORESTORE` off | `stopped` (inert marker) |
-| no marker | `stopped` / `idle` |
-
-`starting` (a launched-but-not-yet-ready badge) stays PARKED - see the Ready-handshake section. `queued`/`failed` fall out of existing state cheaply; `starting` is the only one needing an extra signal.
-
-**Default-on caveat for release notes:** with `AUTORESTORE` on (default), a reboot or crash brings your running set back automatically (staggered, home first). Set `AUTORESTORE=false` to disable.
-
-**Implementation notes:**
-- **Hidden and protected markers are orthogonal to the restore loop.** It walks for `.claudemux-running` and starts what it finds. `.claudemux-ignore` and `.claudemux-protected` persist in the project folder alongside the running marker - hidden sessions come back hidden, protected sessions come back protected. Visibility and protection are about how the session is listed and shut down, not whether it should be alive.
-- **First-time install backfill**: on upgrade to the version that adds this feature, scan tmux for already-running claude-mux sessions and write markers so the very first reboot doesn't lose them.
-- **Auto-gitignore**: add `.claudemux-running` via `ensure_gitignore_entry()` like other marker files.
-
-**Invariant:** marker present ⇒ session should be alive. The marker is cleared two ways, both representing intent to stop: `claude-mux --shutdown`, or a clean in-pane quit (`/exit` / Ctrl-C ×2, detected via exit code 0 in the launch wrapper). A crash or `tmux kill-session` (non-zero exit) does NOT clear it, so it resurrects.
+**SHIPPED in v2.0.0** (`2821d6e`). `.claudemux-running` marker tracks intent; `--autolaunch` walk restores dead-but-marked sessions via `claude -c`; `should_be_alive()` helper gates both the tick and `-l` display; exit-code branch (rc 0 = intentional stop, non-zero = crash → resurrect); crash-loop guard (trip at 3, MIN_HEALTHY=5min, state in `~/.claude-mux/restore-state/<session>.json`); staggered restore (`STAGGER_CONCURRENCY=3`, `STARTING_WINDOW=90s`); `queued`/`failed` statuses in `-l`; `AUTORESTORE=true` global opt-out. See `docs/dev/features/auto-restore.md` and `docs/dev/features/auto-restore-tests.md`.
 
 ### Claude Code upgrade detection
 
-**STATUS: IMPLEMENTED 2026-06-08 (pending release).** Built per `docs/dev/features/claude-code-upgrade-detection.md`; English docs synced (CODEMAP, SKELETON, spec, CHANGELOG `[Unreleased]`). Live-verified (notice fires on a stale `@claude-mux-claude-id`, acks one-shot, quiet thereafter; pre-feature session skips). Implementation matches the design below, with the refinement that one-shot gating is the acknowledge-write to `@claude-mux-claude-id` (no new JSON state field), and the binary id lives in that tmux option (re-captured at launch) rather than the conversation-keyed state, so a restart self-clears. Not yet deployed to `~/bin`.
-
-> Naming: this is about the **`claude` executable** (Claude Code itself), NOT the claude-mux script. claude-mux is a script and updates instantly on disk; the `claude` dependency is a separate compiled/packaged binary. "Claude Code binary upgrade detection" was the old, confusing name.
-
-claude-mux has no awareness of `claude` upgrades. `--update` handles claude-mux itself (script + injection) and triggers `--restart` to refresh injection. The `claude` executable is upgraded out-of-band (`brew upgrade`, npm, curl installer). A running session holds a `claude` process spawned from whichever binary was on PATH at launch time, so it keeps running the old binary until restarted. New sessions pick up the new binary because PATH resolves at exec time.
-
-**Same shape as the claude-mux injection-staleness problem, but for the dependency.**
-
-**This feature does NOT need the `--autolaunch` tick.** A session with a stale binary is, by definition, *running* (claude alive, just old). So the v1.15.0 `UserPromptSubmit` hook already fires in it on the next prompt — the notice lands exactly where it is relevant. Detection runs inline in the on-prompt hook; the `-l` "stale" badge computes at list-render time (the listing already iterates sessions). Both paths exist already; neither needs the tick. **This decouples the feature from auto-restore — it can ship independently.** (Corrects the prior "rides on the `--autolaunch` tick" framing.)
-
-**Detection mechanism: capture binary identity at launch, compare later.** Verified empirically (2026-06-06, macOS):
-
-- **`ps -o etimes` is NOT supported on macOS**, so there is no clean portable process-start-time. Detection must not depend on introspecting the running process's age (or its executable path — macOS has no `/proc`; `lsof` is fiddly).
-- **Cask installs use versioned resolved paths.** `command -v claude` → `/opt/homebrew/bin/claude` → realpath `…/Caskroom/claude-code/2.1.149/claude`. On upgrade the symlink repoints to `…/2.1.150/claude`, so the *resolved path changes*. But npm/curl installs replace the file in place (same path, new mtime). No single signal (path-only or mtime-only) covers both.
-- **Robust universal approach:** at launch, record `realpath(claude) + ":" + mtime(realpath)` as the session's binary identity (`id0`). Detection compares `id0` against the current value:
-  ```
-  launch:     id0    = realpath(claude) + ":" + mtime(realpath)
-  detect:     id_now = realpath(claude) + ":" + mtime(realpath)
-  stale  ⇔  id_now != id0
-  ```
-  Covers cask (realpath changes) and in-place npm/curl (mtime changes) in one check, with zero macOS process introspection. One `stat` at launch, stored. Piggybacks on the per-session state already created for the crash-loop guard (or a tmux user option, since the session is alive when this matters).
-- Minor false-positive: a same-version reinstall bumps mtime → "stale" notice → a harmless restart. Acceptable. A precise version-string compare would avoid it but costs a `claude --version` at launch — not worth it.
-
-**Decisions:**
-- **Always-on.** A `realpath` + `stat` compare is negligible; no config gate.
-- **Notify-only.** On detection, the on-prompt hook injects a one-shot note: *"Claude Code was upgraded since this session started; say 'restart this session' to load the new binary."* Plus an optional `-l` "stale" badge.
-- **Never auto-restart** (mid-task danger) and **never auto-`brew upgrade`** the user's claude. The "extend `--update` to upgrade both + restart sweep" idea is riskier (per-install-method upgrade logic) — defer to an explicit opt-in action later.
-
-**Adjacent but distinct** from "Warn before restart in `--update` and RC" — that item is about explaining *our* restarts; this is about detecting an external dependency upgrade.
+**SHIPPED in v2.0.0** (`87f4955`). `claude_binary_id()` = `realpath:mtime` stored in `@claude-mux-claude-id` tmux option at launch; `detect_claude_upgrade()` in `on_prompt` hook injects a one-shot notice and acks by overwriting the option; `--restart` re-captures so it self-clears. Rides the existing `UserPromptSubmit` hook - no tick needed (stale session is by definition running). Covers both cask (realpath changes on upgrade) and npm/curl (mtime changes). See `docs/dev/features/claude-code-upgrade-detection.md`.
 
 ### Inter-agent messaging
 
@@ -536,54 +372,9 @@ A periodic LaunchAgent tick was discussed alongside this. The auto-restore self-
 
 ### Ready handshake during compact/resume
 
-**STATUS: IMPLEMENTED 2026-06-08 (pending release).** Built per `docs/dev/features/ready-handshake.md`; reviewed (1 HIGH fixed, 2 MEDIUM + 1 LOW assessed). Live-verified on Claude Code v2.1.149: idle session detected ready in ~2s, a mid-turn session correctly never reads ready. New shared helper `poll_until_ready(session, [timeout=120])` (busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt at line start + quiescent, two captures >=1.1s apart identical) replaces the prompt-only 10s loops in both `create_claude_session` (synchronous) and `launch_single_session` (backgrounded). English docs NOT yet synced (CODEMAP/SKELETON/CHANGELOG/spec/CLAUDE.md); not deployed to `~/bin`. HIGH fix: the second quiescence capture guards `|| continue` and the equality requires non-empty, so two failed captures can't false-positive.
+**SHIPPED in v2.0.0** (`87f4955`). `poll_until_ready(session, [timeout=120])` replaces the prompt-only 10s loops in both launch pollers. Busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt at line start + quiescent (two captures >=1.1s apart, non-empty, identical). Covers the ~50s startup compaction case the old 10s timeout missed. See `docs/dev/features/ready-handshake.md` and `docs/dev/features/ready-handshake-tests.md`.
 
-**Spun-off follow-ups (assessed during the review, NOT built — decided acceptable for v2.0):**
-- **Parallel restart (MEDIUM, deferred).** `create_claude_session` is now synchronous on the ready-wait, so `--restart` (all) and `autorestore_walk` block up to the ~120s timeout per session, sequentially. Worst case (many large sessions resume-compacting at once) makes restart-all/the tick slow (never dangerous; the tick just takes longer). Common case is ~2s/session. Fix = fire session creations in background subshells, but that carries RC-registration-race / `SLEEP_BETWEEN` / caller-last-ordering concerns, so it's its own focused change, not part of ready-handshake. Revisit if restart-all latency is felt in practice.
-- **`/compact` RC-reconnect monitor reuse (idea).** The `-s` `/compact` monitor (Open section above) has the same prompt-only-readiness bug class (it polls for `^❯` which is drawn during the compaction it's waiting on). It could reuse `poll_until_ready` for a more reliable reconnect. Not done; tracked.
-- **`^> ` prompt pattern tidy (LOW, pre-existing).** The readiness prompt check `grep -E '^❯|^> '` has a broad `^> ` alternative (matches a markdown block-quote line). Pre-existing tech debt, now double-gated by the busy + quiescence checks so it can't alone cause a false ready. Leave unless a prompt-pattern audit happens.
-- **Quiescence vs escape codes (MEDIUM, non-issue).** `capture-pane -p` emits plain text (escapes only with `-e`), so residual-escape churn can't defeat quiescence; the send-anyway timeout is the safe fallback regardless. No change needed; recorded so it isn't re-flagged.
-
-The startup poller (`create_claude_session`, the capture-pane loop at claude-mux:~2669-2706) treats "prompt symbol drawn" as "ready to receive input." That's wrong during `claude -c` resume when the transcript is large enough to trigger auto-compaction or a continuation summary — the `❯` is visible but Claude is busy processing context. `"Ready?"` lands at the wrong time, either getting queued into the wrong turn or interrupting the compact mid-process.
-
-The injection rule added in v1.13.2 ("After a resume/compaction continuation, stay silent") mitigates the symptom; the timing bug remains.
-
-**Empirical findings (capture-pane experiment, Claude Code v2.1.149, 2026-06-06):**
-
-Ran live captures of a fresh session (idle + a working turn) and a real `/compact` on the `home` session (~142k tokens, compaction took **~50s**). Results:
-
-- **The busy signal is `esc to interrupt` in the status line.** It is present for the *entire* duration of both a normal turn and a real compaction, and disappears the instant the session goes idle. Idle shows `· ← for agents` (or `· for shortcuts`-style hints) in the same slot; busy shows `· esc to interrupt`. This is the single reliable discriminator.
-- **The empty `❯` box is drawn at line-start throughout compaction.** Confirms the root bug directly: prompt-symbol-present does NOT mean ready. Captured frames showed `❯` on its own line while `esc to interrupt` was in the status line below it, for the full ~50s.
-- **No body text like `Compacting…` / `Summarizing…` appears in v2.1.149.** The spec's original plan to grep for those verb strings would have FAILED — they do not exist in this version. The status line is the only indicator.
-- **Spinner glyphs are NOT Braille.** Actual working glyphs cycle `✳ → ✻ → · → ✽`, plus `◐` (effort) and a `✻ Crunched for Ns` / `✻ Baked for Ns` completion line. The originally-assumed `⠋⠙⠹…` set never appears. Do not base detection on a glyph denylist.
-- **The 10s timeout is the live failure.** Compaction at ~50s far exceeds it, so the poller hits its fallback and "sends ready anyway" (~2704) roughly 10s into a 50s compaction — the misfire, reproduced.
-
-**Fix (evidence-based detector):**
-
-```
-busy   ⇔  status region (bottom ~3 lines) contains "esc to interrupt"
-ready  ⇔  NOT busy
-       AND ❯ present at line start
-       AND quiescent: two captures ≥1.1s apart, identical after trailing-whitespace normalize
-otherwise → keep polling
-timeout: extend 10s → ~120s   (measured ~50s; leave headroom)
-```
-
-1. Scope the `esc to interrupt` scan to the **bottom ~3 lines** so the words can't false-match if they ever appear in transcript body.
-2. Quiescence is the version-proof backstop: during work the status animates (glyph + `Ns` timer + token counter), so a moving screen reads as busy even if the string check is ever defeated. The ≥1.1s gap avoids reading the same elapsed-second twice.
-3. Send `"Ready?"` only when the pane is at the prompt **and** not busy.
-4. Never auto-confirm or auto-press anything during the busy window — just wait it out. Keep the trust/bypass auto-accept logic (2676-2694) gated to *before* ready.
-
-The spinner glyphs and any verb strings drop to optional fast-path only; `esc to interrupt` + quiescence carry the detection.
-
-**Shared infrastructure:** the busy check is the same `tmux capture-pane` pass already in use, so this bolts onto the existing poller without new dependencies. Also overlaps with the `--autolaunch` tick used by auto-restore.
-
-**Remaining open questions:**
-- Does `esc to interrupt` survive future Claude Code UI changes? It's a short stable string and far less churn-prone than verb wording, but re-verify on major Claude Code bumps. The quiescence backstop limits the blast radius if it ever changes.
-
-**PARKED (future review / TODO) — `starting` status badge in `-l`.** Spun off from this item: surface a transient `starting` status in `-l` so a user checking the listing during the ~50-120s startup-compaction window sees why a session isn't yet responsive. **Deferred, not in v2.0.** Rationale: the root fix above handles claude-mux's correctness (no misfired `Ready?`); the inherent startup latency remains, but the common case already has a natural readiness signal (the "Session ready!" message appears when ready). The badge only helps the narrow case of watching `-l`/RC *from another session* during a long startup, and that confusion is anticipated, not observed - no user has reported it. Same call as zombie detection: don't build for a hypothetical. **Revisit if** a user actually reports "I restarted X and couldn't tell why it wasn't responding."
-
-If revisited, the agreed cheap design (do NOT use capture-pane per row): set a tmux user option `@claude-mux-starting=1` at launch, clear it when the ready-handshake confirms ready (or have the on-prompt hook clear it on the first successful prompt, for tick-resurrected sessions). `-l` reads the option per row - same cost class as existing checks. Name it `starting` (covers compaction + continuation summary + slow load), not `compacting`. Reject the generic always-on "busy" badge (capture-pane per running row is too costly and can't distinguish startup from normal mid-task work).
+**Deferred follow-ups (acceptable for v2.0):** parallel restart (sequential ready-wait is slow for restart-all with many large sessions, but never dangerous; revisit if felt in practice); `/compact` RC-reconnect monitor could reuse `poll_until_ready`; `^> ` prompt pattern tidy (pre-existing, low-risk); `starting` status badge in `-l` (parked - no user has reported confusion during the startup window).
 
 ### Session handoff / brief workflow
 

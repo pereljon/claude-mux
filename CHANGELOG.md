@@ -2,7 +2,7 @@
 
 All notable changes to claude-mux are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - 2026-06-08
 
 ### Added
 - **Auto-restore (self-healing)**: the keystone of the v2.0 self-healing milestone. Sessions now record a `.claudemux-running` marker, and the LaunchAgent tick (re-fired ~every 60s) brings back any session that should be alive but whose Claude process has died. One mechanism covers both reboot recovery and a mid-day-crash watchdog (zombies included, since liveness is a process-tree check, not `tmux has-session`).

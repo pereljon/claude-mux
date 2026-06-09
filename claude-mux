@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="1.15.1"
+VERSION="2.0.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -2767,8 +2767,12 @@ poll_until_ready() {
         (( $(date +%s) - start >= timeout )) && return 1
         sleep 0.5
         pane=$("$TMUX_BIN" capture-pane -t "$session" -p 2>/dev/null) || continue
-        # Pre-ready auto-accepts (the user's own projects).
-        if echo "$pane" | grep -q "Yes, I trust this folder"; then
+        # Pre-ready auto-accepts (the user's own projects). Scope to the bottom of
+        # the pane so matching text in transcript history can't trigger a spurious
+        # keypress during a long resume.
+        local pane_tail
+        pane_tail=$(echo "$pane" | tail -6)
+        if echo "$pane_tail" | grep -q "Yes, I trust this folder"; then
             log "Auto-accepting trust prompt for '$session'"
             "$TMUX_BIN" send-keys -t "$session" Enter
             sleep 2
@@ -2776,7 +2780,7 @@ poll_until_ready() {
         fi
         # bypassPermissions warning: "No, exit" (selected) + "Yes, I accept". Send
         # Down to option 2, wait 1s for the UI to register, then Enter.
-        if echo "$pane" | grep -qi "yes.*accept"; then
+        if echo "$pane_tail" | grep -qi "yes.*accept"; then
             log "Auto-accepting bypassPermissions warning for '$session'"
             "$TMUX_BIN" send-keys -t "$session" Down
             sleep 1
@@ -4343,7 +4347,7 @@ case "$COMMAND" in
                     (( _restart_errors++ ))
                     continue
                 fi
-                _restart_dir=$("$TMUX_BIN" display-message -t "$_rs" -p '#{pane_current_path}' 2>/dev/null)
+                _restart_dir=$(session_marker_dir "$_rs")
                 if [[ -z "$_restart_dir" ]]; then
                     echo "ERROR: Session '$_rs' not found or cannot determine working directory" >&2
                     echo "Run 'claude-mux -l' to see available sessions." >&2
@@ -4376,7 +4380,7 @@ case "$COMMAND" in
                 [[ -z "$_s" ]] && continue
                 is_managed_session "$_s" || continue
                 if claude_running_in_session "$_s"; then
-                    _dir=$("$TMUX_BIN" display-message -t "$_s" -p '#{pane_current_path}' 2>/dev/null)
+                    _dir=$(session_marker_dir "$_s")
                     [[ -n "$_dir" ]] && _restart_list="${_restart_list}${_s}|${_dir}
 "
                 fi
@@ -4487,7 +4491,7 @@ case "$COMMAND" in
                 (( _setmode_errors++ ))
                 continue
             fi
-            _sm_dir=$("$TMUX_BIN" display-message -t "$_sm" -p '#{pane_current_path}' 2>/dev/null)
+            _sm_dir=$(session_marker_dir "$_sm")
             if [[ -z "$_sm_dir" ]]; then
                 echo "ERROR: Session '$_sm' not found or cannot determine working directory" >&2
                 (( _setmode_errors++ ))
