@@ -180,11 +180,11 @@ Design posture: don't interfere with agent team lifecycle - that's Claude Code's
 
 ### Auto-restore running sessions after reboot
 
-**SHIPPED in v2.0.0** (`2821d6e`). `.claudemux-running` marker tracks intent; `--autolaunch` walk restores dead-but-marked sessions via `claude -c`; `should_be_alive()` helper gates both the tick and `-l` display; exit-code branch (rc 0 = intentional stop, non-zero = crash → resurrect); crash-loop guard (trip at 3, MIN_HEALTHY=5min, state in `~/.claude-mux/restore-state/<session>.json`); staggered restore (`STAGGER_CONCURRENCY=3`, `STARTING_WINDOW=90s`); `queued`/`failed` statuses in `-l`; `AUTORESTORE=true` global opt-out. See `docs/dev/features/auto-restore.md` and `docs/dev/features/auto-restore-tests.md`.
+**SHIPPED in v2.0.0** (`2821d6e`). `.claudemux-running` marker tracks intent; `--autolaunch` walk restores dead-but-marked sessions via `claude -c`; `should_be_alive()` helper gates both the tick and `-l` display; exit-code branch (rc 0 = intentional stop, non-zero = crash → resurrect); crash-loop guard (trip at 3, MIN_HEALTHY=5min, state in `~/.claude-mux/restore-state/<session>.json`); staggered restore (`STAGGER_CONCURRENCY=3`, `STARTING_WINDOW=90s`); `queued`/`failed` statuses in `-l`; `AUTORESTORE=true` global opt-out. See `dev/features/auto-restore.md` and `dev/features/auto-restore-tests.md`.
 
 ### Claude Code upgrade detection
 
-**SHIPPED in v2.0.0** (`87f4955`). `claude_binary_id()` = `realpath:mtime` stored in `@claude-mux-claude-id` tmux option at launch; `detect_claude_upgrade()` in `on_prompt` hook injects a one-shot notice and acks by overwriting the option; `--restart` re-captures so it self-clears. Rides the existing `UserPromptSubmit` hook - no tick needed (stale session is by definition running). Covers both cask (realpath changes on upgrade) and npm/curl (mtime changes). See `docs/dev/features/claude-code-upgrade-detection.md`.
+**SHIPPED in v2.0.0** (`87f4955`). `claude_binary_id()` = `realpath:mtime` stored in `@claude-mux-claude-id` tmux option at launch; `detect_claude_upgrade()` in `on_prompt` hook injects a one-shot notice and acks by overwriting the option; `--restart` re-captures so it self-clears. Rides the existing `UserPromptSubmit` hook - no tick needed (stale session is by definition running). Covers both cask (realpath changes on upgrade) and npm/curl (mtime changes). See `dev/features/claude-code-upgrade-detection.md`.
 
 ### Inter-agent messaging
 
@@ -357,7 +357,7 @@ A periodic LaunchAgent tick was discussed alongside this. The auto-restore self-
 
 ### Ready handshake during compact/resume
 
-**SHIPPED in v2.0.0** (`87f4955`). `poll_until_ready(session, [timeout=120])` replaces the prompt-only 10s loops in both launch pollers. Busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt at line start + quiescent (two captures >=1.1s apart, non-empty, identical). Covers the ~50s startup compaction case the old 10s timeout missed. See `docs/dev/features/ready-handshake.md` and `docs/dev/features/ready-handshake-tests.md`.
+**SHIPPED in v2.0.0** (`87f4955`). `poll_until_ready(session, [timeout=120])` replaces the prompt-only 10s loops in both launch pollers. Busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt at line start + quiescent (two captures >=1.1s apart, non-empty, identical). Covers the ~50s startup compaction case the old 10s timeout missed. See `dev/features/ready-handshake.md` and `dev/features/ready-handshake-tests.md`.
 
 **Deferred follow-ups (acceptable for v2.0):** parallel restart (sequential ready-wait is slow for restart-all with many large sessions, but never dangerous; revisit if felt in practice); `/compact` RC-reconnect monitor could reuse `poll_until_ready`; `^> ` prompt pattern tidy (pre-existing, low-risk); `starting` status badge in `-l` (parked - no user has reported confusion during the startup window).
 

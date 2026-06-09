@@ -141,8 +141,8 @@ A future `.claudemux-autostart` per-project marker = declarative "always keep th
 
 ## Change-checklist impact (when built)
 
-- New config var `AUTORESTORE` → `config.example`, `config_help()`, settings table in `docs/dev/IMPLEMENTATION-SPEC.md`.
-- New marker `.claudemux-running` → marker registry in `docs/dev/CODEMAP.md`, `ensure_gitignore_entry()`.
+- New config var `AUTORESTORE` → `config.example`, `config_help()`, settings table in `dev/IMPLEMENTATION-SPEC.md`.
+- New marker `.claudemux-running` → marker registry in `dev/CODEMAP.md`, `ensure_gitignore_entry()`.
 - New state dir `~/.claude-mux/restore-state/` → CODEMAP global-state table.
 - Modified: `autolaunch_dispatch`, the launch script (exit-code wrapper), `--shutdown`, `status_claude_sessions` (statuses), `create_claude_session`/`launch_single_session` (marker write) → CODEMAP + SKELETON.
 - Release notes: behavior change (crash/`kill-session` resurrects within ~60s; `/exit` or `--shutdown` to truly stop).

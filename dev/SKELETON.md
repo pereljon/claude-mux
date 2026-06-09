@@ -1,10 +1,10 @@
 # claude-mux Script Skeleton
 
-Pseudo-code showing the structure and logic of `claude-mux`. Use this to understand how the script works, trace a bug, or reason about the impact of a change. For function locations and config var details, see `docs/dev/CODEMAP.md`.
+Pseudo-code showing the structure and logic of `claude-mux`. Use this to understand how the script works, trace a bug, or reason about the impact of a change. For function locations and config var details, see `dev/CODEMAP.md`.
 
 ## Contents
 
-Read only the section you need - `grep -n "^## <name>" docs/dev/SKELETON.md` for its offset, then Read that range:
+Read only the section you need - `grep -n "^## <name>" dev/SKELETON.md` for its offset, then Read that range:
 
 - **How to Use** - navigating this file
 - **How to Maintain** (+ **Non-Obvious Script Structure** - the interspersed pre-dispatch blocks that are easy to miss)
@@ -27,9 +27,9 @@ Read only the section you need - `grep -n "^## <name>" docs/dev/SKELETON.md` for
 
 ## How to Use
 
-- **Tracing a bug**: find the relevant section (Top-Level Structure, Main Dispatch, or a function section), follow the pseudo-code to identify which condition or path is wrong, then use `docs/dev/CODEMAP.md` to jump to the exact line.
+- **Tracing a bug**: find the relevant section (Top-Level Structure, Main Dispatch, or a function section), follow the pseudo-code to identify which condition or path is wrong, then use `dev/CODEMAP.md` to jump to the exact line.
 - **Assessing impact of a change**: read the section for the function you're modifying, check what it calls and what calls it, look for shared state (globals like `FORCE`, `FRESH_START`, `MANAGED_SESSIONS`).
-- **Don't use this for line numbers** - use `docs/dev/CODEMAP.md` for that. This file describes logic, not locations.
+- **Don't use this for line numbers** - use `dev/CODEMAP.md` for that. This file describes logic, not locations.
 
 ## How to Maintain
 
@@ -40,7 +40,7 @@ Update this file when:
 - A **new command** is added to the dispatch
 - **Control flow** changes in the pre-dispatch section (step 9)
 
-Do **not** update line numbers here - those belong in `docs/dev/CODEMAP.md`.
+Do **not** update line numbers here - those belong in `dev/CODEMAP.md`.
 
 ### Non-Obvious Script Structure
 

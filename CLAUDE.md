@@ -34,7 +34,7 @@ Infrastructure, not a framework. Keep sessions alive, get out of the way.
 | File | Purpose |
 |------|---------|
 | `CLAUDE.md` | Conventions, checklists, guardrails for working in this repo |
-| `docs/dev/IMPLEMENTATION-SPEC.md` | Product spec: architecture, config reference, design decisions, translation standards, deprecation policy |
+| `dev/IMPLEMENTATION-SPEC.md` | Product spec: architecture, config reference, design decisions, translation standards, deprecation policy |
 | `README.md` | Landing page: install, capabilities, conversational examples, links to docs |
 | `CHANGELOG.md` | What changed per release |
 | `docs/CLI.md` | Full CLI command reference for scripting and automation |
@@ -42,16 +42,16 @@ Infrastructure, not a framework. Keep sessions alive, get out of the way.
 | `docs/INSTALL.md` | Full installation guide (curl, Homebrew, manual, uninstall) |
 | `docs/FAQ.md` | Common questions about claude-mux |
 | `docs/ISSUES.md` | Open bugs, planned features, resolved issues |
-| `docs/dev/CODEMAP.md` | Function index, config vars, dispatch table, marker file registry — for locating things in the script |
-| `docs/dev/SKELETON.md` | Pseudo-code showing script structure, logic flow, and key invariants — for understanding how the script works |
-| `docs/dev/features/<feature>.md` | Per-feature design doc: the implementable spec for a feature, extracted from `docs/ISSUES.md` once it's ready to build |
-| `docs/dev/features/<feature>-tests.md` | Per-feature test plan: happy path, edge cases, verification steps, pre-build and post-build checks |
+| `dev/CODEMAP.md` | Function index, config vars, dispatch table, marker file registry — for locating things in the script |
+| `dev/SKELETON.md` | Pseudo-code showing script structure, logic flow, and key invariants — for understanding how the script works |
+| `dev/features/<feature>.md` | Per-feature design doc: the implementable spec for a feature, extracted from `docs/ISSUES.md` once it's ready to build |
+| `dev/features/<feature>-tests.md` | Per-feature test plan: happy path, edge cases, verification steps, pre-build and post-build checks |
 
-**Feature design + test docs convention (decided 2026-06-07):** when a planned feature in `docs/ISSUES.md` matures to "ready to build," lift it into a dedicated design doc at `docs/dev/features/<feature>.md` and a matching test plan at `docs/dev/features/<feature>-tests.md`. `docs/ISSUES.md` stays the planned-features tracker; the `docs/dev/features/` pair is the implementable spec + test plan that the build works from. Verify assumptions the design rests on *before* finalizing the design doc, so the docs reflect verified reality, not assumptions.
+**Feature design + test docs convention (decided 2026-06-07):** when a planned feature in `docs/ISSUES.md` matures to "ready to build," lift it into a dedicated design doc at `dev/features/<feature>.md` and a matching test plan at `dev/features/<feature>-tests.md`. `docs/ISSUES.md` stays the planned-features tracker; the `dev/features/` pair is the implementable spec + test plan that the build works from. Verify assumptions the design rests on *before* finalizing the design doc, so the docs reflect verified reality, not assumptions.
 
 ## Non-Obvious Behaviors
 
-These affect how code changes should be made. Full architecture is in `docs/dev/IMPLEMENTATION-SPEC.md`. Line numbers cited here are approximate — `docs/dev/CODEMAP.md` has the authoritative function index with current line ranges.
+These affect how code changes should be made. Full architecture is in `dev/IMPLEMENTATION-SPEC.md`. Line numbers cited here are approximate — `dev/CODEMAP.md` has the authoritative function index with current line ranges.
 
 - **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name for self-referencing slash commands via `send-keys`
 - **Multi-coder symlinks**: `AGENTS.md`/`GEMINI.md` created as symlinks to `CLAUDE.md`. Configurable via `MULTI_CODER_FILES`.
@@ -105,7 +105,7 @@ Single-user tool on the user's own account. Threat model: accidental footguns (p
 
 ## Working Rules
 
-- **Consult docs before coding**: before writing any code or starting a debug session, read `docs/dev/SKELETON.md` to understand the logic flow and `docs/dev/CODEMAP.md` to locate the relevant functions. Don't grep blind.
+- **Consult docs before coding**: before writing any code or starting a debug session, read `dev/SKELETON.md` to understand the logic flow and `dev/CODEMAP.md` to locate the relevant functions. Don't grep blind.
 - **Questions vs. implementation**: answer questions as questions. Don't start coding until explicitly asked.
 - **No speculation as fact**: distinguish what you know from what you're guessing. Say "I'm not sure" when you can't verify.
 - **No LLM-stereotype writing** in human-facing content: no "delve", "leverage", "streamline", "excited to share". Write like a developer.
@@ -132,7 +132,7 @@ Required scope depends on version bump:
 - **Minor (x.Y.0)**: review all functions added or modified in the release
 - **Major (X.0.0)**: full code review of the entire script
 
-Use `docs/dev/SKELETON.md` to understand the impact on logic flows and `docs/dev/CODEMAP.md` to identify which functions changed and what calls them. Use the `superpowers:code-reviewer` agent. Address CRITICAL and HIGH issues before committing.
+Use `dev/SKELETON.md` to understand the impact on logic flows and `dev/CODEMAP.md` to identify which functions changed and what calls them. Use the `superpowers:code-reviewer` agent. Address CRITICAL and HIGH issues before committing.
 
 ## Git Approvals
 
@@ -158,19 +158,19 @@ Before coding a new feature or change, review with the user: happy path, edge ca
 
 After any code change, check whether these need updating:
 
-- `README.md` + `translations/README.*.md` (translation standards in `docs/dev/IMPLEMENTATION-SPEC.md`)
+- `README.md` + `translations/README.*.md` (translation standards in `dev/IMPLEMENTATION-SPEC.md`)
 - `config.example` + `~/.claude-mux/config` (new settings)
 - `install.sh` (new flags, config generation)
-- `docs/dev/IMPLEMENTATION-SPEC.md` (architecture, settings table, function docs)
+- `dev/IMPLEMENTATION-SPEC.md` (architecture, settings table, function docs)
 - `CLAUDE.md` (if key behaviors changed)
 - **Injection prompt** in both `create_claude_session` and `launch_single_session`
 - **Session System Prompt** section in README (must match injection)
-- `docs/dev/CODEMAP.md` (new/renamed/removed functions, new dispatch cases, new config vars, significant line range shifts)
-- `docs/dev/SKELETON.md` (logic flow changes: new conditions, changed call sequences, new control paths)
+- `dev/CODEMAP.md` (new/renamed/removed functions, new dispatch cases, new config vars, significant line range shifts)
+- `dev/SKELETON.md` (logic flow changes: new conditions, changed call sequences, new control paths)
 - `ISSUES.md` (new bugs, resolved entries)
 - `CHANGELOG.md` (new features, fixes, removals per release)
 - `VERSION=` bump if needed (semver: patch/minor/major)
-- Deprecation: warn for 1-2 minor versions before removing (details in `docs/dev/IMPLEMENTATION-SPEC.md`)
+- Deprecation: warn for 1-2 minor versions before removing (details in `dev/IMPLEMENTATION-SPEC.md`)
 - **When adding a config var**: update `config_help()` in the script and add an entry to `config.example`
 - **When adding a CLI flag**: update `commands_help()` in the script and the compressed feature list in `build_system_prompt()`
 - **When adding a new lookup flag** (`--*-help`, `--*-commands`): add it to the Reference lookups meta-block in `build_system_prompt()`
