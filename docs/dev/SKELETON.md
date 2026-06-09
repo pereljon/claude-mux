@@ -173,16 +173,8 @@ case COMMAND:
   send:
     validate: session is managed, session is running, command starts with /
     tmux send-keys session command + Enter
-    if command == "/compact" and not DRY_RUN:
-      background subshell (disowned):
-        sleep 5   # lead-in: let /compact clear the prompt before polling
-        found = false
-        poll pane every 0.5s, up to 60s (120 × 0.5s)
-        if pane matches /^❯|^> / → compact finished, found = true, break
-        if not found → log timeout, exit (compact still running, don't interrupt)
-        if session gone → exit (was intentionally killed, don't ping)
-        sleep 2   # let RC settle
-        tmux send-keys SESSION -l "Ready?" + Enter   # fresh message reconnects hung RC
+    # RC reconnect after /compact is handled universally by the PreCompact hook (on_compact),
+    # not by a special case here. The hook fires for all /compact triggers (manual, auto, -s).
 
   shutdown:
     shutdown_claude_sessions()   # skips protected unless FORCE=true
