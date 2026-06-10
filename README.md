@@ -56,83 +56,83 @@ Remote Control promises Claude Code from anywhere - but without session manageme
 This is how you use claude-mux day to day. Every session is injected with commands so Claude can manage sessions, switch models, send slash commands, and create new projects - all from inside the conversation. You don't need to remember CLI flags.
 
 ```
-You: "status"
-Claude: reports session name, model, permission mode, context usage, and lists all sessions
+Say: "status"
+Reports session name, model, permission mode, context usage, and lists all sessions
 
-You: "list active sessions"
-Claude: shows all running sessions with their status
+Say: "list active sessions"
+Shows all running sessions with their status
 
-You: "list idle sessions"
-Claude: shows only idle projects (uses --status filter, no piping)
+Say: "list idle sessions"
+Shows only idle projects
 
-You: "list stopped sessions"
-Claude: shows only stopped sessions
+Say: "list stopped sessions"
+Shows only stopped sessions
 
-You: "start a session for my api-server project"
-Claude: launches a session in ~/Claude/work/api-server
+Say: "start a session for my api-server project"
+Launches a session in ~/Claude/work/api-server
 
-You: "create a new project called mobile-app using the web template"
-Claude: creates the project directory, initializes git, applies the template, launches a session
+Say: "create a new project called mobile-app using the web template"
+Creates the project directory, initializes git, applies the template, launches a session
 
-You: "switch this session to Haiku"
-Claude: sends /model haiku to itself via tmux
+Say: "switch this session to Haiku"
+Sends /model haiku to itself via tmux
 
-You: "compact the api-server session"
-Claude: sends /compact to the api-server session
+Say: "compact the api-server session"
+Sends /compact to the api-server session
 
-You: "restart the web-dashboard session"
-Claude: shuts down and relaunches the session, preserving conversation context
+Say: "restart the web-dashboard session"
+Shuts down and relaunches the session, preserving conversation context
 
-You: "restart this session fresh"
-Claude: restarts with a new conversation - no resume, no prior context
+Say: "restart this session fresh"
+Restarts with a new conversation - no resume, no prior context
 
-You: "switch the api-server session to plan mode"
-Claude: restarts the session with plan permission mode
+Say: "switch the api-server session to plan mode"
+Restarts the session with plan permission mode
 
-You: "switch this session to yolo mode"
-Claude: switches to bypassPermissions mode via Shift+Tab - no restart needed
+Say: "switch this session to yolo mode"
+Switches to bypassPermissions mode via Shift+Tab - no restart needed
 
-You: "what mode is this session"
-Claude: reports the current permission mode (default, acceptEdits, plan, bypassPermissions)
+Say: "what mode is this session"
+Reports the current permission mode (default, acceptEdits, plan, bypassPermissions)
 
-You: "switch this session to Opus"
-Claude: sends /model opus to itself via tmux
+Say: "switch this session to Opus"
+Sends /model opus to itself via tmux
 
-You: "clear this session"
-Claude: sends /clear to itself, resetting the conversation
+Say: "clear this session"
+Sends /clear to itself, resetting the conversation
 
-You: "hide this project"
-Claude: writes .claudemux-ignore so the project is excluded from -L listings
+Say: "hide this project"
+Writes .claudemux-ignore so the project is excluded from -L listings
 
-You: "protect this session"
-Claude: writes .claudemux-protected and sets the tmux marker - shutdown now requires --force
+Say: "protect this session"
+Writes .claudemux-protected and sets the tmux marker - shutdown now requires --force
 
-You: "is this session protected"
-Claude: checks for .claudemux-protected in the project folder and reports
+Say: "is this session protected"
+Checks for .claudemux-protected in the project folder and reports
 
-You: "delete the old-prototype project"
-Claude: confirms in chat, then moves the project folder to system trash
+Say: "delete the old-prototype project"
+Confirms in chat, then moves the project folder to system trash
 
-You: "rename this project to my-new-name"
-Claude: stops the session, renames the folder, migrates conversation history, restarts
+Say: "rename this project to my-new-name"
+Stops the session, renames the folder, migrates conversation history, restarts
 
-You: "save this as a template named web"
-Claude: copies CLAUDE.md to ~/.claude-mux/templates/web.md
+Say: "save this as a template named web"
+Copies CLAUDE.md to ~/.claude-mux/templates/web.md
 
-You: "tip"
-Claude: prints a tip - same tip all day, or random if TIP_MODE=random is set
+Say: "tip"
+Prints a tip - same tip all day, or random if TIP_MODE=random is set
 
-You: "enable tips" / "disable tips"
-Claude: turns the daily tip on or off across all projects
+Say: "enable tips" / "disable tips"
+Turns the daily tip on or off across all projects
 
-You: "update claude-mux"
-Claude: warns that all sessions will restart, asks for confirmation, then updates and restarts
+Say: "update claude-mux"
+Warns that all sessions will restart, asks for confirmation, then updates and restarts
 
-You: "stop all sessions"
-Claude: gracefully exits all managed sessions
+Say: "stop all sessions"
+Gracefully exits all managed sessions
 
-You: "help"
-Claude: prints the full list of conversational commands
+Say: "help"
+Prints the full list of conversational commands
 ```
 
 **These commands work in any language.** If you type the equivalent in Spanish, Japanese, Hebrew, or any other language, Claude infers the intent and runs the matching command.
