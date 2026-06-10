@@ -147,7 +147,7 @@ case COMMAND:
   launch    → launch_single_session()
   new       → create_new_project()
   list      → status_claude_sessions()
-  list-all  → status_claude_sessions(show_all=true)
+  list-all  → status_claude_sessions(show_all=true, STATUS_FILTER)
   start     → start_sessions()
   # attach is handled in pre-dispatch (step 9), not here
   update    → do_update()

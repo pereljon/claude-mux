@@ -2,6 +2,22 @@
 
 ## Open
 
+### PreCompact hook not registered in pre-v2.0.1 sessions
+**Severity:** Medium
+**Status:** Open
+**Description:** `--update` restarts all sessions but does not re-run `setup_claude_mux_permissions()` on existing projects. Any project whose `settings.local.json` was last written before v2.0.1 is missing the `PreCompact` hook registration and will not get RC reconnect after `/compact`. Confirmed: sylvia-estate had `UserPromptSubmit` but no `PreCompact`.
+**Root cause:** `setup_claude_mux_permissions()` is only called at session launch (create path). `--update` restarts sessions via the existing launch path, which does re-run permissions setup for that session - but only at session start time. Sessions that were already running when `--update` fired and were restarted will have picked it up. Sessions with a settings file that was never regenerated since before v2.0.1 won't.
+**Workaround:** Restart the affected session (say "restart sylvia-estate session") - this re-runs `setup_claude_mux_permissions()` and registers the hook.
+**Fix path:** Have `--update` (or a standalone `--install-hooks`) walk all PROJECT_DIRS and patch the `PreCompact` hook into any `settings.local.json` that's missing it, without requiring a session restart.
+
+### `-L | grep` strips `<assistant-must-display>` tags, causing reformatted output
+**Severity:** Medium
+**Status:** Resolved in v2.0.2
+**Description:** When the user asks to list idle sessions, Claude runs `claude-mux -L 2>&1 | grep idle`. The pipe strips the `<assistant-must-display>` tags (they don't match "idle") and the header row. Claude receives raw pipe-table lines with no tags and no context, then reformats them into a grouped/condensed view - losing status, numbers, and paths.
+**Observed:** 2026-06-09. User asked for idle session list; got 44 sessions grouped as `development | a | b | c |` etc. with no status, numbers, or paths.
+**Root cause:** Claude choosing a piped command that destroys the display tags. Not a tag-compliance failure - the tags simply never reach the output.
+**Fix:** Added `--status STATUS` flag to `-L`. Claude now runs `claude-mux -L --status idle` (and similar variants) without piping, so `<assistant-must-display>` tags survive. Injection trigger rules updated to use `--status` for "list idle/stopped/running/etc sessions".
+
 ### Permission mode lost on `--restart SESSION`
 **Severity:** Low
 **Status:** Open - pre-existing, now visible via v1.14.0 ready response

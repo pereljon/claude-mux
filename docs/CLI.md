@@ -18,6 +18,8 @@ claude-mux -n ~/app --no-multi-coder      # new project without AGENTS.md/GEMINI
 # Session management
 claude-mux -l                    # list sessions by status (active, running, stopped)
 claude-mux -L                    # list all projects (active + idle)
+claude-mux -L --status idle      # list only idle projects
+claude-mux -L --status running   # list only running sessions
 claude-mux -L --hidden           # list only hidden projects
 claude-mux -s my-app '/model sonnet'      # send a slash command to a session
 claude-mux --shutdown my-app              # shut down a specific session

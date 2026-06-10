@@ -89,7 +89,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `is_claude_mux_session` | 1679 | `(session_name)` | Return 0 if `@claude-mux-managed=1` in tmux |
 | `shutdown_single_session` | 1686 | `(session_name)` | Remove `.claudemux-running` marker first (via `session_marker_dir`), then send /exit, wait, kill-session |
 | `shutdown_claude_sessions` | 1725 | `()` | Shut down all managed sessions (removing each marker first); skip protected unless FORCE=true |
-| `status_claude_sessions` | 1811 | `([show_all])` | Print session list (`-l` / `-L`) incl. `queued`/`failed` auto-restore statuses; wraps in `<assistant-must-display>` when not TTY |
+| `status_claude_sessions` | 1813 | `([show_all] [status_filter])` | Print session list (`-l` / `-L`) incl. `queued`/`failed` auto-restore statuses; wraps in `<assistant-must-display>` when not TTY; `status_filter` limits rows to a single status value |
 | `ensure_git_repo` | 1980 | `(dir)` | Run `git init` if dir is not already a git repo |
 | `setup_gitignore` | 1990 | `(dir)` | Create `.gitignore` with `.claudemux-*` entry |
 | `ensure_gitignore_entry` | 2046 | `(dir, pattern)` | Add pattern to `.gitignore` if not already present |
@@ -152,7 +152,8 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `-d DIR` or positional arg | `launch` | `launch_single_session` |
 | `-n DIR` | `new` | `create_new_project` |
 | `-l` | `list` | `status_claude_sessions` |
-| `-L` | `list-all` | `status_claude_sessions true` |
+| `-L` | `list-all` | `status_claude_sessions true "${STATUS_FILTER:-}"` |
+| `-L --status STATUS` | `list-all` | `status_claude_sessions true STATUS` |
 | `--list-templates` | `list-templates` | `list_templates` |
 | `-a` | `start` | `start_sessions` |
 | `-t SESSION` | `attach` | `attach_to_session` |

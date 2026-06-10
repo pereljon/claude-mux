@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.1"
+VERSION="2.0.2"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -201,6 +201,7 @@ Self-targeting (works inside sessions):
   -s 'SESSION' '/command'  Send slash command (default scope: yourself)
   -l                       List active sessions
   -L                       List all projects (default: hide ignored)
+  -L --status STATUS       Filter by status: idle running protected stopped queued failed hidden
   -L --include-hidden      List all including hidden
   -L --hidden              List only hidden
   -d DIR --no-attach       Launch session in directory
@@ -386,6 +387,7 @@ Commands:
   -t, --target SESSION  Attach to an existing tmux session by name
   -l, --list            Show active sessions (active + running + stopped)
   -L                    Show all projects (active sessions + idle projects)
+                          With --status STATUS: filter by status (idle, running, protected, stopped, queued, failed, hidden)
                           With --include-hidden: include hidden projects
                           With --hidden: show only hidden projects
   --list-templates      Show available CLAUDE.md templates
@@ -448,6 +450,14 @@ while [[ $# -gt 0 ]]; do
         -L)               set_command "-L" "list-all"; shift ;;
         --include-hidden) LIST_HIDDEN_MODE="include"; shift ;;
         --hidden)         LIST_HIDDEN_MODE="only"; shift ;;
+        --status)
+            [[ $# -lt 2 ]] && { echo "ERROR: --status requires a STATUS argument" >&2; exit 1; }
+            case "$2" in
+                idle|running|protected|stopped|queued|failed|hidden) STATUS_FILTER="$2" ;;
+                *) echo "ERROR: Unknown --status filter: '$2'. Valid: idle running protected stopped queued failed hidden" >&2; exit 1 ;;
+            esac
+            shift 2
+            ;;
         --shutdown)
             set_command "--shutdown" "shutdown"
             shift
@@ -1494,6 +1504,10 @@ Rules:
 - When user says: list active sessions — run claude-mux -l
 - When user says: list all sessions — run claude-mux -L
 - When user says: list hidden projects — run claude-mux -L --hidden
+- When user says: list idle sessions — run claude-mux -L --status idle
+- When user says: list stopped sessions — run claude-mux -L --status stopped
+- When user says: list running sessions — run claude-mux -L --status running
+- When user says: list <STATUS> sessions (where STATUS is idle, stopped, running, protected, queued, failed, or hidden) — run claude-mux -L --status <STATUS>
 - When user says: start session SESSION — run claude-mux -d SESSION --no-attach; confirm with the session name only (e.g. Started. SESSION is now running.) — do not include the directory path, sessions appear by name in Remote Control
 - When user says: stop this session / stop session NAME — run claude-mux --shutdown with session name (or current session if none given)
 - When user says: stop all sessions — run claude-mux --shutdown
@@ -1812,6 +1826,7 @@ shutdown_claude_sessions() {
 
 status_claude_sessions() {
     local show_idle="${1:-false}"
+    local status_filter="${2:-}"
     echo_hint
     get_managed_session_names   # also calls discover_projects internally
 
@@ -1931,6 +1946,11 @@ status_claude_sessions() {
     local sorted_rows
     sorted_rows=$(echo "$rows" | sort -t'|' -k3)
 
+    # Apply status filter if provided
+    if [[ -n "$status_filter" ]]; then
+        sorted_rows=$(printf '%s' "$sorted_rows" | awk -F'|' -v s="$status_filter" '$1 == s')
+    fi
+
     # Print table with row numbers
     if [[ -n "$sorted_rows" ]]; then
         local _n=0
@@ -1956,12 +1976,18 @@ status_claude_sessions() {
     fi
 
     echo ""
-    local summary="${running} running, ${protected} protected, ${stopped} stopped"
-    [[ $queued -gt 0 ]] && summary="${summary}, ${queued} queued"
-    [[ $failed -gt 0 ]] && summary="${summary}, ${failed} failed"
-    [[ "$show_idle" == "true" ]] && summary="${summary}, ${idle} idle"
-    [[ "$show_idle" == "true" && "${LIST_HIDDEN_MODE:-none}" != "none" ]] && summary="${summary}, ${hidden_count:-0} hidden"
-    echo "$summary"
+    if [[ -n "$status_filter" ]]; then
+        local _fcount
+        _fcount=$(printf '%s' "$sorted_rows" | grep -cv '^$')
+        echo "${status_filter}: ${_fcount}"
+    else
+        local summary="${running} running, ${protected} protected, ${stopped} stopped"
+        [[ $queued -gt 0 ]] && summary="${summary}, ${queued} queued"
+        [[ $failed -gt 0 ]] && summary="${summary}, ${failed} failed"
+        [[ "$show_idle" == "true" ]] && summary="${summary}, ${idle} idle"
+        [[ "$show_idle" == "true" && "${LIST_HIDDEN_MODE:-none}" != "none" ]] && summary="${summary}, ${hidden_count:-0} hidden"
+        echo "$summary"
+    fi
     [[ $unmanaged -gt 0 ]] && echo "($unmanaged non-managed tmux sessions hidden)"
     if [[ "$show_idle" == "true" && "${LIST_HIDDEN_MODE:-none}" == "none" && ${#HIDDEN_PROJECT_DIRS[@]} -gt 0 ]]; then
         echo "(${#HIDDEN_PROJECT_DIRS[@]} hidden projects — use --include-hidden or --hidden to show)"
@@ -4315,7 +4341,7 @@ case "$COMMAND" in
     launch)   launch_single_session; exit 0 ;;
     new)      create_new_project; exit 0 ;;
     list)     status_claude_sessions; exit 0 ;;
-    list-all) status_claude_sessions true; exit 0 ;;
+    list-all) status_claude_sessions true "${STATUS_FILTER:-}"; exit 0 ;;
     list-templates) list_templates; exit 0 ;;
     tip)           tip_of_day; exit 0 ;;
     on-compact)    on_compact; exit 0 ;;
