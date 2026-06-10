@@ -26,7 +26,7 @@ That's it! You're in a persistent, session-aware Claude session with Remote Cont
 
 Remote Control promises Claude Code from anywhere - but without session management, it's a second-class interface even from Claude Desktop:
 
-- **Sessions die** when you close the terminal
+- **Sessions die** when you close the terminal - and don't come back after a crash or reboot
 - **Conversation context** doesn't resume automatically
 - **No home base** - nothing is running when you pick up your phone unless you left something open
 - **Remote Control requires a running session** - you can't start one from RC
@@ -34,15 +34,15 @@ Remote Control promises Claude Code from anywhere - but without session manageme
 - **Starting new projects** - requires manually creating a directory, initializing git, writing a CLAUDE.md, and picking a model
 - **No project management** - no way to see idle projects, or rename, move, and delete projects without breaking history
 
-**claude-mux fixes the session management gap.** It wraps Claude Code in tmux so sessions persist, injects a system prompt so Claude can manage its own sessions, and routes slash commands through tmux so they work over Remote Control. Once a session is running, you manage everything by talking to Claude - in the terminal or the mobile app.
+**claude-mux fixes the session management gap.** It wraps Claude Code in tmux so sessions persist, automatically restores them after crashes and reboots (as long as you have auto-login enabled), injects a system prompt so Claude can manage its own sessions, and routes slash commands through tmux so they work over Remote Control. Once a session is running, you manage everything by talking to Claude - in the terminal or the mobile app.
 
 ## What You Can Do in a claude-mux Session
 
+- **Survives crashes and reboots** - sessions are automatically restored when you log back in, picking up the last conversation. A clean `/exit` or shutdown keeps a session down; a crash-looping session is stopped and flagged rather than restarted forever.
 - **Manage any session from any session** - start, stop, restart, list, and compact projects using natural language
 - **Access everything from anywhere** - every session has Remote Control enabled, so the Claude mobile app, desktop app, or any remote client is a full interface
 - **Switch models and permission modes** - say "switch to Haiku" or "switch to plan mode" and Claude handles it, even over Remote Control
 - **Create new projects** - "create a new project called my-app" sets up the directory, git, CLAUDE.md, and launches a session. CLAUDE.md templates let you reuse instructions across projects.
-- **Self-heal after reboots and crashes** - sessions that should be alive are automatically brought back (resuming their last conversation) after a reboot, crash, or kill, staggered to avoid a thundering herd. A clean `/exit` or shutdown keeps a session down; a crash-looping session is stopped and flagged instead of restarted forever. On by default via the login agent; toggle with `AUTORESTORE`.
 - **Send slash commands over Remote Control** - Claude routes `/model`, `/compact`, `/clear`, and other slash commands to the running session, working around a [known limitation](https://github.com/anthropics/claude-code/issues/30674). RC reconnects automatically after `/compact` via a `PreCompact` hook.
 - **Claude Code upgrade detection** - when the `claude` binary changes (after `brew upgrade` or an npm update), the next prompt in any running session surfaces a one-shot notice to restart and load the new binary
 - **Preserve conversation history** - renaming, moving, and restarting projects all preserve conversation history automatically
@@ -62,6 +62,12 @@ Claude: reports session name, model, permission mode, context usage, and lists a
 You: "list active sessions"
 Claude: shows all running sessions with their status
 
+You: "list idle sessions"
+Claude: shows only idle projects (uses --status filter, no piping)
+
+You: "list stopped sessions"
+Claude: shows only stopped sessions
+
 You: "start a session for my api-server project"
 Claude: launches a session in ~/Claude/work/api-server
 
@@ -76,6 +82,9 @@ Claude: sends /compact to the api-server session
 
 You: "restart the web-dashboard session"
 Claude: shuts down and relaunches the session, preserving conversation context
+
+You: "restart this session fresh"
+Claude: restarts with a new conversation - no resume, no prior context
 
 You: "switch the api-server session to plan mode"
 Claude: restarts the session with plan permission mode
