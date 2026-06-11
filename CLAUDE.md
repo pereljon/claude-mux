@@ -124,6 +124,26 @@ Edit the repo copy (`claude-mux`), not the installed copy (`~/bin/claude-mux`). 
 
 Before coding any change, apply the **Consult docs before coding** rule (Working Rules) to scope what's affected before editing.
 
+### Workflow Pipeline
+
+The canonical order of a change, start to finish. This list is the *sequence*; the detailed rules live in the sections it links to — do not duplicate them here.
+
+1. **Define the feature** — when a `docs/ISSUES.md` entry is ready to build, lift it to `dev/features/<feature>.md` (see the feature design+test convention under Documentation Roles).
+2. **Research & verify assumptions** — confirm what the design rests on against reality (read the actual code, GitHub/vendor docs, run probes) *before* finalizing the plan. Docs must reflect verified reality, not guesses.
+3. **Write the design + test plans** — `dev/features/<feature>.md` + `<feature>-tests.md`. Review happy path, edge cases, flag conflicts, config migration, injection/display changes with the user (see Testing Plan). Confirm before coding.
+4. **Pre-code compact** — if context is getting heavy, compact before the code phase (coding is the context-hungry part; see the performance rules).
+5. **Code** — apply *Consult docs before coding* (read `dev/SKELETON.md` + `dev/CODEMAP.md` first). Edit the repo copy. Smoke-test the repo copy (`bash ./claude-mux ...`) as you go.
+6. **Code review** — *Code Review Before Release*: scope by version bump; `superpowers:code-reviewer` agent; fix CRITICAL/HIGH. Decide the bump early (it sets review scope) even though `VERSION=` is physically written in step 7.
+7. **Update context files** — the *Change Checklist* GATE. After review, so docs reflect the final code: CODEMAP, SKELETON, IMPLEMENTATION-SPEC, README, CHANGELOG, VERSION, ISSUES, injection prompt, etc.
+8. **Test** — verify real behavior (happy path + edge cases) on the repo copy. Tests verify correctness; running the actual command verifies the feature works.
+9. **Commit** — [approval gate] (see Git Approvals).
+10. **Deploy** — `cp claude-mux ~/bin/` so local sessions use the new code (after commit).
+11. **Push** — [approval gate].
+12. **Release** — [approval gate]; only if `claude-mux`/`install.sh` changed; `git tag` → `git push origin TAG` → `gh release create`, ascending version order (see Git Approvals → Release).
+13. **Post-release compact** — `claude-mux -s SESSION '/compact'`.
+
+Plan docs (steps 1-3) come before code; reference/changelog docs (step 7) come after code+review so they describe the final result. Commit, push, and release are independent approval gates — one does not imply the next.
+
 ### Code Review Before Release
 
 Required scope depends on version bump:

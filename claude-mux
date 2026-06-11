@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.2"
+VERSION="2.0.3"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -237,6 +237,7 @@ Self-targeting (works inside sessions):
   --update-check-bg        Internal: background GitHub release check (refreshes cache)
   --enable-tips            Enable daily tips (registers the on-prompt hook)
   --disable-tips           Disable daily tips
+  --install-hooks          Backfill claude-mux hooks (incl. PreCompact RC-reconnect) into all projects
   --config-help            List all valid config options
   --commands               Print this reference
   --guide                  Print conversational commands list
@@ -404,6 +405,7 @@ Commands:
   --autolaunch             Invoked by LaunchAgent; dispatches based on LAUNCHAGENT_MODE
   --enable-tips            Enable daily tips (registers the on-prompt hook)
   --disable-tips           Disable daily tips
+  --install-hooks          Backfill claude-mux hooks (incl. PreCompact RC-reconnect) into all projects
   --update                 Update claude-mux to the latest version
   --install [OPTS...]      Run interactive setup (config + LaunchAgent)
                            Options: --non-interactive, --base-dir DIR,
@@ -591,6 +593,7 @@ while [[ $# -gt 0 ]]; do
         --update-check-bg) set_command "--update-check-bg" "update-check-bg"; shift ;;
         --enable-tips)    set_command "--enable-tips" "enable-tips"; shift ;;
         --disable-tips)   set_command "--disable-tips" "disable-tips"; shift ;;
+        --install-hooks)  set_command "--install-hooks" "install-hooks"; shift ;;
         --uninstall)      set_command "--uninstall" "uninstall"; shift ;;
         --guide)          guide; exit 0 ;;
         --config-help)    config_help; exit 0 ;;
@@ -958,6 +961,15 @@ do_update() {
 
     # Clear update cache
     rm -f "$HOME/.claude-mux/.update-check"
+
+    # Backfill claude-mux hooks (incl. the PreCompact --on-compact RC-reconnect
+    # hook) into every project's settings.local.json. Reaching here means the
+    # version changed (no-op updates exit early above), so this only runs on a
+    # real upgrade. Patches on-disk files without forcing a restart.
+    if [[ -f "$CLAUDE_MUX_CONFIG" ]]; then
+        update_all_project_hooks
+        echo "Backfilled hooks into ${HOOKS_PATCHED} project(s) (${HOOKS_CURRENT} already current)."
+    fi
 
     # Offer restart
     if [[ -t 0 ]]; then
@@ -1534,6 +1546,7 @@ Rules:
 - When user says: tip / tip of the day — run claude-mux --tip and display the output. Tips are in English; render in the user's conversation language.
 - When user says: enable tips / turn on tips — run claude-mux --enable-tips
 - When user says: disable tips / turn off tips — run claude-mux --disable-tips
+- When user says: install hooks / backfill hooks / repair hooks — run claude-mux --install-hooks and report the summary. This backfills the PreCompact RC-reconnect hook (and other claude-mux hooks) into projects created before the hook existed, so /compact reconnects RC in those sessions too.
 - When user references sessions by number (e.g., stop 1-3, restart 5, compact 2 and 4), map the numbers to session names from the most recent list output, then run the corresponding command for each.
 - These trigger phrases work in any language. If the user types the equivalent intent in their native language (Spanish, French, German, Japanese, Hebrew, Arabic, Hindi, etc.), infer the intent and run the corresponding command. Output of claude-mux commands (lists, status, guide) is shown verbatim regardless of input language.
 
@@ -1549,6 +1562,7 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Rename a project (--rename SESSION NAME) or move it (--move SESSION PATH) — migrates history and registry
   - Move a project to trash (--delete SESSION — macOS; honors protection unless --force)
   - Enable/disable tip-of-the-day (--enable-tips / --disable-tips)
+  - Backfill claude-mux hooks into all projects (--install-hooks — repairs the PreCompact RC-reconnect hook in pre-existing sessions)
   - Show all config options (--config-help)
   - Run interactive setup or reconfigure (--install)
   - Update claude-mux (--update)
@@ -2608,16 +2622,18 @@ if not has_compact_hook:
 sys.exit(0)
 PYEOF
         then
-            return  # already configured for this scope
+            return 0  # already configured for this scope
         fi
     fi
 
     log "Adding claude-mux permissions to $dir (home=$is_home)"
-    [[ "$DRY_RUN" == "true" ]] && return
+    # Return 10 = "made (or would make) changes"; 0 = already current; 1 = error.
+    # Callers that don't care ignore $?; install_hooks_command tallies on it.
+    [[ "$DRY_RUN" == "true" ]] && return 10
 
     if ! mkdir -p "$dir/.claude" 2>/dev/null; then
         log "WARN: Cannot create $dir/.claude — skipping permissions setup"
-        return
+        return 1
     fi
 
     # Build rule set, merge into existing settings (or create fresh).
@@ -2714,7 +2730,9 @@ except OSError as e:
 PYEOF
     then
         log "WARN: Failed to write claude-mux permissions to $settings_file"
+        return 1
     fi
+    return 10
 }
 
 # Create symlinks (e.g. AGENTS.md, GEMINI.md) pointing at CLAUDE.md so other
@@ -3642,7 +3660,13 @@ set_tip_config() {
 # Walk all known project dirs and call setup_claude_mux_permissions() on each.
 # This re-runs the idempotent permission+hook setup, which adds or removes the
 # UserPromptSubmit --on-prompt hook based on the current TIP_OF_DAY / UPDATE_CHECK
-# values.
+# values, and backfills the always-on PreCompact --on-compact hook.
+# Tallies outcomes into globals so install_hooks_command can report a summary;
+# callers that don't care (enable_tips/disable_tips) simply ignore them.
+HOOKS_SCANNED=0
+HOOKS_PATCHED=0
+HOOKS_CURRENT=0
+HOOKS_FAILED=0
 update_all_project_hooks() {
     discover_projects
     local dirs=("$BASE_DIR")
@@ -3650,13 +3674,32 @@ update_all_project_hooks() {
     if [[ ${#HIDDEN_PROJECT_DIRS[@]} -gt 0 ]]; then
         dirs+=("${HIDDEN_PROJECT_DIRS[@]}")
     fi
-    local _dir _is_home
+    HOOKS_SCANNED=0; HOOKS_PATCHED=0; HOOKS_CURRENT=0; HOOKS_FAILED=0
+    local _dir _is_home _rc
     for _dir in "${dirs[@]}"; do
         [[ ! -d "$_dir/.claude" ]] && continue
         _is_home=false
         [[ "$_dir" == "$BASE_DIR" ]] && _is_home=true
-        setup_claude_mux_permissions "$_dir" "$_is_home"
+        (( HOOKS_SCANNED++ ))
+        setup_claude_mux_permissions "$_dir" "$_is_home"; _rc=$?
+        case "$_rc" in
+            10) (( HOOKS_PATCHED++ )) ;;
+            0)  (( HOOKS_CURRENT++ )) ;;
+            *)  (( HOOKS_FAILED++ )) ;;
+        esac
     done
+}
+
+# --install-hooks: backfill the claude-mux hooks (incl. the v2.0.1 PreCompact
+# --on-compact RC-reconnect hook) into every project's settings.local.json that
+# is missing them. Idempotent; edits on-disk files only (no session restart).
+install_hooks_command() {
+    update_all_project_hooks
+    local verb="patched"
+    [[ "$DRY_RUN" == "true" ]] && verb="would patch"
+    echo "Scanned ${HOOKS_SCANNED} project(s): ${verb} ${HOOKS_PATCHED}, ${HOOKS_CURRENT} already current."
+    (( HOOKS_FAILED > 0 )) && echo "${HOOKS_FAILED} project(s) could not be updated — see $LOG_FILE."
+    return 0
 }
 
 enable_tips() {
@@ -4349,6 +4392,7 @@ case "$COMMAND" in
     update-check-bg) update_check_bg; exit 0 ;;
     enable-tips)   enable_tips; exit 0 ;;
     disable-tips)  disable_tips; exit 0 ;;
+    install-hooks) install_hooks_command; exit $? ;;
     uninstall)     do_uninstall; exit 0 ;;
     save-template) save_template_command "${SAVE_TEMPLATE_NAME:-}" "${SAVE_TEMPLATE_DIR:-}"; exit $? ;;
     rename)     rename_move_command "${RENAME_SRC:-}" "${RENAME_DST:-}" "rename"; exit $? ;;

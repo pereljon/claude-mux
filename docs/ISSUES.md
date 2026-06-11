@@ -4,11 +4,10 @@
 
 ### PreCompact hook not registered in pre-v2.0.1 sessions
 **Severity:** Medium
-**Status:** Open
-**Description:** `--update` restarts all sessions but does not re-run `setup_claude_mux_permissions()` on existing projects. Any project whose `settings.local.json` was last written before v2.0.1 is missing the `PreCompact` hook registration and will not get RC reconnect after `/compact`. Confirmed: sylvia-estate had `UserPromptSubmit` but no `PreCompact`.
-**Root cause:** `setup_claude_mux_permissions()` is only called at session launch (create path). `--update` restarts sessions via the existing launch path, which does re-run permissions setup for that session - but only at session start time. Sessions that were already running when `--update` fired and were restarted will have picked it up. Sessions with a settings file that was never regenerated since before v2.0.1 won't.
-**Workaround:** Restart the affected session (say "restart sylvia-estate session") - this re-runs `setup_claude_mux_permissions()` and registers the hook.
-**Fix path:** Have `--update` (or a standalone `--install-hooks`) walk all PROJECT_DIRS and patch the `PreCompact` hook into any `settings.local.json` that's missing it, without requiring a session restart.
+**Status:** Resolved in v2.0.3
+**Description:** Any project whose `settings.local.json` was last written before v2.0.1 was missing the `PreCompact` hook registration and got no RC reconnect after `/compact`. Confirmed: sylvia-estate had `UserPromptSubmit` but no `PreCompact`.
+**Root cause:** `setup_claude_mux_permissions()` only ran at session launch, so projects whose settings file was never regenerated since before v2.0.1 stayed hook-less.
+**Fix:** New `--install-hooks` command exposes the existing `update_all_project_hooks()` walker (BASE_DIR + visible + hidden), which calls the idempotent `setup_claude_mux_permissions()` to backfill the PreCompact (and on-prompt) hooks into every project's on-disk settings file. `do_update()` now also runs the backfill after a successful version change, so future upgrades self-repair. Idempotent, no session restart, prints a scanned/patched/current summary. See `dev/features/precompact-hook-backfill.md` + `-tests.md`. Note: backfill fixes the on-disk file; it takes effect at the session's next `/compact` (live) or next start - no forced restart-all needed.
 
 ### `-L | grep` strips `<assistant-must-display>` tags, causing reformatted output
 **Severity:** Medium
@@ -371,6 +370,16 @@ No prose manual per message - just sender, level, a one-line filled-in reply exa
 
 A periodic LaunchAgent tick was discussed alongside this. The auto-restore self-heal loop (KeepAlive + `--autolaunch` every 60s) already provides that cadence. Zombie recovery (tmux pane alive, claude process dead) is handled by that loop's liveness predicate, not a separate feature. Residual housekeeping ideas — `.update-check` refresh, log rotation — could ride the same tick.
 
+### Cross-CLI coders (launch + inject Gemini/Codex, not just Claude)
+
+**Status:** Designed; injection mechanisms verified. Full implementable spec + test plan: `dev/features/cross-cli-coders.md` and `dev/features/cross-cli-coders-tests.md`.
+
+Today `MULTI_CODER_FILES` symlinks `AGENTS.md`/`GEMINI.md` → `CLAUDE.md`, so the **static** injection layer is already cross-CLI (users confirmed Gemini/Codex launch fine in claude-mux folders, picking up the symlink passively). But the **launch path is hardcoded to Claude** (`create_claude_session`/`launch_single_session` Claude flags; `claude_running_in_session` greps for `/claude/`), so claude-mux can't yet *launch* a non-Claude CLI - a claude-mux-launched Gemini session would use the wrong binary/flags and be declared dead by auto-restore.
+
+**Verified injection finding (2026-06-10, Gemini 0.45.2 / Codex 0.138.0):** neither has Claude's per-launch additive `--append-system-prompt-file`. Each has (a) an **additive** context-file path (`GEMINI.md`; `AGENTS.md`+`AGENTS.override.md`) - what we already symlink - and (b) an **override** path (`GEMINI_SYSTEM_MD`; `model_instructions_file`) that *replaces* the whole system prompt and is therefore rejected. Rule: **additive only.** Dynamic per-session injection: Codex `AGENTS.override.md` is the clean separate-file hook; Gemini needs an extra hierarchical `GEMINI.md` (fallback `.gemini/system.md`+override-with-placeholders).
+
+**Design:** a CLI-adapter abstraction (`CODER` config var + `.claudemux-coder` marker) with per-CLI profiles (binary, launch template, resume flag, liveness regex, approval map, capability flags). **Tier 1** (persist + static/dynamic inject + auto-restore) is the target and is reachable for all three; **Tier 2** (slash routing, Claude-TUI ready-handshake, permission cycle, RC reconnect) is explicitly OUT and degrades to no-ops via capability flags. Dovetails with the v2.2 agent network: a file-based inbox lets non-Claude sessions join the network by *pull* for free. Bonus: Gemini/Codex have richer control surfaces than first assumed (resume, approval-mode, model, MCP, Codex `remote-control` subcmd) - lowers Tier-1 cost.
+
 ### Ready handshake during compact/resume
 
 **SHIPPED in v2.0.0** (`87f4955`). `poll_until_ready(session, [timeout=120])` replaces the prompt-only 10s loops in both launch pollers. Busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt at line start + quiescent (two captures >=1.1s apart, non-empty, identical). Covers the ~50s startup compaction case the old 10s timeout missed. See `dev/features/ready-handshake.md` and `dev/features/ready-handshake-tests.md`.
@@ -384,6 +393,8 @@ A periodic LaunchAgent tick was discussed alongside this. The auto-restore self-
 claude-mux defaults to `claude -c` on every session start and restart. That's the exact pattern argued against in ["Stop Resuming Long Sessions: Brief Injection"](https://claudecodefornoncoders.substack.com/p/stop-resuming-long-sessions-brief): resuming a long transcript floods the model with stale tool output (directory listings, file contents, command results that no longer match disk) and dilutes attention across past back-and-forth. The article recommends ending the session, writing a 5-7 line brief (branch state, key decisions, active constraints, files modified, next steps), and starting fresh with the brief as the only context.
 
 We added `--restart --fresh` in v1.13.0 as the escape hatch, but it requires the user to know about it and ask. The brief workflow makes the article's pattern the easy path.
+
+**Prior art (codemap "Agent-Aware Handoff", reviewed 2026-06-10):** [JordanCoin/codemap](https://github.com/JordanCoin/codemap) ships a feature that is structurally this brief workflow - on agent switch it writes `.codemap/handoff.latest.json` (`agent_history`: `agent_id`, `files_edited`, `ended_at`; capped 20; stable-prefix + dynamic-delta envelope) that the next agent reads on start. Takeaway: the brief should emit a *structured artifact a successor reads on start*, not just "flush before restart" - turns "don't lose work" into "actively brief the next session (or a different CLI entirely)." Note it's cross-CLI by design (Claude↔Codex↔Cursor), reinforcing the `cross-cli-coders` file-based-substrate bet. Its delete-on-read + capped-history + stable-prefix/dynamic-delta shape independently matches the v2.2 inbox design (convergent-design validation).
 
 **Sub-features (cluster, implement together):**
 

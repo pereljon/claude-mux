@@ -2,6 +2,14 @@
 
 All notable changes to claude-mux are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] - 2026-06-10
+
+### Added
+- **`--install-hooks`**: backfills claude-mux's hooks - including the v2.0.1 `PreCompact` `--on-compact` RC-reconnect hook - into every project's `.claude/settings.local.json` that is missing them. Idempotent; edits on-disk files only (no session restart). Prints a summary (`Scanned N project(s): patched M, K already current.`). Conversational trigger: "install hooks" / "backfill hooks" / "repair hooks".
+
+### Fixed
+- **PreCompact hook not reaching pre-v2.0.1 projects**: projects whose `settings.local.json` was last written before v2.0.1 lacked the `PreCompact` hook and got no RC reconnect after `/compact`. `--update` now backfills the hook into all projects after a successful version change, and `--install-hooks` does it on demand. Closes the gap without requiring a manual restart of each affected session.
+
 ## [2.0.2] - 2026-06-09
 
 ### Added

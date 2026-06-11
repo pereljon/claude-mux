@@ -2,7 +2,7 @@
 
 Navigation reference for the `claude-mux` script. Use this to locate functions and config vars. For logic and control flow, see `dev/SKELETON.md`.
 
-**Current version:** 2.0.1 (~4560 lines)
+**Current version:** 2.0.3 (~4650 lines)
 
 ## How to Use
 
@@ -72,7 +72,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `log` | 787 | `(message)` | Write timestamped entry to LOG_FILE (stdout in --dry-run) |
 | `version_gt` | 806 | `(a, b)` | Return 0 if version a > b |
 | `check_for_update` | 819 | `()` | Non-blocking daily update check via GitHub API (TTY only); caches result |
-| `do_update` | 867 | `()` | Download and install latest release; offer restart |
+| `do_update` | 882 | `()` | Download and install latest release; backfill hooks via `update_all_project_hooks` on version change; offer restart |
 | `generate_plist` | 961 | `()` | Print LaunchAgent plist XML to stdout |
 | `write_install_config` | 1003 | `(base_dir, launchagent_mode, home_model, permission_mode, cross_session)` | Write `~/.claude-mux/config` |
 | `do_install` | 1070 | `()` | Interactive setup wizard; calls `write_install_config`, installs plist |
@@ -112,7 +112,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `delete_command` | 2367 | `(session_name, force, yes)` | Shut down session, move folder to Trash |
 | `show_command` | 2450 | `(session_name)` | Remove `.claudemux-ignore` marker |
 | `setup_default_mode` | 2475 | `(project_dir)` | Write `permissions.defaultMode` to `.claude/settings.local.json` |
-| `setup_claude_mux_permissions` | 2526 | `(project_dir)` | Add claude-mux to allow list; register UserPromptSubmit `--on-prompt` hook, remove legacy Stop `--tipotd` hook |
+| `setup_claude_mux_permissions` | 2568 | `(project_dir, [is_home])` | Add claude-mux to allow list; register UserPromptSubmit `--on-prompt` + PreCompact `--on-compact` hooks, remove legacy Stop `--tipotd` hook. Returns 0=already current, 10=patched/would-patch, 1=error |
 | `setup_multi_coder_files` | 2677 | `(project_dir)` | Create AGENTS.md / GEMINI.md symlinks to CLAUDE.md |
 | `detect_github_ssh_accounts` | 2724 | `()` | Parse `~/.ssh/config` for GitHub accounts; set `GITHUB_SSH_INFO` |
 | `poll_until_ready` | 2762 | `(session, [timeout=120])` | Wait until a session is genuinely ready: busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt + quiescent. Handles trust/bypass auto-accept. Returns 0 ready / 1 timeout |
@@ -130,7 +130,8 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `on_prompt` | 3573 | `()` | UserPromptSubmit hook: Claude Code upgrade notice (always-on) + per-session daily tip + update notice; spawn bg update check (`--on-prompt`) |
 | `update_check_bg` | 3698 | `()` | Disowned background GitHub release check; refresh cache, clear lock (`--update-check-bg`) |
 | `set_tip_config` | 3536 | `(enabled)` | Write TIP_OF_DAY to config |
-| `update_all_project_hooks` | 3553 | `()` | Walk all projects and call `setup_claude_mux_permissions` |
+| `update_all_project_hooks` | 3669 | `()` | Walk all projects, call `setup_claude_mux_permissions`; tally `HOOKS_SCANNED/PATCHED/CURRENT` globals. Callers: `enable_tips`, `disable_tips`, `install_hooks_command`, `do_update` |
+| `install_hooks_command` | 3694 | `()` | `--install-hooks`: backfill claude-mux hooks (incl. PreCompact `--on-compact`) into all projects; print scanned/patched/current summary |
 | `enable_tips` | 3569 | `()` | Set TIP_OF_DAY=true, update all hooks |
 | `disable_tips` | 3576 | `()` | Set TIP_OF_DAY=false, update all hooks |
 | `do_uninstall` | 3588 | `()` | Remove plist, hooks (Stop + UserPromptSubmit), permissions, optionally config |
@@ -177,6 +178,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `--update-check-bg` | `update-check-bg` | `update_check_bg` (background, disowned) |
 | `--tipotd` | `tipotd` | legacy no-op (early exit; pre-v1.15.0 Stop hooks) |
 | `--enable-tips` / `--disable-tips` | `enable-tips` / `disable-tips` | `enable_tips` / `disable_tips` |
+| `--install-hooks` | `install-hooks` | `install_hooks_command` |
 | `--uninstall` | `uninstall` | `do_uninstall` |
 
 ---

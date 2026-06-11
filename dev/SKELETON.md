@@ -159,6 +159,7 @@ case COMMAND:
   update-check-bg → update_check_bg()   # disowned background curl
   enable-tips  → enable_tips()
   disable-tips → disable_tips()
+  install-hooks → install_hooks_command()   # backfill hooks (incl. PreCompact) into all projects
   list-templates → list_templates()
   save-template  → save_template_command(name, dir)
   rename    → rename_move_command(src, dst, "rename")
@@ -538,6 +539,9 @@ else:
 
 echo "claude-mux updated: OLD → NEW"
 clear ~/.claude-mux/.update-check cache
+
+if config exists:
+  update_all_project_hooks()   # backfill PreCompact + on-prompt hooks into all projects (version changed → real upgrade)
 
 if TTY:
   prompt "Restart running sessions? [y/N]"

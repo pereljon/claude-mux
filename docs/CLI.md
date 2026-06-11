@@ -49,7 +49,8 @@ claude-mux --guide               # show conversational commands for use within s
 claude-mux --commands            # show full CLI reference
 claude-mux --config-help         # show all config options with defaults and descriptions
 claude-mux --install             # interactive setup: config + LaunchAgent
-claude-mux --update              # update to the latest version
+claude-mux --install-hooks       # backfill claude-mux hooks (incl. PreCompact RC-reconnect) into all projects
+claude-mux --update              # update to the latest version (also backfills hooks)
 claude-mux --dry-run             # preview actions without executing
 claude-mux --version             # print version
 claude-mux --help                # show all options
