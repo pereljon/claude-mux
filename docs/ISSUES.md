@@ -2,6 +2,43 @@
 
 ## Open
 
+### `--restart` (all) strands sessions when run from inside a managed session
+**Severity:** High (correctness)
+**Status:** Resolved in v2.0.4
+**Description:** Restarting all sessions from a managed session (e.g. `home`) left most sessions stranded. Observed 2026-06-16 from `home`: 10 sessions remembered, only `home` + `claude-mux` came back; 6 left idle (`/exit`ed, never relaunched), 3 left running (never `/exit`ed).
+**Root cause:** the restart-all path called the blanket `shutdown_claude_sessions` *after* partitioning the caller out, which `/exit`ed every session alphabetically including the caller. The caller's exit SIGHUPed the restart script mid-loop, so sessions after the caller alphabetically never got `/exit` and sessions before it never got relaunched. Compounding: the blanket shutdown removed each `.claudemux-running` marker, so auto-restore treated the stranded sessions as intentionally stopped. Ordering-dependent: worst when the caller sorts early.
+**Fix:** restart-all now shuts down + recreates each non-caller individually (`mkdir .claudemux-restarting` lock → `shutdown_single_session` with `force=true, preserve_marker=true` → `create_claude_session` → `rmdir`), honoring the caller partition (caller restarted last via the existing background handoff). `.claudemux-running` is preserved through restart; the auto-restore tick consumes the `.claudemux-restarting` lock on sight and recovers a crashed restart within ~120s. Also: restart-all now recycles protected non-caller sessions (force-through). See `dev/features/restart-caller-shutdown-fix.md` + `-tests.md`.
+
+### Code review findings (v2.0.3 full review, 2026-06-12)
+**Severity:** Low-High (per item)
+**Status:** Open - candidates for a v2.0.4 hardening patch
+**Description:** Full code review of `claude-mux` + `install.sh` at v2.0.3. 0 critical, 4 high, 6 medium, 5 low. Items below; line numbers approximate.
+
+**HIGH (hardening patch material):**
+- **H1. Config sourced without content validation** (~705): `source ~/.claude-mux/config` executes arbitrary bash. Validate every non-comment/non-blank line matches `^[A-Z_]+=.*$` before sourcing.
+- **H2. Quote-safety of embedded paths in launch heredocs** (~2994, ~3309): `TMUX_BIN`/`CLAUDE_BIN` are single-quoted into the generated launch scripts with no assert that they contain no `'`. Add a pre-embed check.
+- **H3. Unscoped loop variables in `launch_single_session`** (~3190-3207): stray-PID loop vars (`_stray_pids`, `_pid`, etc.) lack `local`; the same logic in `migrate_stray_sessions` declares them correctly. Add `local` or call the shared function.
+- **H4. `model_flag` defense-in-depth** (~3264): safe today via the `sonnet|haiku|opus` whitelist, but the flag is embedded verbatim in the heredoc - a future whitelist loosening becomes injection. Add a secondary `^[a-zA-Z0-9.-]*$` assert.
+
+**MEDIUM:**
+- **M1. `(( counter++ ))` returns exit 1 when counter is 0** - harmless without `set -e`, breaks if `set -e` is ever added. Use `(( expr )) || true` for increments.
+- **M2. `sanitize_session_name` can emit an empty string** (~1365); not all call sites guard before passing to tmux.
+- **M3. `-l`/`-L` row format uses `|` delimiter** (~1900); a path containing `|` corrupts column parsing. Escape or use `$'\001'`.
+- **M4. GitHub API JSON parsed with grep+sed** (~889, ~3633) instead of the script's own python3-for-JSON pattern - fragile against formatting changes.
+- **M5. `do_update` has no checksum verification** of the downloaded script (only shebang + size + VERSION grep). Publish SHA256 per release and verify.
+- **M6. `session_marker_dir` falls back to `pane_current_path`** (~2131), which drifts when Claude cd's - can leave a stale `.claudemux-running` marker so the tick restarts a session the user just shut down.
+- **M7. Bare `python3` instead of `/usr/bin/python3`** at two callsites in `rename_move_command` (~4023, ~4049) - inconsistent; PATH could resolve a venv python.
+- **M8. `--permission-mode` BTab navigation uses fixed sleeps** (~4622) with no per-keystroke verification; can race on a loaded system (existing restart fallback contains the blast radius).
+
+**LOW:**
+- **L1. `on_compact` prompt grep fires early** (known, diagnosed 2026-06-11): `^❯|^> ` matches the persistent input box during compaction, so `Ready?` is sent mid-compact and relies on Claude Code input queueing. Also lacks the two-snapshot quiescence check `poll_until_ready` has, and doesn't verify `is_claude_mux_session` before sending.
+- **L2. `discover_projects` prune silently skips dot-dir projects** (`$BASE_DIR/.foo/.claude` never reached). Document as intentional or fix.
+- **L3. `setup_gitignore` returns early when `.gitignore` exists**; in `create_new_project`, new files can be written before the `.claudemux-*` entry lands. Reorder.
+- **L4. `HOME_SESSION_MODEL` whitelist (`sonnet|haiku|opus`) will go stale** as model names change; consider accepting `^[a-zA-Z0-9._-]+$`.
+- **L5. `install.sh` flag forwarding assumes single-value flags** - fine today; note the assumption in a comment.
+
+Also noted (maintainability, not a bug): the launch-wrapper heredoc is duplicated between `create_claude_session` and `launch_single_session` - every wrapper fix must be applied twice. Extraction to a shared builder would remove the drift risk. Related: architecture review recommends a `src/` module split (see Open Questions - Language / runtime reconsideration).
+
 ### PreCompact hook not registered in pre-v2.0.1 sessions
 **Severity:** Medium
 **Status:** Resolved in v2.0.3
@@ -133,13 +170,24 @@
 **Severity:** Medium
 **Status:** Open - partially addressed (path detection done, LaunchAgent/installer remain macOS-only)
 **Description:** Uses macOS LaunchAgent (launchd) and macOS-specific tools. Path detection was refactored to use `command -v` (no longer hardcodes `/opt/homebrew/bin`), so the core script now works on any platform where tmux and claude are in PATH. LaunchAgent and installer remain macOS-specific.
-**Remaining:** systemd user unit, XDG Autostart fallback, `uname -s` dispatch in installer.
+**Remaining:** systemd user unit, XDG Autostart fallback, `uname -s` dispatch in installer, `move_to_trash` fallback (`gio trash`/`trash-cli`), XDG log path.
+**Priority note (architecture review, 2026-06-12):** do this *before* Windows (v2.5). Estimated 1-2 days, doubles addressable users, helps the homebrew-core notability gate (macOS-only tools face higher scrutiny), and gives the planned bats/CI suite a second platform target for free.
 **Package strategy (v1.10+):**
 - curl install: universal fallback, works everywhere (see above)
 - AUR: low effort, high reach for the target audience on Arch/Manjaro
 - apt PPA: when there's demand from Debian/Ubuntu users
 - Homebrew on Linux: covers users who already have it
 - Snap/Flatpak: not worth it for a bash script
+
+### Documentation drift + contributor onboarding gap
+**Severity:** Low
+**Status:** Open - from architecture review, 2026-06-12
+**Description:** Two drift-prone redundancies and one gap. (1) README's "What You Can Do" list overlaps `docs/GUIDE.md`; (2) the injection prompt's command list overlaps `--guide` output - both are Change Checklist items but rely on manual sync. Consider generating the README capability list from the same source as `--guide`. (3) Gap: no 1-page contributor onboarding doc - `dev/IMPLEMENTATION-SPEC.md` assumes familiarity; a "how the pieces fit" diagram (LaunchAgent -> tick -> marker files -> tmux -> claude -> hooks -> on-prompt) would help reviewers and new contributors.
+
+### Translation maintenance scope (12 languages)
+**Severity:** Low
+**Status:** Open - discuss
+**Description:** 12 translated README/FAQ/ISSUES sets are a growing per-release tax (already mitigated by the batch-at-end-of-release rule). Architecture review (2026-06-12) suggests trimming to 3-4 officially maintained languages (e.g. es/fr/ja/zh-CN), marking the rest "community contributions welcome", and using automated translation only with a human-review gate.
 
 ### ! commands not available in Remote Control
 **Severity:** Low
@@ -152,6 +200,31 @@
 ## Planned Patches
 
 Small UX work pulled out of the v2.0 milestone to ship under the lifted feature freeze. Each patch is bumped as a minor (x.Y.0) since they add new behavior, not bug fixes.
+
+### Hardening patch (proposed; version TBD)
+
+> Note: v2.0.4 was taken by the restart-stranding fix (shipped alone). This hardening bundle is the next candidate patch; bundle-vs-separate is undecided.
+
+The four HIGH items from the v2.0.3 code review (H1-H4 above): config-source validation, heredoc quote-safety asserts, `local` declarations in `launch_single_session`, `model_flag` secondary assert. All small, low-risk, no behavior change for valid inputs. MEDIUM items M4 (python3 JSON parsing for the GitHub API) and M7 (`/usr/bin/python3` consistency) are cheap riders.
+
+### Test suite + CI (from architecture review, 2026-06-12)
+
+Highest-leverage project investment before v2.1. Pragmatic floor, no TUI/Claude integration testing:
+- **bats-core suite (~50 tests)** for pure functions: `sanitize_session_name`, `encode_claude_path`, `version_gt`, `should_be_alive`, marker read/write, `on_prompt` JSON gating with stubbed stdin, `do_update` validation logic.
+- **CI smoke job** (GitHub Actions, macOS + Ubuntu, tmux installed): `--dry-run`, `-l`/`-L --status`, `--guide`, `--commands`, `--config-help`.
+- **shellcheck** with a curated `.shellcheckrc`.
+Rationale: ~4650 lines, zero automated tests, and v2.1/v2.2 are exactly where regressions hide. Every release currently rides on manual smoke-testing one developer's `~/Claude` tree.
+
+### TUI-scraping quarantine + upstream asks (from architecture review, 2026-06-12)
+
+The structural fragility is pane-capture pattern matching: `poll_until_ready`, `esc to interrupt` busy detection, the `Yes, I accept` auto-confirm, `^❯|^> ` prompt regexes, the `/compact` monitor. Mitigations:
+- Concentrate every pane-capture grep in one script section; document each pattern with the Claude Code version it was last verified against.
+- Optional CI canary: boot one real `claude` session in tmux against a pinned Claude Code version and assert the patterns still match.
+- File upstream feature requests: (a) machine-readable ready/busy signal, (b) model + permission mode via a stable external interface (would also unpark "Model/mode columns"), (c) a message-injection IPC.
+
+### `--doctor` self-diagnostic (from architecture review, 2026-06-12)
+
+In-place sanity checks: tmux/claude versions and paths, hooks installed across projects (`--install-hooks` dry-run summary), marker-file consistency, LaunchAgent loaded, log file growth, config validity. Cheap to add, high-leverage for supporting external users.
 
 ### Launch-wrapper hardening
 
@@ -309,6 +382,11 @@ Branches: **unauthorized** → nothing written; a one-time auth-request pointer 
 
 **Permissions model (per caller, per callee).** `.claudemux-authorized` is the per-callee record of who may send and at what level: binary allowlist for the first cut (`name` = may send), with an optional `name level` form (`ro`/`rw`) as a fast-follow. **Honest caveat: the level is cooperative, not enforced** - claude-mux tags/frames the message with the sender's level and the receiver's Claude is instructed to honor it, but the only *hard* boundary is the receiver's own Claude Code permission mode (plan/acceptEdits/bypass). Document it as a guardrail, not a sandbox.
 
+**Pre-build requirements (architecture review, 2026-06-12):**
+- **Write a threat-model doc before coding.** List concretely what a crafted inbound message can and cannot do; the worst case worth modeling is prompt injection escalating to the receiver sending `--message` to a third agent (chained hijack). The "cooperative, not enforced" caveat needs this specificity.
+- **Reconsider `.claudemux-authorized` location.** It is plaintext and travels with the project folder - if a repo is cloned or shared, the authorization list leaks (and an inbound clone could carry pre-authorized senders). Either document this clearly or move the gate to a central `~/.claude-mux/authorized/<target>` location (which also matches the "transient/infra state is central" rule used for the inbox).
+- **Validate the phantom-message-replay mitigation first.** Building inter-agent messaging on top of the open [Phantom message replay] issue (High, mitigation "effectiveness uncertain") is a risk; verify the v1.13.0 injection rule actually prevents replay in current Claude Code, or escalate upstream before v2.2 coding starts.
+
 **Agent card spec + write lifecycle.** `<project>/.claudemux-card.json` - a local analog of an A2A "Agent Card" (the fixed filename is our equivalent of A2A's well-known `/.well-known/agent.json` location). Fixed small schema:
 ```json
 {
@@ -380,6 +458,8 @@ Today `MULTI_CODER_FILES` symlinks `AGENTS.md`/`GEMINI.md` → `CLAUDE.md`, so t
 
 **Design:** a CLI-adapter abstraction (`CODER` config var + `.claudemux-coder` marker) with per-CLI profiles (binary, launch template, resume flag, liveness regex, approval map, capability flags). **Tier 1** (persist + static/dynamic inject + auto-restore) is the target and is reachable for all three; **Tier 2** (slash routing, Claude-TUI ready-handshake, permission cycle, RC reconnect) is explicitly OUT and degrades to no-ops via capability flags. Dovetails with the v2.2 agent network: a file-based inbox lets non-Claude sessions join the network by *pull* for free. Bonus: Gemini/Codex have richer control surfaces than first assumed (resume, approval-mode, model, MCP, Codex `remote-control` subcmd) - lowers Tier-1 cost.
 
+**Sequencing recommendation (architecture review, 2026-06-12):** ship in three steps to avoid a leaky abstraction designed against one CLI: (1) refactor `create_claude_session`/`launch_single_session`/`claude_running_in_session` to consume a profile struct still hardcoded to claude - a pure no-op refactor, ideally landed with the bats suite in place; (2) add Codex (the cleaner injection model per this spec); (3) add Gemini. Make the "additive only, never override" rule an assertion in the profile loader, not just doctrine in this doc.
+
 ### Ready handshake during compact/resume
 
 **SHIPPED in v2.0.0** (`87f4955`). `poll_until_ready(session, [timeout=120])` replaces the prompt-only 10s loops in both launch pollers. Busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt at line start + quiescent (two captures >=1.1s apart, non-empty, identical). Covers the ~50s startup compaction case the old 10s timeout missed. See `dev/features/ready-handshake.md` and `dev/features/ready-handshake-tests.md`.
@@ -417,6 +497,8 @@ We added `--restart --fresh` in v1.13.0 as the escape hatch, but it requires the
 - Does the brief replace conversation history or supplement it?
 
 **Why this matters:** the "Ready handshake during compact/resume" item above is downstream of this. Long transcripts → auto-compact at startup → ready handshake misfires. Solving the root cause (don't resume the giant transcript) eliminates the symptom. Article's framing: "The transcript is a tool, not a context."
+
+**Sequencing recommendation (architecture review, 2026-06-12):** make this the *first* v2.1 deliverable. It removes a class of bugs (ready-handshake fragility on long resumes) rather than papering over them.
 
 ### Memory management from sessions
 
@@ -468,6 +550,8 @@ Not features. Long-running design questions to revisit periodically.
 The monolithic bash script is the right call at current scope. If claude-mux grows significantly - project rename/move/copy operations, a relay layer, cross-platform packaging, a data directory - bash starts fighting back. At that point, rewriting the session management core in Go or another typed language (with bash as a thin CLI wrapper) is worth evaluating.
 
 Trigger to re-evaluate: when any single bash function exceeds ~150 lines of branching logic, when cross-platform packaging needs more than `uname -s` dispatch, or when the script as a whole crosses ~5000 lines.
+
+**Intermediate step (architecture review, 2026-06-12): `src/` module split with build-time concatenation.** Before any language rewrite: split the script into bash modules (`src/00-defaults.sh`, `src/10-config.sh`, `src/20-tui.sh`, `src/30-dispatch.sh`, ...) with a `make build` that concatenates them into the released single-file `claude-mux`. Distribution unchanged (curl install and Homebrew formula still ship one file); developer ergonomics improve dramatically; the `dev/CODEMAP.md` line-number drift problem largely disappears (or auto-generate CODEMAP line numbers from `grep -n` as a release make target). At ~4650 lines and with v2.1/v2.2 likely pushing past 6000, this buys years before Go becomes attractive. Best timed at the start of v2.1, not retrofitted mid-feature.
 
 ---
 

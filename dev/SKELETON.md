@@ -201,8 +201,10 @@ case COMMAND:
         validate: is managed session
         get working dir from tmux
         restore_state_clear(session)   # user restart un-trips a crash-looped session
-        shutdown_single_session(session)
+        mkdir .claudemux-restarting    # restart lock: auto-restore defers this tick
+        shutdown_single_session(session, FORCE, preserve_marker=true)
         create_claude_session(session, dir, "", FRESH_START)
+        rmdir .claudemux-restarting    # release; tick recovers if we crashed mid-restart
 
     else (full restart):
       snapshot: for each managed session where claude is running
@@ -214,19 +216,27 @@ case COMMAND:
 
       if running inside tmux → identify caller session, separate from list
 
-      shutdown_claude_sessions()
+      # CRITICAL: do NOT call shutdown_claude_sessions() here — it walks every
+      # managed session including the caller, whose /exit SIGHUPs this script
+      # mid-loop and strands the rest. Shut down + recreate each non-caller
+      # individually, honoring the caller partition.
       detect_github_ssh_accounts()
       for each non-caller session:
         restore_state_clear(name)   # user restart un-trips crash-loop history
+        mkdir .claudemux-restarting
+        shutdown_single_session(name, force=true, preserve_marker=true)  # force: recycle protected too
         create_claude_session(name, dir, "", FRESH_START)
+        rmdir .claudemux-restarting
 
       if caller session exists:
         background subshell:
           sleep 1
+          mkdir .claudemux-restarting   # caller's .claudemux-running stays in place throughout
           send /exit to caller pane + Enter
           wait up to 10s for claude to exit
           tmux kill-session caller
           claude-mux -d caller_dir [--fresh]
+          rmdir .claudemux-restarting
         disown subshell   # prevent SIGHUP when caller session dies
 ```
 
@@ -495,6 +505,10 @@ in_flight = 0
 for proj in PROJECT_DIRS + HIDDEN_PROJECT_DIRS:
     name = sanitize(basename(proj))
     skip if empty or name == "home"
+    if proj/.claudemux-restarting exists:                 # restart in flight (or crashed)
+        rmdir proj/.claudemux-restarting                  # consume-on-sight
+        log "skipping name this tick (restart in flight)"
+        continue                                          # next tick: running→noop, or crashed→preserved marker recovers it
     la = restore_state_last_attempt(name)
     if (now - la) < STARTING_WINDOW: in_flight++      # recent attempt occupies a slot
     if should_be_alive(name, proj) AND NOT claude_running_in_session(name):
@@ -550,14 +564,17 @@ if TTY:
 
 ---
 
-## shutdown_single_session(name)
+## shutdown_single_session(name, [force], [preserve_marker])
 
 ```
 if session not running → return
 if protected and not force → error, return
 
-remove_running_marker(session_marker_dir(session))   # intent to stop, BEFORE kill,
-                                                      # so the tick can't resurrect mid-shutdown
+if preserve_marker != true:                          # restart paths pass true so a
+  remove_running_marker(session_marker_dir(session)) #   crashed restart stays recoverable;
+                                                      # shutdown paths drop the marker (intent
+                                                      # to stop) BEFORE kill so the tick can't
+                                                      # resurrect mid-shutdown
 
 send-keys name "/exit" + Enter
 wait up to 10s (20 × 0.5s):
@@ -705,11 +722,13 @@ exit 0
 
 - `COMMAND` can only be set once — `set_command()` enforces this and exits on conflict.
 - Sessions are only touched if `@claude-mux-managed=1` is set in tmux — this prevents accidental collision with non-claude-mux tmux sessions.
-- Protected sessions (`@claude-mux-protected=1`) are skipped by `shutdown_claude_sessions()` unless `FORCE=true`. `--restart` always sets `FORCE=true` (restart ≠ permanent kill).
+- Protected sessions (`@claude-mux-protected=1`) are skipped by `shutdown_claude_sessions()` unless `FORCE=true`. Restart-all does NOT use that blanket path; it calls `shutdown_single_session(name, force=true, ...)` per non-caller, so it recycles protected sessions too (restart ≠ permanent kill). Single-named `--restart SESSION` honors `$FORCE` (protected needs `--force`).
+- Restart-all must never call `shutdown_claude_sessions()`: that blanket walk includes the caller, whose `/exit` SIGHUPs the script mid-loop and strands the rest. The caller is partitioned out and restarted last via a `disown`ed background subshell; non-callers are shut-down+recreated individually in a loop, each wrapped in a `.claudemux-restarting` lock (mkdir/rmdir) with `preserve_marker=true`.
 - Caller-last ordering in full restart: the session running the restart script cannot kill itself mid-execution — it separates itself from the list and uses a background subshell with `disown` to handle its own restart.
 - `poll_until_ready` keys readiness on the `esc to interrupt` busy signal + quiescence, not the mere presence of the `❯` prompt (which is drawn during a resume-time compaction). It still sends `Ready?` on timeout (~120s) so a slow session eventually gets the handshake.
 - Temp launch scripts clean themselves up via `trap ... EXIT` — no orphaned files even if claude crashes.
-- Auto-restore marker presence ⇒ session should be alive. The marker is cleared exactly two ways, both = intent to stop: `--shutdown` (`remove_running_marker` before kill) or a clean in-pane exit (rc 0, the launch wrapper removes it). A crash/`kill-session`/reboot leaves it, so the tick restores it.
+- Auto-restore marker presence ⇒ session should be alive. The marker is cleared exactly two ways, both = intent to stop: `--shutdown` (`remove_running_marker` before kill) or a clean in-pane exit (rc 0, the launch wrapper removes it). A crash/`kill-session`/reboot leaves it, so the tick restores it. A `--restart` deliberately preserves it (`preserve_marker=true`), so a restart that crashes between shutdown and recreate is still recovered by the tick.
+- A `.claudemux-restarting` lock (mkdir) means a restart is in flight; the tick consumes it on sight (rmdir + skip one tick) so auto-restore never races the sub-second window between `kill-session` and `new-session`. Self-healing: a stale lock is cleared by the next tick regardless.
 - `should_be_alive()` is the single predicate behind both the restore walk and the `-l` status, so the listing never promises a restore the tick won't perform.
 - `--autolaunch`/`autorestore_walk` must stay one-shot; launchd re-fires it (~60s via `KeepAlive`+`ThrottleInterval=60`), so an internal loop would break the watchdog.
 - The launch wrapper keeps `claude` a direct child of the launch script (no extra subshell), so `claude_running_in_session`'s 2-level process-tree check still finds it.

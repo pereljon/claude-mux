@@ -87,7 +87,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `is_managed_session` | 1658 | `(session_name)` | Return 0 if session is in MANAGED_SESSIONS |
 | `is_protected_session` | 1669 | `(session_name)` | Return 0 if `@claude-mux-protected=1` in tmux |
 | `is_claude_mux_session` | 1679 | `(session_name)` | Return 0 if `@claude-mux-managed=1` in tmux |
-| `shutdown_single_session` | 1686 | `(session_name)` | Remove `.claudemux-running` marker first (via `session_marker_dir`), then send /exit, wait, kill-session |
+| `shutdown_single_session` | 1716 | `(session_name, [force], [preserve_marker])` | Remove `.claudemux-running` marker first (via `session_marker_dir`) unless `preserve_marker=true`, then send /exit, wait, kill-session. Restart callers pass `preserve_marker=true` so a crashed restart stays recoverable |
 | `shutdown_claude_sessions` | 1725 | `()` | Shut down all managed sessions (removing each marker first); skip protected unless FORCE=true |
 | `status_claude_sessions` | 1813 | `([show_all] [status_filter])` | Print session list (`-l` / `-L`) incl. `queued`/`failed` auto-restore statuses; wraps in `<assistant-must-display>` when not TTY; `status_filter` limits rows to a single status value |
 | `ensure_git_repo` | 1980 | `(dir)` | Run `git init` if dir is not already a git repo |
@@ -141,7 +141,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `apply_template` | 3971 | `(template_name, project_dir)` | Copy template to project's CLAUDE.md |
 | `create_new_project` | 4024 | `()` | `-n` path: mkdir, git init, apply template, launch session |
 | `notify_home` | 4082 | `(msg)` | Best-effort one-line notice to the home session (only if home looks idle) |
-| `autorestore_walk` | 4098 | `()` | Restore tick: relaunch should-be-alive but dead sessions, staggered, with crash-loop guard |
+| `autorestore_walk` | 4240 | `()` | Restore tick: relaunch should-be-alive but dead sessions, staggered, with crash-loop guard. Consumes `.claudemux-restarting` on sight (rmdir + skip this tick) so it doesn't race an in-flight `--restart` |
 | `autolaunch_dispatch` | 4177 | `()` | LaunchAgent entry point; starts home then calls `autorestore_walk` (mode `home`) |
 
 ---
@@ -191,7 +191,8 @@ Per-project state files. All use `.claudemux-` prefix. Auto-added to `.gitignore
 |---|---|---|---|
 | `.claudemux-ignore` | `hide_command` | `show_command` | Hide from `-L` and `discover_projects` |
 | `.claudemux-protected` | `protect_command`, `--install` (BASE_DIR only) | `unprotect_command` | Protect from `--shutdown`; requires `--force` |
-| `.claudemux-running` | `write_running_marker` (at launch; not home) | `remove_running_marker` (`--shutdown`), launch-script clean-exit (rc 0) | Auto-restore intent: session should be alive; tick restores it if Claude died |
+| `.claudemux-running` | `write_running_marker` (at launch; not home) | `remove_running_marker` (`--shutdown`), launch-script clean-exit (rc 0) | Auto-restore intent: session should be alive; tick restores it if Claude died. Preserved through `--restart` (`shutdown_single_session` `preserve_marker=true`) |
+| `.claudemux-restarting/` | restart paths: restart-all loop, caller handoff, single-named `--restart` (`mkdir`) | same paths after `create_claude_session` (`rmdir`); `autorestore_walk` consume-on-sight (`rmdir`) | Transient restart lock (directory). Presence = restart in flight; auto-restore defers one tick |
 
 **Global state files** (under `~/.claude-mux/`, not per-project):
 

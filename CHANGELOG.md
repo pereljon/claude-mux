@@ -2,6 +2,18 @@
 
 All notable changes to claude-mux are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.4] - 2026-06-16
+
+### Fixed
+- **`--restart` (all) no longer strands sessions**: restarting all sessions from inside a managed session (e.g. `home`) used to `/exit` every session in alphabetical order via a blanket shutdown, including the caller - whose exit SIGHUPed the restart script mid-loop, leaving most sessions either `/exit`ed-but-not-relaunched (idle) or never reached (still running). The restart-all path now shuts down and recreates each non-caller session individually, honoring the caller partition (the caller is restarted last via the existing background handoff). The bug was ordering-dependent and hit hardest when the caller sorted early alphabetically.
+
+### Changed
+- **`--restart` (all) recycles protected non-caller sessions**: previously the blanket shutdown silently skipped protected sessions, so a `--restart` left them untouched. Restart now forces through protection for non-caller sessions (protection guards `--shutdown` accidents, not intentional restarts). The single-named `--restart SESSION` path still honors `--force` for protected sessions.
+- **Sessions relaunch interleaved** (`shutdown -> create` per session) instead of all-shutdown-then-all-relaunch, so each session's recovery starts ~10s sooner.
+
+### Added
+- **`.claudemux-running` is preserved through a restart** (new `preserve_marker` path in `shutdown_single_session`), and a new transient `.claudemux-restarting` lock (atomic `mkdir`/`rmdir`) marks an in-flight restart. If a restart crashes mid-way, the auto-restore tick consumes the lock on sight, defers one tick, then recovers the session from the preserved marker - turning the old "stranded forever" failure into ~120s self-healing.
+
 ## [2.0.3] - 2026-06-10
 
 ### Added

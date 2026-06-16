@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.3"
+VERSION="2.0.4"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -1718,6 +1718,10 @@ shutdown_single_session() {
     # Optional second arg lets callers pass force=true directly without touching the
     # global FORCE. Falls back to $FORCE so dispatch-path callers are unaffected.
     local force="${2:-$FORCE}"
+    # Third arg: when "true", keep the .claudemux-running marker in place. Restart
+    # callers pass true so a crash mid-restart leaves the marker for auto-restore to
+    # recover from. Shutdown callers omit it (intent to stop -> remove the marker).
+    local preserve_marker="${3:-false}"
     if ! "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
         log "No tmux session named '$session'"
         echo "See $LOG_FILE for details" >&2
@@ -1731,7 +1735,9 @@ shutdown_single_session() {
     # Remove the auto-restore marker first (intent to stop) so the tick can't
     # resurrect a session mid-shutdown. Use the recorded launch dir, not
     # pane_current_path, which can drift from the project root.
-    remove_running_marker "$(session_marker_dir "$session")"
+    if [[ "$preserve_marker" != "true" ]]; then
+        remove_running_marker "$(session_marker_dir "$session")"
+    fi
     if claude_running_in_session "$session"; then
         log "Sending /exit to session '$session'"
         [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
@@ -4243,6 +4249,16 @@ autorestore_walk() {
         _name=$(sanitize_session_name "$(basename "$_proj")")
         [[ -z "$_name" || "$_name" == "home" ]] && continue
 
+        # Restart-in-flight marker: an intentional restart is mid-flight (or crashed).
+        # Consume-on-sight: remove the marker and defer this session for one tick. If
+        # the restart finished, next tick sees Claude running and does nothing; if it
+        # crashed, the preserved .claudemux-running marker lets next tick recover it.
+        if [[ -d "$_proj/.claudemux-restarting" ]]; then
+            rmdir "$_proj/.claudemux-restarting" 2>/dev/null
+            log "Auto-restore: skipping '$_name' this tick (restart in flight)"
+            continue
+        fi
+
         # In-flight: any tracked session attempted within the window counts toward
         # the concurrency cap, so successive ticks drain the backlog gradually.
         _la=$(restore_state_last_attempt "$_name")
@@ -4459,8 +4475,14 @@ case "$COMMAND" in
                     log "Would restart session '$_rs' in $_restart_dir${FRESH_START:+ (fresh start)}"
                 else
                     restore_state_clear "$_rs"   # user restart un-trips a crash-looped session
-                    shutdown_single_session "$_rs"
+                    # Restart marker + preserve_marker: a crash between shutdown and
+                    # create leaves the session recoverable by the auto-restore tick.
+                    mkdir "$_restart_dir/.claudemux-restarting" 2>/dev/null
+                    # Named restart honors $FORCE (user must pass --force for a
+                    # protected session), unlike restart-all which forces through.
+                    shutdown_single_session "$_rs" "$FORCE" true   # preserve_marker
                     create_claude_session "$_rs" "$_restart_dir" "" "$FRESH_START"
+                    rmdir "$_restart_dir/.claudemux-restarting" 2>/dev/null
                 fi
             done
             if [[ $_restart_errors -gt 0 ]]; then
@@ -4520,14 +4542,24 @@ case "$COMMAND" in
                         fi
                     done <<< "$_restart_list"
 
-                    # Shut down and recreate all non-caller sessions
-                    shutdown_claude_sessions
+                    # Shut down and recreate non-caller sessions individually.
+                    # CRITICAL: must NOT call shutdown_claude_sessions here - it walks
+                    # every managed session including the caller, whose /exit SIGHUPs
+                    # this script mid-loop and strands the rest. The partition above
+                    # split the caller out for exactly this reason; honor it.
                     detect_github_ssh_accounts
                     while IFS='|' read -r _name _dir; do
                         [[ -z "$_name" ]] && continue
                         log "Restarting session '$_name' in $_dir"
                         restore_state_clear "$_name"   # user restart un-trips crash-loop history
+                        # Restart marker: defer auto-restore for one tick. preserve_marker
+                        # keeps .claudemux-running so a crash mid-restart is recoverable.
+                        mkdir "$_dir/.claudemux-restarting" 2>/dev/null
+                        # force=true: restart-all recycles protected non-callers too
+                        # (protection guards --shutdown accidents, not --restart).
+                        shutdown_single_session "$_name" true true   # force, preserve_marker
                         create_claude_session "$_name" "$_dir" "" "$FRESH_START"
+                        rmdir "$_dir/.claudemux-restarting" 2>/dev/null
                     done <<< "$_other_list"
 
                     # Handle caller session last: spawn a background process that
@@ -4539,6 +4571,11 @@ case "$COMMAND" in
                         (
                             # Wait briefly for the main script to finish
                             sleep 1
+                            # Restart marker: auto-restore defers this session for one
+                            # tick. The caller's .claudemux-running marker is left in
+                            # place throughout (this branch never removes it), so a
+                            # crashed handoff is recoverable by the next tick.
+                            mkdir "$_caller_dir/.claudemux-restarting" 2>/dev/null
                             # Shut down Claude in the caller session
                             if "$TMUX_BIN" has-session -t "$_caller_name" 2>/dev/null; then
                                 "$TMUX_BIN" send-keys -t "$_caller_name" -l "/exit" && "$TMUX_BIN" send-keys -t "$_caller_name" Enter
@@ -4555,6 +4592,7 @@ case "$COMMAND" in
                             if ! "$CLAUDE_MUX_BIN" -d "$_caller_dir" --no-attach${FRESH_START:+ --fresh} 2>>"$LOG_FILE"; then
                                 echo "ERROR: Failed to recreate caller session '$_caller_name' in $_caller_dir" >> "$LOG_FILE"
                             fi
+                            rmdir "$_caller_dir/.claudemux-restarting" 2>/dev/null
                         ) &
                         disown
                     fi

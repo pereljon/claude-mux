@@ -75,7 +75,8 @@ Per-project state lives in the project folder, not in central config. State file
 |---|---|
 | `.claudemux-ignore` | Hide project from `claude-mux -L` and `discover_projects()` |
 | `.claudemux-protected` | Set `@claude-mux-protected = 1` on the tmux session at launch |
-| `.claudemux-running` | Auto-restore intent: session should be alive. The `--autolaunch` tick restores it if Claude died. Removed on clean `/exit` (rc 0) or `--shutdown`. Written at launch (not for home). |
+| `.claudemux-running` | Auto-restore intent: session should be alive. The `--autolaunch` tick restores it if Claude died. Removed on clean `/exit` (rc 0) or `--shutdown`. Written at launch (not for home). Preserved through a `--restart` (via `shutdown_single_session`'s `preserve_marker` arg) so a crashed restart is recoverable. |
+| `.claudemux-restarting/` | Transient restart lock (directory; atomic `mkdir`/`rmdir`). Presence = an intentional restart is in flight. Created around each session's shutdown+create in `--restart`, removed after create. The `--autolaunch` tick consumes it on sight (`rmdir` + defer one tick) so auto-restore doesn't race the restart window. |
 
 **Why marker files, not config:**
 - State follows the folder across renames, moves, and machine syncs.
@@ -84,7 +85,8 @@ Per-project state lives in the project folder, not in central config. State file
 - No central registry to corrupt or drift.
 
 **Conventions when adding new per-project state:**
-- Boolean flags: empty file at `.claudemux-<name>`, presence = on.
+- Boolean flags: empty file at `.claudemux-<name>` (`touch`), presence = on. Long-lived.
+- Transient locks: directory at `.claudemux-<name>/` (`mkdir`/`rmdir`). `mkdir` is atomic (claim-this-name fails if it exists), so it doubles as a mutex; `.claudemux-restarting` uses this. Rule of thumb: `mkdir` for locks, `touch` for flags.
 - Richer state: JSON file at `.claudemux-<name>.json` (no current cases).
 - Always auto-gitignore via `ensure_gitignore_entry()`.
 - Folder-name conventions (`-prefix` and `.prefix`) are legacy and still respected by `discover_projects()`, but new features use markers.
