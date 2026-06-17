@@ -115,13 +115,15 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `setup_claude_mux_permissions` | 2568 | `(project_dir, [is_home])` | Add claude-mux to allow list; register UserPromptSubmit `--on-prompt` + PreCompact `--on-compact` hooks, remove legacy Stop `--tipotd` hook. Returns 0=already current, 10=patched/would-patch, 1=error |
 | `setup_multi_coder_files` | 2677 | `(project_dir)` | Create AGENTS.md / GEMINI.md symlinks to CLAUDE.md |
 | `detect_github_ssh_accounts` | 2724 | `()` | Parse `~/.ssh/config` for GitHub accounts; set `GITHUB_SSH_INFO` |
-| `poll_until_ready` | 2762 | `(session, [timeout=120])` | Wait until a session is genuinely ready: busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt + quiescent. Handles trust/bypass auto-accept. Returns 0 ready / 1 timeout |
-| `create_claude_session` | 2802 | `(session_name, working_dir, [mode_override], [fresh_start])` | Core launcher: tmux session, set `@claude-mux-dir`/`@claude-mux-claude-id`, write `.claudemux-running`, write launch script (exit-code wrapper; prompt via `--append-system-prompt-file`; clean exit removes marker+temp files and `kill-session`s), `poll_until_ready`, delete prompt file, send Ready? |
+| `poll_until_ready` | 2846 | `(session, [timeout=120])` | Wait until a session is genuinely ready: busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt + quiescent. Handles trust/bypass auto-accept. Returns 0 ready / 1 timeout |
+| `await_ready_handshake` | 2894 | `(session)` | `--await-ready` body: `poll_until_ready` then send "Ready?". Used by the looped launch wrapper to fire the handshake from OUTSIDE the pane after an in-place restart relaunch (the pane itself is busy relaunching claude) |
+| `restart_caller_in_place` | 2908 | `(session, [fresh])` | Restart the calling session in place: set `@claude-mux-restart` (`resume`/`fresh`) + send `/exit`. Must NOT kill-session the caller (SIGHUP would kill this script). The looped wrapper relaunches in-pane + handshakes |
+| `create_claude_session` | 2920 | `(session_name, working_dir, [mode_override], [fresh_start])` | Core launcher: tmux session, set `@claude-mux-dir`/`@claude-mux-claude-id`, write `.claudemux-running`, write LOOPED launch wrapper (prompt at `<dir>/.claudemux-prompt` via `--append-system-prompt-file`; clean exit with `@claude-mux-restart` set → regenerate prompt via `--print-system-prompt` + relaunch in-pane + background `--await-ready`; clean exit without it → remove marker+prompt and `kill-session`), `poll_until_ready`, send Ready? (prompt NOT deleted - wrapper owns its lifetime) |
 | `migrate_stray_sessions` | 2965 | `()` | Claim existing tmux sessions that have Claude running but lack managed marker |
 | `discover_projects` | 3021 | `()` | Scan BASE_DIR for directories with `.claude/`; return list |
 | `ensure_base_dir` | 3051 | `()` | Create BASE_DIR if it doesn't exist |
 | `start_sessions` | 3063 | `()` | Launch all discovered projects (`-a`) |
-| `launch_single_session` | 3112 | `()` | Home/LaunchAgent/`-d` path: sets `@claude-mux-dir`/`@claude-mux-claude-id`, marker, exit-code wrapper (prompt-file + clean-exit teardown), backgrounded `poll_until_ready`+prompt-file delete; uses LAUNCH_DIR, LAUNCH_SESSION_NAME, HOME_LAUNCH |
+| `launch_single_session` | 3280 | `()` | Home/LaunchAgent/`-d` path: sets `@claude-mux-dir`/`@claude-mux-claude-id`, marker, LOOPED launch wrapper (prompt at `<dir>/.claudemux-prompt`; same restart-in-place loop as `create_claude_session`, regenerating with mode `auto`), backgrounded `poll_until_ready`+Ready? (prompt NOT deleted); uses LAUNCH_DIR, LAUNCH_SESSION_NAME, HOME_LAUNCH |
 | `encode_claude_path` | 3278 | `(path)` | URL-encode a path for Claude's project directory naming |
 | `tip_of_day` | 3286 | `()` | Select and print one tip (no gating; used by `--tip` and `on_prompt`) |
 | `claude_binary_id` | 3349 | `()` | Identity of the `claude` executable: `realpath:mtime` (cask realpath or in-place mtime changes on upgrade) |
@@ -174,6 +176,8 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `--save-template NAME` | `save-template` | `save_template_command` |
 | `--tip` | `tip` | `tip_of_day` |
 | `--on-compact` | `on-compact` | `on_compact` (PreCompact hook) |
+| `--await-ready SESSION` | `await-ready` | `await_ready_handshake` (internal; called by the looped launch wrapper) |
+| `--print-system-prompt SESSION [MODE]` | `print-system-prompt` | `build_system_prompt` (internal; wrapper regenerates the prompt on in-place restart) |
 | `--on-prompt` | `on-prompt` | `on_prompt` (UserPromptSubmit hook) |
 | `--update-check-bg` | `update-check-bg` | `update_check_bg` (background, disowned) |
 | `--tipotd` | `tipotd` | legacy no-op (early exit; pre-v1.15.0 Stop hooks) |
@@ -191,8 +195,9 @@ Per-project state files. All use `.claudemux-` prefix. Auto-added to `.gitignore
 |---|---|---|---|
 | `.claudemux-ignore` | `hide_command` | `show_command` | Hide from `-L` and `discover_projects` |
 | `.claudemux-protected` | `protect_command`, `--install` (BASE_DIR only) | `unprotect_command` | Protect from `--shutdown`; requires `--force` |
-| `.claudemux-running` | `write_running_marker` (at launch; not home) | `remove_running_marker` (`--shutdown`), launch-script clean-exit (rc 0) | Auto-restore intent: session should be alive; tick restores it if Claude died. Preserved through `--restart` (`shutdown_single_session` `preserve_marker=true`) |
-| `.claudemux-restarting/` | restart paths: restart-all loop, caller handoff, single-named `--restart` (`mkdir`) | same paths after `create_claude_session` (`rmdir`); `autorestore_walk` consume-on-sight (`rmdir`) | Transient restart lock (directory). Presence = restart in flight; auto-restore defers one tick |
+| `.claudemux-running` | `write_running_marker` (at launch; not home) | `remove_running_marker` (`--shutdown`), launch-script clean-exit (rc 0, no restart pending) | Auto-restore intent: session should be alive; tick restores it if Claude died. Preserved through `--restart` (`shutdown_single_session` `preserve_marker=true`) |
+| `.claudemux-restarting/` | restart paths: restart-all loop, single-named `--restart` for non-callers (`mkdir`) | same paths after `create_claude_session` (`rmdir`); `autorestore_walk` consume-on-sight (`rmdir`) | Transient restart lock (directory). Presence = restart in flight; auto-restore defers one tick. NOT used for in-place caller restarts (the pane never goes down) |
+| `.claudemux-prompt` | `create_claude_session` / `launch_single_session` at launch; regenerated in-pane by the wrapper (`--print-system-prompt`) on each in-place restart | launch-script teardown (clean exit, no restart pending); trap backstop | Per-session system-prompt file passed via `--append-system-prompt-file`. In the project folder (stable, not `$TMPDIR`-reaped) so it survives + regenerates across in-place relaunches. Mode 600 |
 
 **Global state files** (under `~/.claude-mux/`, not per-project):
 
@@ -213,6 +218,7 @@ Per-project state files. All use `.claudemux-` prefix. Auto-added to `.gitignore
 | `@claude-mux-protected` | `create_claude_session` at launch (if marker present) | Session is protected |
 | `@claude-mux-dir` | `create_claude_session`, `launch_single_session` at launch | Recorded launch (project-root) dir; authoritative source for marker removal (`session_marker_dir`) |
 | `@claude-mux-claude-id` | `create_claude_session`, `launch_single_session` at launch; re-acked by `detect_claude_upgrade` | `claude` binary identity at launch (`realpath:mtime`) for Claude Code upgrade detection |
+| `@claude-mux-restart` | `restart_caller_in_place` (`resume`/`fresh`) | Read + unset by the looped launch wrapper on a clean exit: signals "relaunch claude in this pane" (restart-in-place) instead of teardown. Consumed per relaunch (set-option `-u`) so one restart = one relaunch |
 
 ---
 

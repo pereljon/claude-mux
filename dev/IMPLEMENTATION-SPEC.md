@@ -139,7 +139,7 @@ The script sources `~/.claude-mux/config` after setting defaults, so any variabl
     - list (-l): show active sessions (running + stopped)
     - list-all (-L): show all projects (active + idle)
     - shutdown: send /exit → poll → kill tmux sessions (all managed, or specific session(s))
-    - restart: remember running sessions → shutdown → relaunch only those (or specific session(s))
+    - restart: remember running sessions → for each, relaunch (or specific session(s)). Non-callers: shutdown → create. The caller (the session this runs inside) restarts in place via restart_caller_in_place (set @claude-mux-restart + /exit; the looped wrapper relaunches in-pane) — never kill-session'd
     - setmode: validate mode → for each named session, shutdown → relaunch with permission mode override
 ```
 
@@ -251,22 +251,35 @@ If GitHub SSH accounts are found in `~/.ssh/config`, an additional line is appen
 
 When `ALLOW_CROSS_SESSION_CONTROL=false` (default), the send command note says "to yourself". When `true`, it says "to yourself or any other Claude session".
 
-Writes the launch command to a temp script (`${TMPDIR:-/tmp}/claude-launch-XXXXXX`) and the system prompt to a separate `chmod 600` temp file (`${TMPDIR:-/tmp}/claude-prompt-XXXXXX`). The temp script uses `trap EXIT` as a cleanup backstop. Sends the temp script path to the tmux pane via `send-keys`. After the ready handshake the caller deletes the prompt file (Claude has read it at startup). Sleeps `SLEEP_BETWEEN` seconds after launching during `-a`.
+Writes the launch command to a temp script (`${TMPDIR:-/tmp}/claude-launch-XXXXXX`) and the system prompt to `<working_dir>/.claudemux-prompt` (`chmod 600`). The prompt lives in the project folder (not `$TMPDIR`) so it survives `$TMPDIR` reaping and can be regenerated across in-place relaunches; it is covered by the `.claudemux-*` gitignore pattern. The temp script uses `trap EXIT` to clean up the launch script (the wrapper owns the prompt's lifetime). Sends the temp script path to the tmux pane via `send-keys`. The prompt file is NOT deleted after the ready handshake (the wrapper re-reads and regenerates it on each in-place restart). Sleeps `SLEEP_BETWEEN` seconds after launching during `-a`.
 
-Launch command inside temp script (with `$perm_flags`/marker path expanded at write time). The system prompt is passed by file path (`--append-system-prompt-file`), so it is not visible in `ps`. The wrapper distinguishes a resume-that-failed-to-start (non-zero within ~10s → retry fresh) from a real crash, and on a clean exit (rc 0) removes the marker + temp files and tears down the tmux session:
+**Restart-in-place (the looped wrapper).** The launch command runs inside a `while` loop. The system prompt is passed by file path (`--append-system-prompt-file`), so it is not visible in `ps`. The wrapper distinguishes a resume-that-failed-to-start (non-zero within ~10s → retry fresh) from a real crash. On a **clean exit (rc 0)** it checks the `@claude-mux-restart` tmux user option (set by `restart_caller_in_place`): if set, it relaunches `claude` in the *same pane* (resuming, or fresh when the option is `fresh`) rather than tearing down — consuming the option, regenerating the prompt via `claude-mux --print-system-prompt` (so the injection stays current), and backgrounding `claude-mux --await-ready` to fire the "Ready?" handshake from outside the busy pane. With no restart pending it removes the marker + prompt + launch script and tears down the tmux session. A crash (non-zero) breaks the loop, leaving the pane + marker for the auto-restore tick. This is what lets a restart's *caller* resume without an external recreate — the bug where restart-all-from-home forked home's history (killing the caller's pane SIGHUP'd the in-pane restart script before it could recreate). Paths and the `claude-mux` binary path are single-quote-escaped (apostrophe-safe); runtime vars hold the escaped values and are used double-quoted.
 ```bash
 _marker='<working_dir>/.claudemux-running'   # single-quote-escaped
-_start=$(date +%s)
-claude -c --remote-control <perm_flags> --name '<session>' --append-system-prompt-file '<prompt-file>' 2>/dev/null
-_rc=$?
-if [[ $_rc -ne 0 && $(( $(date +%s) - _start )) -lt 10 ]]; then
-    claude --remote-control <perm_flags> --name '<session>' --append-system-prompt-file '<prompt-file>'
+_prompt='<working_dir>/.claudemux-prompt'    # single-quote-escaped
+_resume='-c'                                  # '' when fresh
+while true; do
+    _start=$(date +%s)
+    claude ${_resume:+$_resume }--remote-control <perm_flags> --name '<session>' --append-system-prompt-file "$_prompt" 2>"$err"
     _rc=$?
-fi
-if [[ $_rc -eq 0 ]]; then            # clean /exit or Ctrl-C x2 = intent to stop
-    rm -f "$_marker" '<launch-script>' '<prompt-file>'
-    tmux kill-session -t '<session>'  # no lingering shell pane; crash leaves it for the tick
-fi
+    if [[ $_rc -ne 0 && $(( $(date +%s) - _start )) -lt 10 ]]; then
+        claude --remote-control <perm_flags> --name '<session>' --append-system-prompt-file "$_prompt"; _rc=$?
+    fi
+    if [[ $_rc -eq 0 ]]; then
+        _restart=$(tmux show-option -t '<session>' -qv @claude-mux-restart)
+        if [[ -n "$_restart" ]]; then       # RESTART-IN-PLACE: relaunch in this pane
+            tmux set-option -t '<session>' -u @claude-mux-restart   # consume (1 restart = 1 relaunch)
+            _resume='-c'; [[ "$_restart" == fresh ]] && _resume=''
+            claude-mux --print-system-prompt '<session>' '<mode>' > "$_prompt.new" && [[ -s "$_prompt.new" ]] \
+                && { chmod 600 "$_prompt.new"; mv -f "$_prompt.new" "$_prompt"; } || rm -f "$_prompt.new"
+            claude-mux --await-ready '<session>' >/dev/null 2>&1 &
+            continue
+        fi
+        rm -f "$_marker" "$_prompt" '<launch-script>'   # clean stop: intent to stay down
+        tmux kill-session -t '<session>'; break          # no lingering shell pane
+    fi
+    break   # crash: leave pane + marker for the tick
+done
 ```
 
 After sending the launch command, the script waits for Claude to be genuinely ready via `poll_until_ready` (shared by both launch paths). It auto-accepts the workspace trust prompt and the bypassPermissions warning (option 1 / "Yes, I accept"), then treats the session as ready only when it is not busy (the status line lacks `esc to interrupt` in its bottom lines), a prompt is drawn, and the pane is quiescent (two captures >=1.1s apart match). This avoids the old bug where the `❯` prompt is drawn during a resume-time auto-compaction (~50s) so `Ready?` misfired against the 10s timeout; the timeout is now ~120s. When ready (or on timeout) it sends `Ready?` and expects Claude to respond with "Session ready!" followed by "Running [model] in [mode] mode." All managed directories are the user's own projects. `create_claude_session` runs this synchronously; `launch_single_session` runs it backgrounded so attach is not blocked.
@@ -417,7 +430,8 @@ Per-project state lives in marker files at the project root, not in central conf
 |--------|---------|------------|
 | `.claudemux-protected` | Session is protected at launch. `--shutdown` requires `--force`. | `claude-mux --protect` or `claude-mux --install` (for `$BASE_DIR`) |
 | `.claudemux-ignore` | Project is hidden from `claude-mux -L` listings and `discover_projects()`. | `claude-mux --hide` |
-| `.claudemux-running` | Auto-restore intent: this session should be alive. The LaunchAgent tick restores it if its Claude process has died. Removed on a clean in-pane `/exit` (exit 0) or `--shutdown`. | `write_running_marker()` at session launch (skipped for the home session) |
+| `.claudemux-running` | Auto-restore intent: this session should be alive. The LaunchAgent tick restores it if its Claude process has died. Removed on a clean in-pane `/exit` (exit 0, no restart pending) or `--shutdown`. | `write_running_marker()` at session launch (skipped for the home session) |
+| `.claudemux-prompt` | Per-session system-prompt file passed via `--append-system-prompt-file`. In the project folder (stable, not `$TMPDIR`-reaped) so it survives and is regenerated across in-place restart relaunches. Mode 600; removed on final teardown. | `create_claude_session()` / `launch_single_session()` at launch; regenerated in-pane via `--print-system-prompt` |
 
 **Conventions:**
 - Boolean flags: empty file at `.claudemux-<name>`, presence = on.
@@ -427,7 +441,7 @@ Per-project state lives in marker files at the project root, not in central conf
 
 **When NOT to use markers:**
 - User-global preferences → `~/.claude-mux/config`
-- Session-runtime state → tmux user options (e.g. `@claude-mux-managed`, `@claude-mux-protected`, `@claude-mux-dir`, `@claude-mux-claude-id`)
+- Session-runtime state → tmux user options (e.g. `@claude-mux-managed`, `@claude-mux-protected`, `@claude-mux-dir`, `@claude-mux-claude-id`, `@claude-mux-restart`). `@claude-mux-restart` (`resume`/`fresh`) is the transient restart-in-place flag: set by `restart_caller_in_place`, read + consumed by the looped launch wrapper on a clean exit.
 - Cross-session/runtime bookkeeping → central state under `~/.claude-mux/` (e.g. `restore-state/<session>.json` for crash-loop/stagger tracking)
 - Markers are for state that should travel with the project folder.
 

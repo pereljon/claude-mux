@@ -2,10 +2,18 @@
 
 All notable changes to claude-mux are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.5] - 2026-06-16
+## [2.0.6] - 2026-06-17
 
 ### Fixed
-- **Restarting all sessions from the home session no longer drops home's conversation.** A regression introduced by the v2.0.4 restart fix: the caller-handoff hard-killed home while it was mid-turn (still running the restart command), then relaunched `claude -c` immediately, racing the dying process's conversation lock so `claude --continue` forked a fresh session and home lost its history. The handoff now waits for the caller to finish its turn (`poll_until_ready`) before `/exit`, and waits for the old session to be fully gone (plus a short settle) before relaunching - so `claude --continue` resumes cleanly. (Pre-v2.0.4 this was masked: the handoff didn't run and home was resumed ~60s later by the LaunchAgent.)
+- **Restarting all sessions *from* the home session no longer loses home's history.** A restart-all (or a named restart targeting the caller) used to `kill-session` the caller's tmux pane - but the restart script runs *in* that pane, so the SIGHUP killed the script before it could recreate the session. External recovery then brought the caller back as a fresh conversation (history lost) or left Remote Control stuck. The launch wrapper is now a loop ("restart-in-place"): on a clean exit it checks a new `@claude-mux-restart` tmux option and, if set, relaunches `claude` in the *same* pane (resuming, or fresh for `--restart --fresh`) instead of tearing down - the pane and its Remote Control connection never go down, and no LaunchAgent/auto-restore recovery is needed. The caller of any restart now sets that option and sends `/exit` (`restart_caller_in_place`) rather than being killed; non-caller sessions keep the existing kill-and-recreate path. Closes the bug tracked since 2.0.4.
+
+### Changed
+- **The per-session system prompt now lives at `<project>/.claudemux-prompt`** (was a `$TMPDIR` temp file). It is regenerated with the current injection on every in-place relaunch (so a restart always picks up the latest prompt) and removed on final teardown. Mode `600`; covered by the `.claudemux-*` gitignore pattern.
+
+### Internal
+- New internal subcommands `--await-ready SESSION` (poll-until-ready, then send the "Ready?" handshake from outside the pane) and `--print-system-prompt SESSION MODE` (emit the injection for the wrapper to regenerate). Not user-facing.
+
+## [2.0.5] - 2026-06-16
 
 ### Changed
 - **A named session command that doesn't resolve now asks instead of silently acting on the current session.** The conversational trigger rules previously defaulted an unresolved session NAME to the current session ("restart session NAME ... or current session if none given"). That made "restart the claude-mux session" (said from `home`) restart `home` itself. The injection now resolves any named target against the live session list and, on no exact match or ambiguity, asks which session - it never falls back to the current session. Explicit "this session" / "current session" still self-targets. Applies to the whole class: stop, restart, restart-fresh, switch mode/model, compact, clear, hide/show, protect/unprotect. Injection change - takes effect after sessions are restarted.

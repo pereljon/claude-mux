@@ -2,12 +2,13 @@
 
 ## Open
 
-### Restart-all from home brings home back fresh, losing its conversation (v2.0.4 regression)
-**Severity:** High (regression, context loss)
-**Status:** Resolved in v2.0.5
-**Description:** After v2.0.4, "restart all sessions" triggered from the home session brought home back as a fresh conversation; every other session resumed. Each restart spawned a new home transcript.
-**Root cause:** the caller-handoff (which restarts the session that invoked the restart) hard-killed home while it was mid-turn (still running the restart command), then re-execed `claude-mux -d home` -> `claude -c` immediately. That raced the dying process's conversation lock, so `claude --continue` treated the prior conversation as unavailable and forked a fresh one (exit 0, no error - the v2.0.4 resume diagnostic never fired). A v2.0.4 regression: before it, the handoff never ran (the script was SIGHUP-killed by the stranding bug) and home was resumed ~60s later by the LaunchAgent, whose delay let the old process settle. Flags, RC client attachment, model, and BASE_DIR were all empirically exonerated.
-**Fix:** the handoff now waits for the caller to finish its turn (`poll_until_ready`) before `/exit` (clean exit instead of hard-kill), and waits for the old tmux session to be fully gone plus a brief settle before relaunching `claude -c`. Reproduces the old LaunchAgent settling, explicitly and without the 60s. See `dev/features/caller-restart-resume-race.md` + `-tests.md`.
+### Restart-all from home brings home back fresh, losing its conversation
+**Severity:** High (context loss on a common action)
+**Status:** Resolved in v2.0.6
+**Description:** "restart all sessions" triggered from the home session brought home back as a fresh conversation; every other session resumed, and restarting home from another session (`claude-mux --restart home`) resumed. Only the *caller* of a restart-all was affected.
+**Root cause (confirmed):** the restart code `kill-session`ed the caller's pane, but the restart script runs *in* that pane - the SIGHUP killed the script before it could recreate the session. External recovery (LaunchAgent for home, the auto-restore tick for others) then brought the caller back as a fresh conversation or left Remote Control stuck. A relaunch issued by a process *independent* of the dying caller resumed; one issued by the caller's own (dying) lineage forked.
+**Fix (restart-in-place, caller-only):** the launch wrapper is now a loop. On a clean exit it reads the `@claude-mux-restart` tmux user option (`resume`|`fresh`); if set, it relaunches `claude` in the *same* pane (regenerating the system prompt, backgrounding a `--await-ready` handshake) instead of tearing down - the pane and its wrapper never die, so no external recovery and no fork. The caller of any restart now sets that option and sends `/exit` (`restart_caller_in_place`); non-callers keep the kill-and-recreate path. See `dev/features/restart-in-place.md` + `-tests.md`. Takes effect after sessions restart (wrapper is baked in at launch).
+**Full investigation (hypotheses, attempts, learnings):** `dev/features/caller-restart-resume-investigation.md`.
 
 ### Conversational restart of a named session silently restarted the current session instead
 **Severity:** Medium (footgun)

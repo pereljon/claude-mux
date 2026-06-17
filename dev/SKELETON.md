@@ -195,16 +195,27 @@ case COMMAND:
   restart:
     FORCE=true   # restarts bypass protection by design
 
+    # Caller-only restart-in-place: the session this script runs inside CANNOT be
+    # kill-session'd (the SIGHUP kills this script before recreate → the old
+    # restart-all-from-home-forks-history bug). The caller instead sets the
+    # @claude-mux-restart tmux option + sends /exit; its LOOPED launch wrapper
+    # relaunches claude in the same pane. Non-callers keep kill+recreate.
+
+    identify caller session (tmux display-message) if running inside tmux
+
     if named sessions (RESTART_SESSIONS not empty):
       print "Restarting N session(s) to apply updated injection..."
       for each session:
         validate: is managed session
         get working dir from tmux
-        restore_state_clear(session)   # user restart un-trips a crash-looped session
-        mkdir .claudemux-restarting    # restart lock: auto-restore defers this tick
-        shutdown_single_session(session, FORCE, preserve_marker=true)
-        create_claude_session(session, dir, "", FRESH_START)
-        rmdir .claudemux-restarting    # release; tick recovers if we crashed mid-restart
+        if session == caller:
+          restart_caller_in_place(session, FRESH_START)   # set @claude-mux-restart + /exit
+        else:
+          restore_state_clear(session)   # user restart un-trips a crash-looped session
+          mkdir .claudemux-restarting    # restart lock: auto-restore defers this tick
+          shutdown_single_session(session, FORCE, preserve_marker=true)
+          create_claude_session(session, dir, "", FRESH_START)
+          rmdir .claudemux-restarting    # release; tick recovers if we crashed mid-restart
 
     else (full restart):
       snapshot: for each managed session where claude is running
@@ -214,7 +225,7 @@ case COMMAND:
 
       print "Restarting N session(s) to apply updated injection..."
 
-      if running inside tmux → identify caller session, separate from list
+      partition: caller session vs others (caller restarted in place, last)
 
       # CRITICAL: do NOT call shutdown_claude_sessions() here — it walks every
       # managed session including the caller, whose /exit SIGHUPs this script
@@ -229,19 +240,18 @@ case COMMAND:
         rmdir .claudemux-restarting
 
       if caller session exists:
-        background subshell:
-          sleep 1
-          poll_until_ready(caller)   # WAIT for caller to finish its turn before /exit:
-                                     #   a mid-turn /exit -> hard-kill -> immediate claude -c
-                                     #   races the dying conversation lock -> fresh session.
-          mkdir .claudemux-restarting   # scoped to kill->recreate; caller's .claudemux-running stays
-          send /exit to caller pane + Enter
-          wait up to 10s for claude to exit
-          tmux kill-session caller
-          wait until tmux session gone (poll) + sleep 1   # settle so claude -c doesn't race the lock
-          claude-mux -d caller_dir [--fresh]
-          rmdir .claudemux-restarting
-        disown subshell   # prevent SIGHUP when caller session dies
+        restart_caller_in_place(caller, FRESH_START)
+        # set @claude-mux-restart=resume|fresh + send /exit; NO kill-session, NO
+        # background handoff. The caller's looped wrapper sees the clean exit + option,
+        # relaunches claude in-pane (resume/fresh), and fires --await-ready itself.
+
+## restart_caller_in_place(session, fresh)
+```
+val = fresh ? "fresh" : "resume"
+restore_state_clear(session)            # un-trip crash-loop history
+tmux set-option @claude-mux-restart=val on session   # bail if it fails
+send-keys "/exit" + Enter to session    # queued; claude exits cleanly after this tool returns
+# The looped launch wrapper does the rest (relaunch in-pane + handshake).
 ```
 
 ---
@@ -273,28 +283,39 @@ prompt = build_system_prompt(name, mode or "auto")
 perm_flag = "--permission-mode " + (mode or "auto")
 resume_flag = "-c"  (omit if fresh=true)
 
-# Write temp files (600 perms, cleaned up by trap on exit)
-write prompt → /tmp/claude-prompt-XXXXX
-_marker_esc = single-quote-escaped "working_dir/.claudemux-running"
+# Write files. Launch script is a $TMPDIR temp (trap-cleaned). The PROMPT lives in
+# the project folder (working_dir/.claudemux-prompt, mode 600) — NOT $TMPDIR — so it
+# survives reaping and can be regenerated across in-place relaunches.
+write prompt → working_dir/.claudemux-prompt
+_marker_esc / _prompt_esc = single-quote-escaped paths   # apostrophe-safe (Sylvia's-estate)
+_esc_bin = single-quote-escaped CLAUDE_MUX_BIN
 write launch script → /tmp/claude-launch-XXXXX:
   #!/bin/bash
-  trap cleanup EXIT                        # backstop temp-file cleanup
-  _marker='{_marker_esc}'
-  _start=$(date +%s)
-  _resume_err=$(mktemp ...)               # capture primary stderr for diagnosis
-  claude {resume} --remote-control {perm} \
-    --allow-dangerously-skip-permissions \
-    --name name --append-system-prompt-file prompt_file   # path, not text → not in ps
-    2> "$_resume_err"
-  _rc=$?
-  if rc != 0 AND (now - _start) < 10:     # resume failed to start → retry fresh
-    log to LOG_FILE: "Primary {resume|fresh} launch for name failed: rc, elapsed, stderr tail"
-    claude (same, without -c) ; _rc=$?
-  rm -f "$_resume_err"
-  if _rc == 0:                            # clean quit (/exit, Ctrl-C x2): intent to stop
-    rm -f "$_marker" launch_script prompt_file
-    tmux kill-session -t name             # full teardown (no lingering shell pane)
-  # crash (non-zero) leaves pane+marker for the tick.
+  trap 'rm -f launch_script' EXIT          # backstop (launch script only; prompt owned by loop)
+  _marker='{_marker_esc}'; _prompt='{_prompt_esc}'; _resume='{resume_flag}'
+  while true:                              # LOOP enables restart-in-place
+    _start=$(date +%s); _resume_err=$(mktemp ...)   # capture primary stderr
+    claude {_resume} --remote-control {perm} --allow-dangerously-skip-permissions \
+      --name name --append-system-prompt-file "$_prompt" 2> "$_resume_err"   # path, not text → not in ps
+    _rc=$?
+    if rc != 0 AND (now - _start) < 10:    # resume failed to start → retry fresh
+      log to LOG_FILE: "Primary launch for name failed: rc, elapsed, stderr tail"
+      claude (same, without resume) ; _rc=$?
+    rm -f "$_resume_err"
+    if _rc == 0:                           # clean quit (/exit, Ctrl-C x2)
+      _restart = tmux show-option @claude-mux-restart   # set by restart_caller_in_place
+      if _restart non-empty:               # RESTART-IN-PLACE: relaunch in THIS pane
+        tmux set-option -u @claude-mux-restart          # consume (one restart = one relaunch)
+        _resume = (_restart == "fresh") ? "" : "-c"
+        regenerate prompt: claude-mux --print-system-prompt name MODE > _prompt.new
+          if non-empty → chmod 600 + mv over _prompt  (else keep old prompt)
+        claude-mux --await-ready name &    # handshake from OUTSIDE this busy pane
+        continue                           # loop → relaunch claude, pane never dies
+      # no restart pending → intent to stop: teardown
+      rm -f "$_marker" "$_prompt" launch_script
+      tmux kill-session -t name            # full teardown (no lingering shell pane)
+      break
+    break                                  # crash (non-zero): leave pane+marker for the tick
   # claude stays a DIRECT child of this script (no subshell) so the
   # 2-level claude_running_in_session check still finds it
 
@@ -305,7 +326,8 @@ tmux send-keys name "bash launch_script" + Enter
 # AND waits out a resume-compaction (busy = "esc to interrupt" in bottom 4 lines;
 # ready = not busy + prompt + quiescent). See poll_until_ready section.
 poll_until_ready(name)        # returns 0 ready / 1 timeout (~120s); logs WARN on timeout
-rm -f prompt_file             # read at startup; delete now (trap is backstop)
+# prompt file NOT deleted here — the wrapper re-reads/regenerates it on in-place
+# relaunch and removes it on teardown.
 send "Ready?" + Enter         # sent whether ready or timeout (fallback preserved)
 
 # (Tips are no longer sent here. As of v1.15.0 the daily tip and update notice
@@ -338,22 +360,28 @@ if HOME_LAUNCH and HOME_SESSION_MODEL set:
 
 resume_flag = "-c"  (omit if FRESH_START=true)
 
-write prompt → tmp file
-_marker_esc = single-quote-escaped "LAUNCH_DIR/.claudemux-running"
+write prompt → LAUNCH_DIR/.claudemux-prompt   # project folder, mode 600 (not $TMPDIR)
+_marker_esc / _prompt_esc / _esc_bin = single-quote-escaped paths
 write launch script → tmp file:
-  _marker='{_marker_esc}' ; _start=$(date +%s) ; _resume_err=$(mktemp ...)
-  claude {resume} --remote-control --permission-mode auto \
-    --allow-dangerously-skip-permissions {model_flag} \
-    --name session --append-system-prompt-file prompt_file   # path, not text → not in ps
-    2> "$_resume_err"
-  _rc=$?
-  if rc != 0 AND (now - _start) < 10:                          # resume-fail → fresh
-    log to LOG_FILE: "Primary {resume|fresh} launch for session failed: rc, elapsed, stderr tail"
-    claude (no -c) ; _rc=$?
-  rm -f "$_resume_err"
-  if _rc == 0:                                                  # clean quit → stay dead
-    rm -f "$_marker" launch_script prompt_file
-    tmux kill-session -t session                               # teardown (home then relaunched by agent)
+  _marker='{_marker_esc}'; _prompt='{_prompt_esc}'; _resume='{resume_flag}'
+  while true:                                                  # LOOP → restart-in-place
+    _start=$(date +%s) ; _resume_err=$(mktemp ...)
+    claude {_resume} --remote-control --permission-mode auto \
+      --allow-dangerously-skip-permissions {model_flag} \
+      --name session --append-system-prompt-file "$_prompt" 2> "$_resume_err"   # path, not text
+    _rc=$?
+    if rc != 0 AND (now - _start) < 10:                        # resume-fail → fresh
+      log to LOG_FILE: "Primary launch for session failed: rc, elapsed, stderr tail"
+      claude (no resume) ; _rc=$?
+    rm -f "$_resume_err"
+    if _rc == 0:
+      if tmux show-option @claude-mux-restart non-empty:       # relaunch in-pane
+        consume option; _resume=resume|fresh; regenerate prompt (--print-system-prompt, MODE=auto);
+        claude-mux --await-ready session & ; continue
+      rm -f "$_marker" "$_prompt" launch_script
+      tmux kill-session -t session                             # teardown (home then relaunched by agent)
+      break
+    break                                                      # crash → leave for tick
 
 restore_state_clear(LAUNCH_SESSION_NAME)   # -d / caller-restart is user-initiated → un-trip
 write_running_marker(LAUNCH_DIR)            # no-op for home (BASE_DIR)

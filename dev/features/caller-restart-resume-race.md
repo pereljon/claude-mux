@@ -1,9 +1,15 @@
 ---
 feature: caller-restart-resume-race
-status: implemented (v2.0.5)
-target_version: 2.0.5
+status: SUPERSEDED / REVERTED - hypothesis was wrong
+superseded_by: caller-restart-resume-investigation.md
 severity: HIGH (regression, data/context loss)
 ---
+
+> **SUPERSEDED (2026-06-17).** The "relaunch races the dying process's conversation lock"
+> hypothesis below turned out to be wrong: the fix (poll_until_ready before /exit +
+> ensure-gone/settle) did NOT stop home forking and was reverted. The real, current
+> understanding, every hypothesis tried, and the WIP helper candidate are in
+> `caller-restart-resume-investigation.md`. This file is kept for history only.
 
 # Feature: Caller (home) restart loses conversation — relaunch races the killed process
 
