@@ -2953,6 +2953,7 @@ create_claude_session() {
     # fresh_start=true omits -c so Claude Code starts a new conversation instead of resuming.
     local resume_flag="-c"
     [[ "$fresh_start" == "true" ]] && resume_flag=""
+    local _launch_kind="resume"; [[ -z "$resume_flag" ]] && _launch_kind="fresh"
     local launch_script prompt_file
     launch_script=$(mktemp "${TMPDIR:-/tmp}/claude-launch-XXXXXX")
     prompt_file=$(mktemp "${TMPDIR:-/tmp}/claude-prompt-XXXXXX")
@@ -2980,15 +2981,24 @@ trap 'rm -f "${launch_script}" "${prompt_file}"' EXIT
 export PATH="$(dirname "$CLAUDE_BIN"):\$PATH"
 _marker='${_marker_esc}'
 _start=\$(date +%s)
-# Primary resume: stderr suppressed (we react via exit code only).
-claude ${resume_flag:+${resume_flag} }--remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt-file '${prompt_file}' 2>/dev/null
+_resume_err=\$(mktemp "\${TMPDIR:-/tmp}/claude-resume-err-XXXXXX")
+# Primary launch: capture stderr to a temp file so a failed resume can be
+# diagnosed from the log (was 2>/dev/null). On a normal long session this just
+# accumulates a small file that we rm on exit; the pane sees no stderr either way.
+claude ${resume_flag:+${resume_flag} }--remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt-file '${prompt_file}' 2>"\$_resume_err"
 _rc=\$?
-if [[ \$_rc -ne 0 && \$(( \$(date +%s) - _start )) -lt 10 ]]; then
-    # Last-resort fresh fallback: stderr left visible on purpose so a real failure
-    # surfaces in the pane and the log.
+_elapsed=\$(( \$(date +%s) - _start ))
+if [[ \$_rc -ne 0 && \$_elapsed -lt 10 ]]; then
+    # Primary ${_launch_kind} launch failed fast → log why, then fall back to a
+    # fresh session. stderr left visible below so a real failure also shows in the pane.
+    {
+        printf '[%s] Primary ${_launch_kind} launch for %s failed: rc=%s after %ss; falling back to fresh session\n' "\$(date -u +%Y-%m-%dT%H:%M:%SZ)" "'${session_name}'" "\$_rc" "\$_elapsed"
+        printf '  primary stderr (last 800 chars): %s\n' "\$(tr '\\n' ' ' < "\$_resume_err" | tail -c 800)"
+    } >> '${LOG_FILE}'
     claude --remote-control ${perm_flag_name}${perm_flag_value:+ ${perm_flag_value}} --allow-dangerously-skip-permissions --name '${session_name}' --append-system-prompt-file '${prompt_file}'
     _rc=\$?
 fi
+rm -f "\$_resume_err"
 if [[ \$_rc -eq 0 ]]; then
     # Clean exit (/exit or Ctrl-C x2): intent to stop. Remove the marker + temp
     # files BEFORE the kill-session, so SIGHUP from kill-session can't interrupt
@@ -3281,6 +3291,7 @@ launch_single_session() {
     # FRESH_START=true omits -c so Claude Code starts a new conversation instead of resuming.
     local resume_flag="-c"
     [[ "$FRESH_START" == "true" ]] && resume_flag=""
+    local _launch_kind="resume"; [[ -z "$resume_flag" ]] && _launch_kind="fresh"
     local prompt_file launch_script
     prompt_file=$(mktemp "${TMPDIR:-/tmp}/claude-prompt-XXXXXX")
     launch_script=$(mktemp "${TMPDIR:-/tmp}/claude-launch-XXXXXX")
@@ -3299,14 +3310,23 @@ trap 'rm -f "${launch_script}" "${prompt_file}"' EXIT
 export PATH="$(dirname "$CLAUDE_BIN"):\$PATH"
 _marker='${_marker_esc}'
 _start=\$(date +%s)
-# Primary resume: stderr suppressed (we react via exit code only).
-claude ${resume_flag:+${resume_flag} }--remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt-file '${prompt_file}' 2>/dev/null
+_resume_err=\$(mktemp "\${TMPDIR:-/tmp}/claude-resume-err-XXXXXX")
+# Primary launch: capture stderr to a temp file so a failed resume can be
+# diagnosed from the log (was 2>/dev/null). The pane sees no stderr either way.
+claude ${resume_flag:+${resume_flag} }--remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt-file '${prompt_file}' 2>"\$_resume_err"
 _rc=\$?
-if [[ \$_rc -ne 0 && \$(( \$(date +%s) - _start )) -lt 10 ]]; then
-    # Last-resort fresh fallback: stderr left visible on purpose for diagnosis.
+_elapsed=\$(( \$(date +%s) - _start ))
+if [[ \$_rc -ne 0 && \$_elapsed -lt 10 ]]; then
+    # Primary ${_launch_kind} launch failed fast → log why, then fall back to a
+    # fresh session. stderr left visible below so a real failure also shows in the pane.
+    {
+        printf '[%s] Primary ${_launch_kind} launch for %s failed: rc=%s after %ss; falling back to fresh session\n' "\$(date -u +%Y-%m-%dT%H:%M:%SZ)" "'${LAUNCH_SESSION_NAME}'" "\$_rc" "\$_elapsed"
+        printf '  primary stderr (last 800 chars): %s\n' "\$(tr '\\n' ' ' < "\$_resume_err" | tail -c 800)"
+    } >> '${LOG_FILE}'
     claude --remote-control --permission-mode auto --allow-dangerously-skip-permissions ${model_flag} --name '${LAUNCH_SESSION_NAME}' --append-system-prompt-file '${prompt_file}'
     _rc=\$?
 fi
+rm -f "\$_resume_err"
 if [[ \$_rc -eq 0 ]]; then
     # Clean exit: remove marker (no-op for home/BASE_DIR) + temp files BEFORE the
     # kill-session, so SIGHUP can't interrupt cleanup mid-way (rm runs sequentially

@@ -13,6 +13,7 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ### Added
 - **`.claudemux-running` is preserved through a restart** (new `preserve_marker` path in `shutdown_single_session`), and a new transient `.claudemux-restarting` lock (atomic `mkdir`/`rmdir`) marks an in-flight restart. If a restart crashes mid-way, the auto-restore tick consumes the lock on sight, defers one tick, then recovers the session from the preserved marker - turning the old "stranded forever" failure into ~120s self-healing.
+- **Resume-failure diagnostics in the launch wrapper**: the primary `claude -c` (resume) now captures stderr instead of discarding it (`2>/dev/null`). When a session can't resume and falls back to a fresh conversation, the wrapper logs the exit code, elapsed time, and stderr tail to `claude-mux.log` (`Primary resume launch for 'NAME' failed: rc=... after Ns; falling back to fresh session`). Surfaces *why* a restart occasionally comes up fresh (e.g. a Remote-Control session re-registration race) instead of leaving it silent.
 
 ## [2.0.3] - 2026-06-10
 

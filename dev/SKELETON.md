@@ -277,12 +277,16 @@ write launch script → /tmp/claude-launch-XXXXX:
   trap cleanup EXIT                        # backstop temp-file cleanup
   _marker='{_marker_esc}'
   _start=$(date +%s)
+  _resume_err=$(mktemp ...)               # capture primary stderr for diagnosis
   claude {resume} --remote-control {perm} \
     --allow-dangerously-skip-permissions \
     --name name --append-system-prompt-file prompt_file   # path, not text → not in ps
+    2> "$_resume_err"
   _rc=$?
   if rc != 0 AND (now - _start) < 10:     # resume failed to start → retry fresh
+    log to LOG_FILE: "Primary {resume|fresh} launch for name failed: rc, elapsed, stderr tail"
     claude (same, without -c) ; _rc=$?
+  rm -f "$_resume_err"
   if _rc == 0:                            # clean quit (/exit, Ctrl-C x2): intent to stop
     rm -f "$_marker" launch_script prompt_file
     tmux kill-session -t name             # full teardown (no lingering shell pane)
@@ -333,12 +337,16 @@ resume_flag = "-c"  (omit if FRESH_START=true)
 write prompt → tmp file
 _marker_esc = single-quote-escaped "LAUNCH_DIR/.claudemux-running"
 write launch script → tmp file:
-  _marker='{_marker_esc}' ; _start=$(date +%s)
+  _marker='{_marker_esc}' ; _start=$(date +%s) ; _resume_err=$(mktemp ...)
   claude {resume} --remote-control --permission-mode auto \
     --allow-dangerously-skip-permissions {model_flag} \
     --name session --append-system-prompt-file prompt_file   # path, not text → not in ps
+    2> "$_resume_err"
   _rc=$?
-  if rc != 0 AND (now - _start) < 10: claude (no -c) ; _rc=$?   # resume-fail → fresh
+  if rc != 0 AND (now - _start) < 10:                          # resume-fail → fresh
+    log to LOG_FILE: "Primary {resume|fresh} launch for session failed: rc, elapsed, stderr tail"
+    claude (no -c) ; _rc=$?
+  rm -f "$_resume_err"
   if _rc == 0:                                                  # clean quit → stay dead
     rm -f "$_marker" launch_script prompt_file
     tmux kill-session -t session                               # teardown (home then relaunched by agent)
