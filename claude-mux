@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.4"
+VERSION="2.0.5"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -1521,24 +1521,25 @@ Rules:
 - When user says: list running sessions — run claude-mux -L --status running
 - When user says: list <STATUS> sessions (where STATUS is idle, stopped, running, protected, queued, failed, or hidden) — run claude-mux -L --status <STATUS>
 - When user says: start session SESSION — run claude-mux -d SESSION --no-attach; confirm with the session name only (e.g. Started. SESSION is now running.) — do not include the directory path, sessions appear by name in Remote Control
-- When user says: stop this session / stop session NAME — run claude-mux --shutdown with session name (or current session if none given)
+- Resolving a session/project NAME in the rules below: "this session" / "this project" / "the current session" (explicit) always means the session you are running in — act on it directly (you know your own name from the tmux session name in this prompt's header). For any OTHER phrasing that names a target ("the X session", "session X", "restart X", "compact X"), resolve X against the appropriate list: use claude-mux -l for commands that act on a RUNNING session (stop, restart, restart-fresh, switch mode/model, compact, clear, get-mode); use claude-mux -L (add --hidden) for project-level commands that can target an idle, stopped, or hidden project (hide, show/unhide, protect, unprotect, delete). Act ONLY on an exact single match; if X matches zero or is ambiguous, ASK the user which one and offer the closest matches — NEVER fall back to the current session. Number references (e.g. "restart 5") already resolve via the list and are safe.
+- When user says: stop this session — run claude-mux --shutdown for the current session. When user says: stop session NAME — resolve NAME per the rule above and run claude-mux --shutdown NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
 - When user says: stop all sessions — run claude-mux --shutdown
-- When user says: restart this session / restart session NAME — run claude-mux --restart with session name (or current session if none given)
-- When user says: restart this session fresh / restart SESSION fresh / kill this session — run claude-mux --restart SESSION --fresh (use current session name if none given); warn the user that the conversation history will not be resumed
+- When user says: restart this session — run claude-mux --restart for the current session. When user says: restart session NAME / restart the NAME session — resolve NAME per the rule above and run claude-mux --restart NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
+- When user says: restart this session fresh / kill this session — run claude-mux --restart CURRENT_SESSION --fresh for the current session. When user says: restart SESSION fresh — resolve SESSION per the rule above and run claude-mux --restart SESSION --fresh; if it does not resolve to exactly one session, ask which session — do not default to the current session. In all cases warn the user that the conversation history will not be resumed
 - When user says: restart all sessions — run claude-mux --restart
 - When user says: start new session in FOLDER — run claude-mux -n FOLDER --no-attach; append --template NAME if provided, use -p if parents needed; model and mode set after via switch commands; confirm with the session name only, not the directory path
-- When user says: what mode is this session / what permission mode — run claude-mux --get-mode SESSION and report the result
-- When user says: switch this session to MODE mode / switch session NAME to MODE mode — run claude-mux --permission-mode MODE on the named or current session
-- When user says: switch this session to MODEL model / switch session NAME to MODEL model — send /model MODEL via -s to the named or current session
-- When user says: compact this session / compact session NAME — send /compact via -s to the named or current session; inform the user that RC will reconnect automatically after compact completes (~30-60s)
-- When user says: clear this session / clear session NAME — send /clear via -s to the named or current session
+- When user says: what mode is this session / what permission mode — run claude-mux --get-mode CURRENT_SESSION and report the result. When user says: what mode is session NAME — resolve NAME per the rule above and run claude-mux --get-mode NAME; if NAME does not resolve to exactly one session, ask which session
+- When user says: switch this session to MODE mode — run claude-mux --permission-mode MODE on the current session. When user says: switch session NAME to MODE mode — resolve NAME per the rule above and run it on NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
+- When user says: switch this session to MODEL model — send /model MODEL via -s to the current session. When user says: switch session NAME to MODEL model — resolve NAME per the rule above and send it to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
+- When user says: compact this session — send /compact via -s to the current session. When user says: compact session NAME — resolve NAME per the rule above and send it to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session. Inform the user that RC will reconnect automatically after compact completes (~30-60s)
+- When user says: clear this session — send /clear via -s to the current session. When user says: clear session NAME — resolve NAME per the rule above and send it to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
 - When user says: update claude-mux — check the installed version and latest available; warn the user that all sessions will be restarted and ask for confirmation before proceeding; if confirmed, run claude-mux --update then claude-mux --restart
-- When user says: hide this project / hide PROJECT — run claude-mux --hide (no arg = current session, or pass session name). Confirm with the project name.
-- When user says: show this project / show PROJECT / unhide PROJECT — run claude-mux --show (no arg = current session, or pass session name).
-- When user says: protect this session / protect SESSION — run claude-mux --protect (no arg = current session, or pass session name).
-- When user says: unprotect this session / unprotect SESSION — run claude-mux --unprotect (no arg = current session, or pass session name).
+- When user says: hide this project — run claude-mux --hide for the current session. When user says: hide PROJECT — resolve PROJECT per the rule above and run claude-mux --hide PROJECT; if it does not resolve to exactly one project, ask which — do not default to the current session. Confirm with the project name.
+- When user says: show this project — run claude-mux --show for the current session. When user says: show PROJECT / unhide PROJECT — resolve PROJECT per the rule above (hidden projects appear under claude-mux -L --hidden) and run claude-mux --show PROJECT; if it does not resolve to exactly one project, ask which — do not default to the current session.
+- When user says: protect this session — run claude-mux --protect for the current session. When user says: protect SESSION — resolve SESSION per the rule above and run claude-mux --protect SESSION; if it does not resolve to exactly one session, ask which — do not default to the current session.
+- When user says: unprotect this session — run claude-mux --unprotect for the current session. When user says: unprotect SESSION — resolve SESSION per the rule above and run claude-mux --unprotect SESSION; if it does not resolve to exactly one session, ask which — do not default to the current session.
 - When user says: is this hidden / is this protected — check for .claudemux-ignore or .claudemux-protected in the project folder and report state.
-- When user says: delete this project / delete PROJECT — confirm in chat first (\"Move project '<name>' to trash? Yes/No\"). If user confirms, run claude-mux --delete SESSION --yes (the chat exchange replaces the TTY prompt). If the project is protected, warn and ask if --force should be used. The folder is moved to the system trash, recoverable via Finder.
+- When user says: delete this project — target the current project. When user says: delete PROJECT — resolve PROJECT per the rule above; if it does not resolve to exactly one project, ask which one (never default to the current project). Then, in both cases, confirm in chat first (\"Move project '<name>' to trash? Yes/No\"). If user confirms, run claude-mux --delete NAME --yes (the chat exchange replaces the TTY prompt). If the project is protected, warn and ask if --force should be used. The folder is moved to the system trash, recoverable via Finder.
 - When user says: list templates — run claude-mux --list-templates
 - When user says: save this as a template named NAME / make a template from this project called NAME — run claude-mux --save-template NAME (no DIR arg needed; defaults to current project). Confirm with the template filename.
 - When user says: rename this project to NAME — run claude-mux --rename CURRENT_SESSION NAME (where CURRENT_SESSION is this tmux session name)
@@ -4589,12 +4590,23 @@ case "$COMMAND" in
                         IFS='|' read -r _caller_name _caller_dir <<< "$_caller_entry"
                         log "Restarting caller session '$_caller_name' via background handoff"
                         (
-                            # Wait briefly for the main script to finish
+                            # Wait for the caller to finish its current turn before /exit.
+                            # The caller is mid-turn here (it just ran this restart command);
+                            # a mid-turn /exit can't take effect, so the 10s wait below would
+                            # time out and hard-kill it, and relaunching claude -c immediately
+                            # then races the dying process's conversation lock -> claude
+                            # --continue forks a FRESH session and home loses its history.
+                            # poll_until_ready holds until home is idle at its prompt
+                            # (bounded ~120s); the short sleep lets the main --restart process
+                            # exit first so home resumes its turn before we poll.
                             sleep 1
-                            # Restart marker: auto-restore defers this session for one
-                            # tick. The caller's .claudemux-running marker is left in
-                            # place throughout (this branch never removes it), so a
-                            # crashed handoff is recoverable by the next tick.
+                            poll_until_ready "$_caller_name" || true
+                            # Restart marker scoped to the kill->recreate window: home stays up
+                            # through the wait above, so the marker is only needed from here. The
+                            # auto-restore tick consumes it on sight and defers home for that tick
+                            # instead of racing our relaunch. The caller's .claudemux-running
+                            # marker is left in place throughout (this branch never removes it),
+                            # so a crashed handoff is recoverable by the next tick.
                             mkdir "$_caller_dir/.claudemux-restarting" 2>/dev/null
                             # Shut down Claude in the caller session
                             if "$TMUX_BIN" has-session -t "$_caller_name" 2>/dev/null; then
@@ -4608,6 +4620,17 @@ case "$COMMAND" in
                                 done
                                 "$TMUX_BIN" kill-session -t "$_caller_name" 2>/dev/null
                             fi
+                            # Ensure the old session is fully gone, then a brief settle, before
+                            # relaunch: claude --continue must not race the dying process's
+                            # conversation lock (this is the settling the old pre-v2.0.4
+                            # LaunchAgent 60s delay provided incidentally; now explicit).
+                            _gone=0
+                            while [[ $_gone -lt 20 ]]; do
+                                "$TMUX_BIN" has-session -t "$_caller_name" 2>/dev/null || break
+                                sleep 0.5
+                                (( _gone++ ))
+                            done
+                            sleep 1
                             # Recreate the session
                             if ! "$CLAUDE_MUX_BIN" -d "$_caller_dir" --no-attach${FRESH_START:+ --fresh} 2>>"$LOG_FILE"; then
                                 echo "ERROR: Failed to recreate caller session '$_caller_name' in $_caller_dir" >> "$LOG_FILE"

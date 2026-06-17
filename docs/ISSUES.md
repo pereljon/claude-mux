@@ -2,6 +2,20 @@
 
 ## Open
 
+### Restart-all from home brings home back fresh, losing its conversation (v2.0.4 regression)
+**Severity:** High (regression, context loss)
+**Status:** Resolved in v2.0.5
+**Description:** After v2.0.4, "restart all sessions" triggered from the home session brought home back as a fresh conversation; every other session resumed. Each restart spawned a new home transcript.
+**Root cause:** the caller-handoff (which restarts the session that invoked the restart) hard-killed home while it was mid-turn (still running the restart command), then re-execed `claude-mux -d home` -> `claude -c` immediately. That raced the dying process's conversation lock, so `claude --continue` treated the prior conversation as unavailable and forked a fresh one (exit 0, no error - the v2.0.4 resume diagnostic never fired). A v2.0.4 regression: before it, the handoff never ran (the script was SIGHUP-killed by the stranding bug) and home was resumed ~60s later by the LaunchAgent, whose delay let the old process settle. Flags, RC client attachment, model, and BASE_DIR were all empirically exonerated.
+**Fix:** the handoff now waits for the caller to finish its turn (`poll_until_ready`) before `/exit` (clean exit instead of hard-kill), and waits for the old tmux session to be fully gone plus a brief settle before relaunching `claude -c`. Reproduces the old LaunchAgent settling, explicitly and without the 60s. See `dev/features/caller-restart-resume-race.md` + `-tests.md`.
+
+### Conversational restart of a named session silently restarted the current session instead
+**Severity:** Medium (footgun)
+**Status:** Resolved in v2.0.5
+**Description:** From the `home` session the user said "restart the claude-mux session"; `home` restarted itself instead. Log: `=== claude-mux restart: home ===`. The intended `claude-mux` session was never touched, and the user saw `home`'s own post-restart "Ready?" handshake.
+**Root cause:** injection/NLU layer, not the restart code. The trigger rule defaulted an unresolved session NAME to the current session ("...or current session if none given"). "claudemux" (tool name, hyphen drift) didn't resolve to the session `claude-mux`, so `home` fell back to restarting itself. The CLI already errors on an unknown name passed to it, but Claude resolved to "current" before calling the CLI.
+**Fix:** added a governing resolve-a-NAME rule to `build_system_prompt()` and removed the silent current-session fallback from every session-targeting trigger (stop, restart, restart-fresh, switch mode/model, compact, clear, hide/show, protect/unprotect). A named target now resolves against the live list; no exact match → ask, never default to current. See `dev/features/session-target-disambiguation.md` + `-tests.md`. Takes effect after sessions restart.
+
 ### `--restart` (all) strands sessions when run from inside a managed session
 **Severity:** High (correctness)
 **Status:** Resolved in v2.0.4

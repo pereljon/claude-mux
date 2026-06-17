@@ -2,6 +2,14 @@
 
 All notable changes to claude-mux are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.5] - 2026-06-16
+
+### Fixed
+- **Restarting all sessions from the home session no longer drops home's conversation.** A regression introduced by the v2.0.4 restart fix: the caller-handoff hard-killed home while it was mid-turn (still running the restart command), then relaunched `claude -c` immediately, racing the dying process's conversation lock so `claude --continue` forked a fresh session and home lost its history. The handoff now waits for the caller to finish its turn (`poll_until_ready`) before `/exit`, and waits for the old session to be fully gone (plus a short settle) before relaunching - so `claude --continue` resumes cleanly. (Pre-v2.0.4 this was masked: the handoff didn't run and home was resumed ~60s later by the LaunchAgent.)
+
+### Changed
+- **A named session command that doesn't resolve now asks instead of silently acting on the current session.** The conversational trigger rules previously defaulted an unresolved session NAME to the current session ("restart session NAME ... or current session if none given"). That made "restart the claude-mux session" (said from `home`) restart `home` itself. The injection now resolves any named target against the live session list and, on no exact match or ambiguity, asks which session - it never falls back to the current session. Explicit "this session" / "current session" still self-targets. Applies to the whole class: stop, restart, restart-fresh, switch mode/model, compact, clear, hide/show, protect/unprotect. Injection change - takes effect after sessions are restarted.
+
 ## [2.0.4] - 2026-06-16
 
 ### Fixed

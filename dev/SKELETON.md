@@ -231,10 +231,14 @@ case COMMAND:
       if caller session exists:
         background subshell:
           sleep 1
-          mkdir .claudemux-restarting   # caller's .claudemux-running stays in place throughout
+          poll_until_ready(caller)   # WAIT for caller to finish its turn before /exit:
+                                     #   a mid-turn /exit -> hard-kill -> immediate claude -c
+                                     #   races the dying conversation lock -> fresh session.
+          mkdir .claudemux-restarting   # scoped to kill->recreate; caller's .claudemux-running stays
           send /exit to caller pane + Enter
           wait up to 10s for claude to exit
           tmux kill-session caller
+          wait until tmux session gone (poll) + sleep 1   # settle so claude -c doesn't race the lock
           claude-mux -d caller_dir [--fresh]
           rmdir .claudemux-restarting
         disown subshell   # prevent SIGHUP when caller session dies
@@ -426,7 +430,10 @@ assemble and return prompt:
    - when user says: ready → 'Session ready!\nRunning [model] in {permission_mode} mode.'
    - when user says: help → run --guide, print verbatim
    - when user says: status → report session, model, mode, context, run -l
-   - when user says: restart this session → run --restart SESSION
+   - NAME-resolution rule (governs the session-targeting triggers): "this/current session" = self;
+     any named target resolves against the live list (claude-mux -l / -L --hidden) → exact single
+     match acts, otherwise ASK — never default to the current session
+   - when user says: restart this session → run --restart SELF; restart session NAME → resolve, then --restart NAME (else ask)
    - ... (40+ trigger rules total)
 
    Additional capabilities: (compressed feature list)
