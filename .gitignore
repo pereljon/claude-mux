@@ -19,3 +19,7 @@ incoming/
 # Logs (generated at runtime, not part of the project)
 *.log
 .claudemux-*
+
+# Build scratch (claude-mux is built from src/ via `make build`; scratch copies aren't tracked)
+claude-mux.pre-split
+claude-mux.built

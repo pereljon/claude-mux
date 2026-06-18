@@ -31,6 +31,28 @@ Read only the section you need - `grep -n "^## <name>" dev/SKELETON.md` for its 
 - **Assessing impact of a change**: read the section for the function you're modifying, check what it calls and what calls it, look for shared state (globals like `FORCE`, `FRESH_START`, `MANAGED_SESSIONS`).
 - **Don't use this for line numbers** - use `dev/CODEMAP.md` for that. This file describes logic, not locations.
 
+## Source Layout
+
+`claude-mux` is built from 13 ordered `src/*.sh` fragments by `make build` (byte-identical concat; see `dev/IMPLEMENTATION-SPEC.md` → "Build / Source Layout"). The fragments **are** ordered slices of the linear flow below, so this file's section order already equals the module order. The logic flow is unchanged by the split — the build runs top-to-bottom exactly as before. To open the file behind a given phase:
+
+| Flow phase | Fragment |
+|---|---|
+| Defaults / config-var declarations (phase 1-2) | `src/00-defaults.sh` |
+| Flag parsing (phase 4-5) + guide/commands_help/config_help | `src/10-flags.sh` |
+| Legacy `--tipotd` no-op, user config, constants (phase 6-8) | `src/20-config.sh` |
+| General helpers | `src/30-helpers.sh` |
+| Attach + validate `-d`/`-n` + dep check (phase 9 pre-dispatch) | `src/35-validate-deps.sh` |
+| Shutdown paths | `src/40-shutdown.sh` |
+| restore-state / `poll_until_ready` | `src/50-restore-state.sh` |
+| `await_ready_handshake` / `restart_caller_in_place` / `create_claude_session` | `src/55-session-launch.sh` |
+| migrate / discover projects | `src/60-discovery.sh` |
+| `start_sessions` / `launch_single_session` / `build_system_prompt` | `src/70-start-launch.sh` |
+| `tip_of_day` / `on_prompt` / `on_compact` / update machinery | `src/75-tip-notices.sh` |
+| templates / `autorestore_walk` / `autolaunch_dispatch` | `src/80-templates-restore.sh` |
+| Main dispatch `case` | `src/90-dispatch.sh` |
+
+Edit fragments, never `claude-mux` directly.
+
 ## How to Maintain
 
 Update this file when:

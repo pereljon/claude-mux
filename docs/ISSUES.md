@@ -259,13 +259,7 @@ Rationale: ~4650 lines, zero automated tests, and v2.1/v2.2 are exactly where re
 
 ### `src/` module split with build-time concatenation (v2.0.x)
 
-Moved here from "Open Questions -> Language / runtime reconsideration" (2026-06-17): this is a behavior-preserving refactor, so by semver it is a **patch (v2.0.x), not a v2.1 minor**. The earlier "best timed at the start of v2.1" note was about *sequencing* (do it before piling feature work on top), which argues for doing it *earlier*, not later. Exception to the Planned-Patches "each patch adds new behavior" framing above: this one adds none.
-
-Split the monolith into bash modules (`src/00-defaults.sh`, `src/10-config.sh`, `src/20-tui.sh`, `src/30-dispatch.sh`, ...) with a `make build` that concatenates them into the released single-file `claude-mux`. Distribution unchanged (curl install and Homebrew formula still ship one file); developer ergonomics improve dramatically; the `dev/CODEMAP.md` line-number drift problem largely disappears (or auto-generate CODEMAP line numbers from `grep -n` as a release make target). At ~4650 lines and with v2.1/v2.2 likely pushing past 6000, this buys years before Go becomes attractive.
-
-**Sequencing + caveats:**
-- **Do the Test suite + CI entry above *first*.** The one risk in a 4650-line split is the concatenated output silently diverging from today's file. A bats suite + `bash -n`/shellcheck lets you *prove* `make build` changed nothing (diff the concatenated artifact against the current `claude-mux`, run the suite). Tests are the equivalence proof the refactor rides on.
-- **May not need a release.** If the concatenated artifact is functionally identical, the shipped `claude-mux` does not meaningfully change, so this can land as a repo-structure patch with no GitHub release (the release gate is "did `claude-mux`/`install.sh` change meaningfully"). Confirm the build output diff before deciding.
+**DONE (2026-06-17) — see Resolved.** Implemented per `dev/features/src-module-split.md`: `claude-mux` is now built from 13 ordered `src/*.sh` fragments via `make build`, byte-identical to the pre-split file (`cmp`-verified). No release (shipped artifact unchanged byte-for-byte).
 
 ### TUI-scraping quarantine + upstream asks (from architecture review, 2026-06-12)
 
@@ -663,6 +657,8 @@ Trigger to re-evaluate: when any single bash function exceeds ~150 lines of bran
 ## Resolved
 
 Resolved issues are recorded in `CHANGELOG.md` and git history; this section is intentionally kept short.
+
+- **`src/` module split with build-time concatenation** (2026-06-17). `claude-mux` is now generated from 13 ordered `src/*.sh` fragments by `make build`; the built file is byte-identical to the pre-split script. Drift guarded by `make check` + mandatory pre-commit hook + `.gitattributes` + CI. Behavior-preserving; no GitHub release. Design: `dev/features/src-module-split.md`.
 
 ---
 

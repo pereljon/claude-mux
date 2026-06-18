@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Drift guard (built claude-mux matches committed)
+        run: make check
+
+      - name: Syntax check
+        run: bash -n claude-mux
+
+      - name: shellcheck (built file)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck
+          shellcheck -S warning claude-mux || true
+          shellcheck -S error claude-mux
+
+      - name: Read-only smoke
+        run: |
+          ./claude-mux --guide >/dev/null
+          ./claude-mux --commands >/dev/null
+          ./claude-mux --config-help >/dev/null
+          ./claude-mux --list-templates >/dev/null
+          ./claude-mux -l >/dev/null 2>&1 || true
+          ./claude-mux -L --status idle >/dev/null 2>&1 || true
+          ./claude-mux --tip >/dev/null 2>&1 || true

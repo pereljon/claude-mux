@@ -1,10 +1,30 @@
 ---
 feature: src-module-split
-status: PLANNED
-target_version: 2.0.x (patch; possibly no release)
+status: IMPLEMENTED (2026-06-17)
+target_version: 2.0.x (patch; no release - shipped artifact byte-identical)
 severity: N/A (developer-ergonomics refactor, zero runtime behavior change)
 related: test-suite-ci (ISSUES Planned Patches), language-runtime-reconsideration
 ---
+
+## Implementation notes (2026-06-17)
+
+Built as designed. Two deviations from the doc body below, both to protect byte-identity:
+
+1. **Module 50 ends at line 2899, not 2903** (module 55 starts at 2900). Line 2900-2903
+   is `await_ready_handshake`'s doc-comment; cutting at 2904 would have stranded the
+   comment in module 50. Moving the boundary up keeps each function's leading comment
+   with its function. (Byte-identity is unaffected either way — the partition still
+   tiles 1..EOF.)
+2. **No per-fragment `# shellcheck shell=bash` header.** The doc suggested adding one to
+   each fragment for editors, but that injects bytes and would break the byte-identical
+   build (T1.1, the core invariant). Skipped — `.sh` extension covers most editors;
+   shellcheck runs on the built file (where cross-fragment refs resolve), as designed.
+
+Verified: `cmp` built vs pre-split → identical; `make check` passes in sync and fails on
+drift; `bash -n` clean; read-only commands (`--guide`/`--commands`/`--config-help`/
+`--list-templates`) output-identical to the pre-split file. Module 50 was *not* further
+subdivided (the `†` internal split) — left whole at 851 lines; subdividing is a clean
+follow-up if the 800 guideline is enforced later.
 
 # Feature: `src/` module split with build-time concatenation
 

@@ -2,6 +2,11 @@
 
 All notable changes to claude-mux are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Internal
+- **`claude-mux` is now built from `src/*.sh` via `make build`.** The single ~4900-line script is split into 13 ordered fragments (`src/00-defaults.sh` ... `src/90-dispatch.sh`) that concatenate back into a **byte-identical** `claude-mux` (verified by `cmp`). Distribution is unchanged: curl and Homebrew still fetch the one committed `claude-mux`, which stays a committed (generated) artifact. No behavior, flag, config, or injection change. Developer workflow inverts: edit `src/`, run `make build`, never edit `claude-mux` directly. Drift is guarded by `make check`, a mandatory pre-commit hook (`git config core.hooksPath .githooks`), `.gitattributes` (marks the artifact generated), and a CI job (`make check` + `bash -n` + shellcheck-on-built-file + read-only smoke). No release (the shipped file is unchanged byte-for-byte).
+
 ## [2.0.8] - 2026-06-17
 
 ### Fixed

@@ -2,13 +2,34 @@
 
 Navigation reference for the `claude-mux` script. Use this to locate functions and config vars. For logic and control flow, see `dev/SKELETON.md`.
 
-**Current version:** 2.0.3 (~4650 lines)
+**Current version:** 2.0.8 (~4897 lines, built from `src/*.sh`)
+
+## Source Layout (`src/`)
+
+`claude-mux` is generated from 13 ordered fragments by `make build` (see `dev/IMPLEMENTATION-SPEC.md` → "Build / Source Layout"). The fragments are contiguous slices of the built file, in this order; the built line ranges below let you map any absolute line number to its fragment:
+
+| Module | Built lines | Contents |
+|---|---|---|
+| `src/00-defaults.sh` | 1-112 | shebang, `VERSION`, default config vars |
+| `src/10-flags.sh` | 113-684 | flag parsing + `guide`/`commands_help`/`config_help` |
+| `src/20-config.sh` | 685-820 | user-config sourcing + migration, constants |
+| `src/30-helpers.sh` | 821-1599 | general helpers (`do_update`, `get_version_prompt_lines`) |
+| `src/35-validate-deps.sh` | 1600-1718 | attach helper, validate `-d`/`-n`, dep check |
+| `src/40-shutdown.sh` | 1719-2048 | shutdown functions |
+| `src/50-restore-state.sh` | 2049-2899 | restore-state (`restore_state_*`, `should_be_alive`, `poll_until_ready`) |
+| `src/55-session-launch.sh` | 2900-3149 | `await_ready_handshake`, `restart_caller_in_place`, `create_claude_session` |
+| `src/60-discovery.sh` | 3150-3250 | migrate stray, discover projects, ensure base dir |
+| `src/70-start-launch.sh` | 3251-3517 | `start_sessions`, `launch_single_session`, `build_system_prompt` |
+| `src/75-tip-notices.sh` | 3518-4252 | `tip_of_day`, `detect_claude_upgrade`, `on_prompt`, `on_compact`, update machinery |
+| `src/80-templates-restore.sh` | 4253-4515 | `list_templates`, `apply_template`, `autorestore_walk`, `autolaunch_dispatch` |
+| `src/90-dispatch.sh` | 4516-4897 | `check_for_update`, first-run guard `case`, dispatch `case` |
 
 ## How to Use
 
-- **Finding a function**: look it up in the Function Index, then jump to that line range in the script.
-- **Line numbers are approximate** - the table is accurate when written but drifts as lines are added above a function. Always grep to confirm: `grep -n "^function_name()" claude-mux`.
+- **Finding a function**: look it up in the Function Index for its absolute line, then use the Source Layout table above to see which `src/` fragment it lives in. **Edit the fragment, never `claude-mux` directly** (`make build` regenerates the artifact).
+- **Line numbers are approximate** - accurate when written, but drift as lines change. Always grep to confirm: `grep -n "^function_name()" claude-mux` (or grep the fragment). The split contains drift: an edit in one fragment no longer renumbers functions in later fragments.
 - **Tracing a flag to its handler**: use the Dispatch Table to map a CLI flag to its COMMAND value, then find the handler in the Function Index.
+- **Follow-up (D4):** per-row references may later switch to `module:line-within-module` (or be auto-generated via a `make codemap` target). For now the Function Index keeps absolute built-line numbers plus the Source Layout map above.
 
 ## How to Maintain
 

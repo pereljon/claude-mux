@@ -125,7 +125,13 @@ Commands that attach (`-t`, `-d`/`-n` without `--no-attach`) are user-only -- ne
 
 ## Development Workflow
 
-Edit the repo copy (`claude-mux`), not the installed copy (`~/bin/claude-mux`). Deploy after commit: `cp claude-mux ~/bin/`
+`claude-mux` is a **generated, committed artifact**, built from `src/*.sh` by `make build`. Source of truth is `src/`.
+
+- **Edit `src/*.sh`, never `claude-mux` directly.** A direct edit to `claude-mux` is silently reverted by the next `make build`.
+- After editing fragments: `make build`, then `cp claude-mux ~/bin/` to deploy locally (after commit). Smoke-test with `bash ./claude-mux ...`.
+- `make check` (`make build && git diff --exit-code claude-mux`) must pass before any commit; the mandatory pre-commit hook enforces this. Install the hook once per clone: `make install-hooks` (sets `core.hooksPath .githooks`).
+- Merge conflicts in `claude-mux` are resolved by rebuilding from `src/` (`make build`), never by hand-merging the artifact (`.gitattributes` marks it generated).
+- See `dev/IMPLEMENTATION-SPEC.md` "Build / source layout" for the module map.
 
 Before coding any change, apply the **Consult docs before coding** rule (Working Rules) to scope what's affected before editing.
 
@@ -137,14 +143,14 @@ The canonical order of a change, start to finish. This list is the *sequence*; t
 2. **Research & verify assumptions** — confirm what the design rests on against reality (read the actual code, GitHub/vendor docs, run probes) *before* finalizing the plan. Docs must reflect verified reality, not guesses.
 3. **Write the design + test plans** — `dev/features/<feature>.md` + `<feature>-tests.md`. Review happy path, edge cases, flag conflicts, config migration, injection/display changes with the user (see Testing Plan). Confirm before coding.
 4. **Pre-code compact** — if context is getting heavy, compact before the code phase (coding is the context-hungry part; see the performance rules).
-5. **Code** — apply *Consult docs before coding* (read `dev/SKELETON.md` + `dev/CODEMAP.md` first). Edit the repo copy. Smoke-test the repo copy (`bash ./claude-mux ...`) as you go.
+5. **Code** — apply *Consult docs before coding* (read `dev/SKELETON.md` + `dev/CODEMAP.md` first). Edit `src/*.sh` (never `claude-mux` directly), `make build`, then smoke-test the built file (`bash ./claude-mux ...`) as you go.
 6. **Code review** — *Code Review Before Release*: scope by version bump; `superpowers:code-reviewer` agent; fix CRITICAL/HIGH. Decide the bump early (it sets review scope) even though `VERSION=` is physically written in step 7.
 7. **Update context files** — the *Change Checklist* GATE. After review, so docs reflect the final code: CODEMAP, SKELETON, IMPLEMENTATION-SPEC, README, CHANGELOG, VERSION, ISSUES, injection prompt, etc.
 8. **Test** — verify real behavior (happy path + edge cases) on the repo copy. Tests verify correctness; running the actual command verifies the feature works.
 9. **Commit** — [approval gate] (see Git Approvals).
-10. **Deploy** — `cp claude-mux ~/bin/` so local sessions use the new code (after commit).
+10. **Deploy** — `make build` then `cp claude-mux ~/bin/` so local sessions use the new code (after commit).
 11. **Push** — [approval gate].
-12. **Release** — [approval gate]; only if `claude-mux`/`install.sh` changed; `git tag` → `git push origin TAG` → `gh release create`, ascending version order (see Git Approvals → Release).
+12. **Release** — [approval gate]; only if `claude-mux`/`install.sh` changed; **`make check` must pass clean immediately before `git tag`** (never tag a stale artifact); `git tag` → `git push origin TAG` → `gh release create`, ascending version order (see Git Approvals → Release).
 13. **Post-release compact** — `claude-mux -s SESSION '/compact'`.
 
 Plan docs (steps 1-3) come before code; reference/changelog docs (step 7) come after code+review so they describe the final result. Commit, push, and release are independent approval gates — one does not imply the next.
@@ -183,12 +189,13 @@ Before coding a new feature or change, review with the user: happy path, edge ca
 
 After any code change, check whether these need updating:
 
+- **`make build` + `make check`** — code edits go in `src/*.sh`; rebuild the `claude-mux` artifact and confirm `make check` is clean. The pre-commit hook blocks otherwise. (Never edit `claude-mux` directly.)
 - `README.md` + `translations/README.*.md` (translation standards in `dev/IMPLEMENTATION-SPEC.md`)
 - `config.example` + `~/.claude-mux/config` (new settings)
 - `install.sh` (new flags, config generation)
 - `dev/IMPLEMENTATION-SPEC.md` (architecture, settings table, function docs)
 - `CLAUDE.md` (if key behaviors changed)
-- **Injection prompt** in both `create_claude_session` and `launch_single_session`
+- **Injection prompt** in both `create_claude_session` (`src/55-session-launch.sh`) and `launch_single_session` (`src/70-start-launch.sh`)
 - **Session System Prompt** section in README (must match injection)
 - `dev/CODEMAP.md` (new/renamed/removed functions, new dispatch cases, new config vars, significant line range shifts)
 - `dev/SKELETON.md` (logic flow changes: new conditions, changed call sequences, new control paths)

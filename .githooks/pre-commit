@@ -1,0 +1,46 @@
+#!/bin/bash
+# claude-mux drift guard (MANDATORY).
+#
+# `claude-mux` is generated from src/*.sh by `make build`. This hook refuses any
+# commit where the committed artifact would not match a fresh build, catching:
+#   (a) src/ edited but `make build` forgotten, and
+#   (b) claude-mux hand-edited directly (the sharp case: an unrelated later build
+#       silently reverts it).
+#
+# Install once per clone:  git config core.hooksPath .githooks
+#
+# If this hook rebuilds claude-mux, it leaves the correct artifact in your working
+# tree; just `git add claude-mux` and re-commit.
+
+set -e
+
+# Only engage when the build inputs/outputs are part of this commit.
+if ! git diff --cached --name-only | grep -Eq '^(src/|claude-mux$|Makefile$)'; then
+    exit 0
+fi
+
+if ! command -v make >/dev/null 2>&1; then
+    echo "pre-commit: 'make' not found; cannot verify claude-mux is in sync with src/." >&2
+    echo "pre-commit: install make or run 'cat src/*.sh' manually, then commit." >&2
+    exit 1
+fi
+
+# Don't let set -e abort silently if a fragment is missing / the build breaks.
+if ! make build >/dev/null; then
+    echo "pre-commit: 'make build' failed (missing src/ fragment?). Aborting commit." >&2
+    exit 1
+fi
+
+# `git diff --quiet claude-mux` compares the working tree to the staged index.
+# After `make build` the working tree holds the canonical (src-derived) artifact,
+# so a diff here means the staged claude-mux is NOT a fresh build: either src/ was
+# edited without rebuilding, or claude-mux was hand-edited. Both are blocked.
+if ! git diff --quiet claude-mux; then
+    echo "pre-commit: BLOCKED -- committed claude-mux does not match a build from src/." >&2
+    echo "pre-commit: the artifact has been rebuilt for you. Review, then:" >&2
+    echo "pre-commit:     git add claude-mux && git commit ..." >&2
+    echo "pre-commit: (Never edit claude-mux directly; edit src/*.sh and 'make build'.)" >&2
+    exit 1
+fi
+
+exit 0

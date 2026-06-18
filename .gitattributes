@@ -1,0 +1,5 @@
+# claude-mux is a generated, committed artifact (built from src/*.sh via `make build`).
+# Mark it generated so it is collapsed in diffs/reviews and excluded from language stats.
+# Merge conflicts in claude-mux are resolved by rebuilding from src/ (`make build`),
+# NEVER by hand-merging the artifact.
+claude-mux linguist-generated=true
