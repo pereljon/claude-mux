@@ -2,6 +2,11 @@
 
 All notable changes to claude-mux are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.8] - 2026-06-17
+
+### Fixed
+- **The daily tip and the update-available notice are no longer eaten by the post-restart `Ready?` handshake.** Both are injected by the `UserPromptSubmit` hook (`--on-prompt`), which fires on the *first* prompt of the day per session. After any restart or `/compact` reconnect, that first prompt is the synthetic `Ready?` handshake claude-mux sends itself - whose forced two-line reply ("Session ready!" / "Running ...") swallows the injected text, while the hook still stamped the once-per-day tip gate and the 7-day update throttle. So the tip almost never reached the user and the update notice was suppressed for a week. `on_prompt` now parses the hook's stdin once, detects the `Ready?` handshake (`prompt.strip() == "Ready?"`), and no-ops on it - injecting nothing and stamping no state - so the **first real prompt** after a restart surfaces the tip / update / upgrade notice. The Claude Code upgrade notice (also `on_prompt`) is covered too: the handshake check now runs before it.
+
 ## [2.0.7] - 2026-06-17
 
 ### Added

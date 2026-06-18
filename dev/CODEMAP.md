@@ -130,7 +130,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `claude_binary_id` | 3349 | `()` | Identity of the `claude` executable: `realpath:mtime` (cask realpath or in-place mtime changes on upgrade) |
 | `detect_claude_upgrade` | 3363 | `()` | Compare `@claude-mux-claude-id` vs current; echo one-shot upgrade notice and ack the option |
 | `on_compact` | 3515 | `()` | PreCompact hook: spawn disowned monitor that polls for prompt return post-compact, then sends Ready? to reconnect RC (`--on-compact`) |
-| `on_prompt` | 3573 | `()` | UserPromptSubmit hook: Claude Code upgrade notice (always-on) + per-session daily tip + update notice; spawn bg update check (`--on-prompt`) |
+| `on_prompt` | 3618 | `()` | UserPromptSubmit hook: single stdin parse (session_id + `is_handshake` + state) → no-op on the synthetic `Ready?` handshake → Claude Code upgrade notice (always-on) + per-session daily tip + update notice; spawn bg update check (`--on-prompt`) |
 | `update_check_bg` | 3698 | `()` | Disowned background GitHub release check; refresh cache, clear lock (`--update-check-bg`) |
 | `set_tip_config` | 3536 | `(enabled)` | Write TIP_OF_DAY to config |
 | `update_all_project_hooks` | 3669 | `()` | Walk all projects, call `setup_claude_mux_permissions`; tally `HOOKS_SCANNED/PATCHED/CURRENT` globals. Callers: `enable_tips`, `disable_tips`, `install_hooks_command`, `do_update` |

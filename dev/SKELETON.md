@@ -731,8 +731,23 @@ print tips[index]   # no gating; --tip always works, on_prompt gates per-session
 # Injected stdout is seen by Claude (and reaches Remote Control), unlike the
 # old Stop hook whose stdout was transcript-only.
 
-# Claude Code upgrade detection (always-on; needs no stdin/session_id, so it runs
-# BEFORE the cheap guard). detect_claude_upgrade():
+# Read stdin JSON ONCE (python3) → session_id, is_handshake, state.
+#   session_id: validated [A-Za-z0-9_-]{1,128}, sentinel "_" if missing/invalid
+#   is_handshake: prompt.strip() == "Ready?"
+#   state = ~/.claude-mux/tip-state/<session_id>.json  # {tip_date, update_notify, notify_version}
+#   Always prints exactly 5 fields so `read` stays aligned even when session_id absent.
+read stdin JSON → session_id, is_handshake, state
+
+# Handshake no-op (v2.0.8): the synthetic "Ready?" claude-mux sends itself after a
+# restart / compact-reconnect is NOT a real user turn. Its two-line ready reply
+# swallows any injected text AND would burn the tip's daily / update's 7-day /
+# upgrade's once-per-change budget. Exit before detect_claude_upgrade so the FIRST
+# REAL prompt surfaces all three.
+if is_handshake → exit 0
+
+# Claude Code upgrade detection (always-on; needs no session_id; runs AFTER the
+# handshake check so a "Ready?" turn never consumes the one-shot notice).
+# detect_claude_upgrade():
 #   sess = tmux display-message -p '#S'        (needs $TMUX, inherited by the hook)
 #   id0  = tmux show-options -v @claude-mux-claude-id   (empty → skip: not in tmux / pre-feature)
 #   id_now = claude_binary_id()  (= realpath(claude):mtime)
@@ -744,10 +759,8 @@ bin_notice = detect_claude_upgrade()
 if TIP_OF_DAY != true AND UPDATE_CHECK != true:   # cheap guard
   print bin_notice (if any); exit 0               # still flush the always-on notice
 
-read stdin JSON → session_id (via python3)
-if session_id not safe token ([A-Za-z0-9_-]{1,128}) → exit 0
-
-state = ~/.claude-mux/tip-state/<session_id>.json  # {tip_date, update_notify, notify_version}
+if session_id == "_" (missing/invalid):           # no tip/update work possible
+  print bin_notice (if any); exit 0
 
 # Daily tip (per session)
 if TIP_OF_DAY and state.tip_date != today:

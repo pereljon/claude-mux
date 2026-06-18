@@ -2,6 +2,27 @@
 
 ## Open
 
+### Restart-all bursts session boots and the later ones get server rate-limited
+**Severity:** Medium (handshake unreliable under burst; unattended-recovery risk)
+**Status:** Open
+**Observed:** 2026-06-17. After "restart all sessions" from `home` (11 sessions), the last-restarted sessions (alphabetically latest, just before the caller: `jacuzzi`, `m18-transition`, and `sylvia-estate`) hit `API Error: Server is temporarily limiting requests (not your usage limit) · Rate limited` on their post-boot `Ready?` turn. The sessions stayed alive (Claude up, prompt drawn, Remote Control active) and their transcripts resumed intact, but the rate-limited `Ready?` never produced the "Session ready!" confirmation. `sylvia-estate` only showed ready because the user *manually* re-sent `Ready?` - there is no automatic retry.
+**Root cause:** the restart-all path loops every non-caller session in one synchronous pass with **no concurrency cap and no spacing** (each `create_claude_session` blocks on `poll_until_ready`, which returns when the TUI prompt is drawn/quiescent - *not* when the boot/`Ready?` API calls complete). ~10 sessions' `Ready?` responses (plus any resume-time boot API calls) pile into a ~60s window and trip the server's per-org request limiter. The latest-sorted sessions land at the tail of the burst and get throttled hardest. Note the asymmetry: **auto-restore (`autorestore_walk`) already staggers** via `STAGGER_CONCURRENCY=3` per ~60s tick (`slots = STAGGER_CONCURRENCY - in_flight`, in-flight = attempted within `STARTING_WINDOW=90s`), draining a reboot backlog gradually; restart-all bypasses that mechanism entirely.
+**Scope notes:**
+- The *resume* is not affected - the rate-limit renders in-TUI and `claude -c` keeps running (does not exit non-zero), so the launch wrapper's "resume failed within 10s -> fresh fallback" does NOT fire. No conversation fork observed from this. The risk would only materialize if a rate-limit ever produced a non-zero exit inside 10s (not observed).
+- `await_ready_handshake` is fire-once: `poll_until_ready` then a single `Ready?`. No detection of the rate-limit line, no retry/backoff. A throttled handshake stays unconfirmed until a human re-pokes it - bad for the **unattended** reboot-recovery path.
+- The `Ready?` handshake is also the mechanism that reconnects Remote Control after a restart, and the "Session ready!" line is the user-visible "it's back" signal - so a missed handshake is more than cosmetic.
+**Fix direction (not yet built):**
+1. **Throttle restart-all to match auto-restore.** Reuse the existing stagger (`STAGGER_CONCURRENCY`) rather than inventing a new throttle - cap concurrent boots and/or add spacing between sessions so `Ready?` calls don't burst. Biggest single win.
+2. **Detect + retry the rate-limit line in `await_ready_handshake`** as a backstop (re-send `Ready?` after a short backoff when the pane shows the rate-limit error). Cheap insurance for the unattended path; may be rarely needed if throttling is effective. This also helps the auto-restore path (3 concurrent could still occasionally clip a busy org).
+3. Consider whether the same spacing should apply to the `Ready?` step specifically (the throttled resource is the API turn, not the TUI-ready poll).
+
+### Daily tip and update notice eaten by the post-restart `Ready?` handshake
+**Severity:** Medium (daily tip almost never reaches the user; update notice suppressed for a week)
+**Status:** Resolved in v2.0.8
+**Description:** Surfaced 2026-06-17 ("I'm not seeing any tipsotd"). The tip-of-the-day and the update-available notice are both injected by the `UserPromptSubmit` hook (`--on-prompt`), which fires on the *first* prompt of the day per session and stamps a per-session gate (`tip_date`; `update_notify`/`notify_version` 7-day throttle). After any restart or `/compact` reconnect, that first prompt is the synthetic `Ready?` handshake claude-mux sends itself - whose forced two-line ready reply ("Session ready!" / "Running ...", *"Nothing else."*) swallows the injected text, while the stamp still lands. So the tip was consumed by an invisible turn and gated off for the rest of the day; same for the update notice (gated off for 7 days). Two correct behaviors colliding (the per-session daily-tip gate vs. the two-line ready rule), not a misconfiguration. Confirmed via direct hook probe (`{"session_id":"X","prompt":"Ready?"}` emitted the tip and wrote `tip_date=today`) and by `tip-state/` mtimes clustering at restart times, not organic prompts.
+**Root cause:** `on_prompt` treated the synthetic `Ready?` like any user prompt. The handshake string is a fixed literal (`Ready?`) emitted by every site (`await_ready_handshake`, both launch wrappers, the `on_compact` monitor).
+**Fix:** `on_prompt` now parses the hook's stdin once into `session_id` + an `is_handshake` flag (`prompt.strip() == "Ready?"`) + state, and **no-ops on a handshake** (injects nothing, stamps nothing) *before* `detect_claude_upgrade`, so the first **real** prompt after a restart surfaces the tip / update / Claude-Code-upgrade notice. See `dev/features/tip-ready-handshake.md` + `-tests.md`. Takes effect after sessions restart (the hook command is unchanged, but the new code is read fresh on each invocation; deploy via `cp claude-mux ~/bin/`).
+
 ### No way to start an idle session by name; `--restart` fails on a stopped session
 **Severity:** Medium (UX gap + injection inconsistency)
 **Status:** Resolved in v2.0.7

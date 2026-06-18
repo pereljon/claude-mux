@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.7"
+VERSION="2.0.8"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -3616,52 +3616,65 @@ detect_claude_upgrade() {
 # stdin JSON). Must return fast and never block on the network: the GitHub API
 # call is delegated to a disowned --update-check-bg process.
 on_prompt() {
-    # Claude Code upgrade detection is always-on and needs no stdin/session_id, so
-    # it runs before the tip/update cheap-guard (which can exit early).
+    local _state_dir="$CLAUDE_MUX_DIR/tip-state"
+
+    # One python3 call parses the hook's stdin JSON: session_id (validated as a safe
+    # filename token), whether this is the synthetic "Ready?" handshake, and the
+    # per-session state file (tip_date, update_notify, notify_version — "_" marks
+    # empty; sid is "_" when missing/invalid). notify_version lets a brand-new release
+    # re-notify even inside the 7-day window. Always prints exactly 5 fields so the
+    # is_handshake flag survives even when session_id is absent.
+    local _sid _is_handshake _tip_date _update_notify _notify_version
+    read -r _sid _is_handshake _tip_date _update_notify _notify_version < <(/usr/bin/python3 -c '
+import json, sys, os, re
+try: obj = json.load(sys.stdin)
+except Exception: obj = {}
+sid = obj.get("session_id", "") or ""
+is_handshake = "1" if (obj.get("prompt", "") or "").strip() == "Ready?" else "0"
+if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", sid):
+    sid = "_"
+tip_date, un, nv = "_", 0, "_"
+if sid != "_":
+    try:
+        d = json.load(open(os.path.join(sys.argv[1], sid + ".json")))
+        tip_date = d.get("tip_date", "") or "_"
+        un = int(d.get("update_notify", 0) or 0)
+        nv = d.get("notify_version", "") or "_"
+    except Exception:
+        pass
+print(sid, is_handshake, tip_date, un, nv)
+' "$_state_dir" 2>/dev/null)
+
+    # The "Ready?" handshake is a synthetic prompt claude-mux sends itself after a
+    # restart / compact-reconnect, not a real user turn. The session's two-line ready
+    # reply suppresses any injected text, so a tip / update / upgrade notice here is
+    # swallowed AND burns its once-per-day / throttle / once-per-change budget. No-op
+    # so the first REAL prompt surfaces them.
+    [[ "$_is_handshake" == "1" ]] && exit 0
+
+    # Claude Code upgrade detection is always-on and needs no session_id; runs after
+    # the handshake check so a "Ready?" turn never consumes the one-shot notice.
     local _bin_notice
     _bin_notice=$(detect_claude_upgrade)
 
-    # Cheap guard: if both features are off there is nothing else to inject — skip
-    # the stdin parse and state I/O, but still flush any upgrade notice.
+    # Cheap guard: if both features are off there is nothing else to inject — flush
+    # any upgrade notice and stop.
     if [[ "${TIP_OF_DAY:-true}" != "true" && "${UPDATE_CHECK:-true}" != "true" ]]; then
         [[ -n "$_bin_notice" ]] && printf '%s\n' "$_bin_notice"
         exit 0
     fi
 
-    local _state_dir="$CLAUDE_MUX_DIR/tip-state"
-    local _today _now
-    _today=$(date +%Y-%m-%d)
-    _now=$(date +%s)
-
-    # One python3 call does three things at once: parse session_id from the hook's
-    # stdin JSON, validate it as a safe filename token, and load the per-session
-    # state file (tip_date, update_notify, notify_version — "_" marks empty). This
-    # keeps the per-prompt hot path to a single subprocess for read. notify_version
-    # lets a brand-new release re-notify even inside the 7-day window.
-    local _sid _tip_date _update_notify _notify_version
-    read -r _sid _tip_date _update_notify _notify_version < <(/usr/bin/python3 -c '
-import json, sys, os, re
-try: sid = json.load(sys.stdin).get("session_id", "") or ""
-except Exception: sid = ""
-if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", sid):
-    sys.exit(0)
-tip_date, un, nv = "_", 0, "_"
-try:
-    d = json.load(open(os.path.join(sys.argv[1], sid + ".json")))
-    tip_date = d.get("tip_date", "") or "_"
-    un = int(d.get("update_notify", 0) or 0)
-    nv = d.get("notify_version", "") or "_"
-except Exception:
-    pass
-print(sid, tip_date, un, nv)
-' "$_state_dir" 2>/dev/null)
-
     # No valid session_id → no tip/update work possible, but still flush the
     # always-on upgrade notice (it does not depend on session_id).
+    [[ "$_sid" == "_" ]] && _sid=""
     if [[ -z "$_sid" ]]; then
         [[ -n "$_bin_notice" ]] && printf '%s\n' "$_bin_notice"
         exit 0
     fi
+
+    local _today _now
+    _today=$(date +%Y-%m-%d)
+    _now=$(date +%s)
     local _state_file="$_state_dir/$_sid.json"
     [[ "$_tip_date" == "_" ]] && _tip_date=""
     [[ "$_notify_version" == "_" ]] && _notify_version=""
