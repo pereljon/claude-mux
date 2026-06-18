@@ -14,6 +14,7 @@ Thumbs.db
 
 # Internal (not part of the project)
 internal/
+incoming/
 
 # Logs (generated at runtime, not part of the project)
 *.log
