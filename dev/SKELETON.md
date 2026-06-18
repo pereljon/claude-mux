@@ -73,6 +73,7 @@ LAUNCH_DIR, RESTART_SESSIONS[], FRESH_START, ...
 while args remain:
     case arg:
         --restart  → COMMAND=restart, collect session names
+        --start    → COMMAND=start-session, collect session names (START_SESSIONS[])
         -d DIR     → COMMAND=launch, LAUNCH_DIR=DIR
         -n DIR     → COMMAND=new, NEW_PROJECT_DIR=DIR
         --shutdown → COMMAND=shutdown, collect session names
@@ -84,7 +85,7 @@ while args remain:
     -p, --no-template, --no-git only valid with -n
     --no-attach only valid with -d or -n
     --force only valid with --shutdown, --delete, --save-template, --rename, --move
-    --fresh only valid with --restart or -d
+    --fresh only valid with --start, --restart, or -d
 
 # 6. Legacy no-op: tipotd
     if COMMAND == "tipotd":
@@ -207,15 +208,20 @@ case COMMAND:
       print "Restarting N session(s) to apply updated injection..."
       for each session:
         validate: is managed session
-        get working dir from tmux
+        dir = session_marker_dir(session)            # live tmux only
+        dir = dir or resolve_session_dir(session)    # fallback: STOPPED session → by-name scan
         if session == caller:
           restart_caller_in_place(session, FRESH_START)   # set @claude-mux-restart + /exit
-        else:
+        elif claude running in session:                   # RUNNING non-caller → cycle
           restore_state_clear(session)   # user restart un-trips a crash-looped session
           mkdir .claudemux-restarting    # restart lock: auto-restore defers this tick
           shutdown_single_session(session, FORCE, preserve_marker=true)
           create_claude_session(session, dir, "", FRESH_START)
           rmdir .claudemux-restarting    # release; tick recovers if we crashed mid-restart
+        elif session == "home":          # STOPPED home → proper path (keeps model)
+          restore_state_clear(session); NO_ATTACH=true; launch_home_session()
+        else:                            # STOPPED non-home → nothing to shut down, just start
+          restore_state_clear(session); create_claude_session(session, dir, "", FRESH_START)
 
     else (full restart):
       snapshot: for each managed session where claude is running
@@ -252,6 +258,29 @@ restore_state_clear(session)            # un-trip crash-loop history
 tmux set-option @claude-mux-restart=val on session   # bail if it fails
 send-keys "/exit" + Enter to session    # queued; claude exits cleanly after this tool returns
 # The looped launch wrapper does the rest (relaunch in-pane + handshake).
+```
+
+## COMMAND == "start-session"  (--start NAME...; start-if-stopped, no-op-if-running)
+```
+if START_SESSIONS empty → error "use -a to start all"; exit 1
+detect_github_ssh_accounts(); get_managed_session_names()
+for each name in START_SESSIONS:
+    is_managed_session(name) or → error, count, continue
+    dir = resolve_session_dir(name) or → error, count, continue   # by-name (incl. stopped/hidden/home)
+    if claude running in name → print "already running"; continue   # never cycles a live session
+    if DRY_RUN → log "Would start..."; continue
+    restore_state_clear(name)
+    if name == "home": NO_ATTACH=true; launch_home_session()        # proper path (keeps model)
+    else: create_claude_session(name, dir, "", FRESH_START)         # own collision-guard = race backstop
+exit (1 if any error else 0)
+```
+
+## launch_home_session()
+```
+LAUNCH_DIR=$BASE_DIR; HOME_LAUNCH=true; LAUNCH_SESSION_NAME=home; launch_single_session()
+# Home model flag (HOME_SESSION_MODEL) is only assembled inside launch_single_session under
+# HOME_LAUNCH, so home must go through here, not create_claude_session. Caller sets NO_ATTACH
+# for a non-attaching start; the -d $BASE_DIR path leaves it unset so it still attaches.
 ```
 
 ---

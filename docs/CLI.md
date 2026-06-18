@@ -25,7 +25,10 @@ claude-mux -s my-app '/model sonnet'      # send a slash command to a session
 claude-mux --shutdown my-app              # shut down a specific session
 claude-mux --shutdown                     # shut down all managed sessions
 claude-mux --shutdown home --force        # shut down protected home session
-claude-mux --restart my-app              # restart a specific session (resumes conversation)
+claude-mux --start my-app                 # start a session by name (no-op if already running)
+claude-mux --start my-app --fresh         # start it without resuming the prior conversation
+claude-mux --start app-a app-b            # start several sessions by name
+claude-mux --restart my-app              # restart a session (resumes; also starts it if stopped)
 claude-mux --restart my-app --fresh      # restart fresh - new conversation, no resume
 claude-mux --restart                     # restart all running sessions
 claude-mux --restart --fresh             # restart all sessions fresh

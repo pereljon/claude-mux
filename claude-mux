@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.6"
+VERSION="2.0.7"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -133,6 +133,7 @@ NO_PERMISSION_MODE=false
 FORCE=false
 SHUTDOWN_SESSIONS=()
 RESTART_SESSIONS=()
+START_SESSIONS=()
 FRESH_START=false
 SETMODE_VALUE=""
 SETMODE_SESSIONS=()
@@ -214,7 +215,8 @@ Self-targeting (works inside sessions):
   --save-template NAME [SESSION]  Save CLAUDE.md as a template (default: current session)
   --shutdown SESSION...    Shut down sessions (omit SESSION for all)
   --shutdown ... --force   Override protection
-  --restart SESSION...     Restart sessions (resumes prior conversation)
+  --start SESSION...       Start sessions by name (start if stopped; no-op if already running)
+  --restart SESSION...     Restart sessions (resumes prior conversation; also starts a stopped session)
   --restart SESSION... --fresh  Restart fresh — new conversation, no resume (use after installing MCPs)
   --permission-mode MODE SESSION  Restart session with a different mode
                            Modes: default, acceptEdits, plan, auto, dontAsk,
@@ -403,7 +405,7 @@ Commands:
                           Honors protection unless --force; prompts unless --yes.
   --shutdown [SESSION...]  Shut down all managed sessions, or specific session(s)
   --restart [SESSION...]   Restart specific session(s), or all that were running
-    --fresh                  With --restart or -d: start new conversation instead of resuming
+    --fresh                  With --start, --restart, or -d: start new conversation instead of resuming
   --permission-mode MODE [SESSION...]  Restart session(s) with the given permission mode
   --autolaunch             Invoked by LaunchAgent; dispatches based on LAUNCHAGENT_MODE
   --enable-tips            Enable daily tips (registers the on-prompt hook)
@@ -476,6 +478,13 @@ while [[ $# -gt 0 ]]; do
             shift
             while [[ $# -gt 0 && "$1" != -* ]]; do
                 RESTART_SESSIONS+=("$1"); shift
+            done
+            ;;
+        --start)
+            set_command "--start" "start-session"
+            shift
+            while [[ $# -gt 0 && "$1" != -* ]]; do
+                START_SESSIONS+=("$1"); shift
             done
             ;;
         --fresh)          FRESH_START=true; shift ;;
@@ -668,8 +677,8 @@ if [[ "$FORCE" == "true" && "$COMMAND" != "shutdown" && "$COMMAND" != "delete" &
     echo "ERROR: --force can only be used with --shutdown, --delete, --save-template, --rename, or --move" >&2
     exit 1
 fi
-if [[ "$FRESH_START" == "true" && "$COMMAND" != "restart" && "$COMMAND" != "launch" ]]; then
-    echo "ERROR: --fresh can only be used with --restart or -d" >&2
+if [[ "$FRESH_START" == "true" && "$COMMAND" != "restart" && "$COMMAND" != "launch" && "$COMMAND" != "start-session" ]]; then
+    echo "ERROR: --fresh can only be used with --start, --restart, or -d" >&2
     exit 1
 fi
 
@@ -1532,7 +1541,7 @@ Rules:
 - When user says: list stopped sessions — run claude-mux -L --status stopped
 - When user says: list running sessions — run claude-mux -L --status running
 - When user says: list <STATUS> sessions (where STATUS is idle, stopped, running, protected, queued, failed, or hidden) — run claude-mux -L --status <STATUS>
-- When user says: start session SESSION — run claude-mux -d SESSION --no-attach; confirm with the session name only (e.g. Started. SESSION is now running.) — do not include the directory path, sessions appear by name in Remote Control
+- When user says: start session SESSION — resolve SESSION per the NAME-resolution rule below, then run claude-mux --start SESSION (resolves by name, no path; starts it if stopped, no-op if already running). Confirm with the session name only (e.g. Started. SESSION is now running. / SESSION is already running.) — do not include the directory path, sessions appear by name in Remote Control
 - Resolving a session/project NAME in the rules below: \"this session\" / \"this project\" / \"the current session\" (explicit) always means the session you are running in — act on it directly (you know your own name from the tmux session name in this prompt's header). For any OTHER phrasing that names a target (\"the X session\", \"session X\", \"restart X\", \"compact X\"), resolve X against the appropriate list: use claude-mux -l for commands that act on a RUNNING session (stop, restart, restart-fresh, switch mode/model, compact, clear, get-mode); use claude-mux -L (add --hidden) for project-level commands that can target an idle, stopped, or hidden project (hide, show/unhide, protect, unprotect, delete). Act ONLY on an exact single match; if X matches zero or is ambiguous, ASK the user which one and offer the closest matches — NEVER fall back to the current session. Number references (e.g. \"restart 5\") already resolve via the list and are safe.
 - When user says: stop this session — run claude-mux --shutdown for the current session. When user says: stop session NAME — resolve NAME per the rule above and run claude-mux --shutdown NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
 - When user says: stop all sessions — run claude-mux --shutdown
@@ -1565,6 +1574,7 @@ Rules:
 
 Additional capabilities (run claude-mux --commands for full syntax):
   - Attach interactively to a session (-t — user-only, never from inside a session)
+  - Start a stopped session by name (--start SESSION — no-op if already running; --restart also starts a stopped session)
   - Start a session fresh without resuming (--restart SESSION --fresh — use after installing MCPs or global config changes)
   - Start all sessions at once (-a)
   - New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
@@ -2915,6 +2925,18 @@ restart_caller_in_place() {
     fi
     log "Restarting caller session '$session' in place (@claude-mux-restart=$_val); sending /exit"
     "$TMUX_BIN" send-keys -t "$session" -l "/exit" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session" Enter 2>/dev/null
+}
+
+# Launch the home session via the proper path. Home is special: its model flag
+# (HOME_SESSION_MODEL) is only assembled inside launch_single_session under
+# HOME_LAUNCH, so home must NOT be started via create_claude_session (which would
+# drop the model). Callers that want a non-attaching start set NO_ATTACH=true first
+# (the -d $BASE_DIR path leaves NO_ATTACH unset so an interactive run still attaches).
+launch_home_session() {
+    LAUNCH_DIR="$BASE_DIR"
+    HOME_LAUNCH=true
+    LAUNCH_SESSION_NAME="home"
+    launch_single_session
 }
 
 create_claude_session() {
@@ -4470,11 +4492,8 @@ autolaunch_dispatch() {
             ;;
         home)
             log "LaunchAgent autolaunch: starting home session"
-            LAUNCH_DIR="$BASE_DIR"
-            HOME_LAUNCH=true
-            LAUNCH_SESSION_NAME="home"
             NO_ATTACH=true
-            launch_single_session
+            launch_home_session
             # After home is up, restore any other sessions that should be alive
             # but whose Claude has died (reboot recovery + mid-day watchdog).
             autorestore_walk
@@ -4574,6 +4593,48 @@ case "$COMMAND" in
         exit 0
         ;;
     shutdown) shutdown_claude_sessions; exit $? ;;
+    start-session)
+        # Start one or more sessions by NAME (start-if-stopped, no-op-if-running).
+        # Distinct from --restart: never cycles a live session. Distinct from -a:
+        # targets named sessions, not all projects.
+        if [[ ${#START_SESSIONS[@]} -eq 0 ]]; then
+            echo "ERROR: --start requires a session name (use -a to start all)" >&2
+            exit 1
+        fi
+        detect_github_ssh_accounts
+        get_managed_session_names
+        _start_errors=0
+        for _ss in "${START_SESSIONS[@]}"; do
+            if ! is_managed_session "$_ss"; then
+                echo "ERROR: '$_ss' is not a claude-mux managed session" >&2
+                echo "Run 'claude-mux -l' to see managed sessions." >&2
+                (( _start_errors++ )); continue
+            fi
+            _start_dir=$(resolve_session_dir "$_ss" 2>/dev/null)
+            if [[ -z "$_start_dir" ]]; then
+                echo "ERROR: cannot resolve working directory for '$_ss'" >&2
+                (( _start_errors++ )); continue
+            fi
+            if claude_running_in_session "$_ss"; then
+                echo "Session '$_ss' is already running."
+                continue
+            fi
+            if [[ "$DRY_RUN" == "true" ]]; then
+                log "Would start '$_ss' in $_start_dir${FRESH_START:+ (fresh start)}"
+                continue
+            fi
+            restore_state_clear "$_ss"   # user-initiated bring-up un-trips crash-loop history
+            if [[ "$_ss" == "home" ]]; then
+                NO_ATTACH=true
+                launch_home_session   # proper home path (keeps HOME_SESSION_MODEL)
+            else
+                # create_claude_session's own collision guard is the race backstop:
+                # if the session appears between the check above and now, it no-ops.
+                create_claude_session "$_ss" "$_start_dir" "" "$FRESH_START"
+            fi
+        done
+        exit $(( _start_errors > 0 ? 1 : 0 ))
+        ;;
     restart)
         # --restart bypasses home session protection by design: it relaunches rather
         # than permanently kills, so the session comes back. Use --shutdown --force
@@ -4601,7 +4662,11 @@ case "$COMMAND" in
                     (( _restart_errors++ ))
                     continue
                 fi
+                # session_marker_dir resolves only from the LIVE tmux session, so a
+                # STOPPED session comes up empty. Fall back to resolve_session_dir
+                # (basename scan of PROJECT_DIRS) so --restart works on stopped sessions.
                 _restart_dir=$(session_marker_dir "$_rs")
+                [[ -z "$_restart_dir" ]] && _restart_dir=$(resolve_session_dir "$_rs" 2>/dev/null)
                 if [[ -z "$_restart_dir" ]]; then
                     echo "ERROR: Session '$_rs' not found or cannot determine working directory" >&2
                     echo "Run 'claude-mux -l' to see available sessions." >&2
@@ -4615,7 +4680,7 @@ case "$COMMAND" in
                     # The caller is restarting itself → in place (can't SIGHUP our own
                     # pane). The looped wrapper relaunches + handshakes; no recreate here.
                     restart_caller_in_place "$_rs" "$FRESH_START"
-                else
+                elif claude_running_in_session "$_rs"; then
                     restore_state_clear "$_rs"   # user restart un-trips a crash-looped session
                     # Restart marker + preserve_marker: a crash between shutdown and
                     # create leaves the session recoverable by the auto-restore tick.
@@ -4625,6 +4690,16 @@ case "$COMMAND" in
                     shutdown_single_session "$_rs" "$FORCE" true   # preserve_marker
                     create_claude_session "$_rs" "$_restart_dir" "" "$FRESH_START"
                     rmdir "$_restart_dir/.claudemux-restarting" 2>/dev/null
+                elif [[ "$_rs" == "home" ]]; then
+                    # Stopped home → proper home path (keeps HOME_SESSION_MODEL). No
+                    # shutdown needed (nothing running); never attach for a name-based op.
+                    restore_state_clear "$_rs"
+                    NO_ATTACH=true
+                    launch_home_session
+                else
+                    # Stopped non-home → nothing to shut down; just start it (== --start).
+                    restore_state_clear "$_rs"
+                    create_claude_session "$_rs" "$_restart_dir" "" "$FRESH_START"
                 fi
             done
             if [[ $_restart_errors -gt 0 ]]; then

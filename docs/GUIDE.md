@@ -150,10 +150,10 @@ Rules:
 - When user says: list active sessions - run claude-mux -l
 - When user says: list all sessions - run claude-mux -L
 - When user says: list hidden projects - run claude-mux -L --hidden
-- When user says: start session SESSION - run claude-mux -d SESSION --no-attach
+- When user says: start session SESSION - run claude-mux --start SESSION (by name; starts if stopped, no-op if already running)
 - When user says: stop this session / stop session NAME - run claude-mux --shutdown
 - When user says: stop all sessions - run claude-mux --shutdown
-- When user says: restart this session / restart session NAME - run claude-mux --restart
+- When user says: restart this session / restart session NAME - run claude-mux --restart (also starts the session if it is stopped)
 - When user says: restart all sessions - run claude-mux --restart
 - When user says: start new session in FOLDER - run claude-mux -n FOLDER --no-attach
 - When user says: switch this session to MODE mode / switch session NAME to MODE mode
@@ -173,6 +173,7 @@ Rules:
 
 Additional capabilities (run claude-mux --commands for full syntax):
   - Attach interactively to a session (-t - user-only, never from inside a session)
+  - Start a stopped session by name (--start SESSION - no-op if already running; --restart also starts a stopped session)
   - Start all sessions at once (-a)
   - New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
   - Force-shutdown a protected session (--shutdown SESSION --force)

@@ -223,7 +223,7 @@ claude-mux --tip            → print a tip (standalone; no daily gate)
 - Use claude-mux for ALL session management — never raw tmux/ls commands
 - When user says "help", run `claude-mux --guide` and print the output verbatim
 - When user says "status", report session name, current model, current permission mode, context estimate, then run `-l`
-- Trigger rules for each conversational phrase (list/start/stop/restart/restart-fresh/kill/switch/compact/clear/list templates/save-as-template/rename/move/update/hide/show/protect/unprotect/delete/tip) map to their corresponding claude-mux commands
+- Trigger rules for each conversational phrase (list/start/stop/restart/restart-fresh/kill/switch/compact/clear/list templates/save-as-template/rename/move/update/hide/show/protect/unprotect/delete/tip) map to their corresponding claude-mux commands. "start session NAME" maps to `--start NAME` (resolves by name; starts if stopped, no-op if running) — *not* `-d` (which needs a path)
 - **Session NAME resolution (design decision, v2.0.5):** a governing rule precedes the session-targeting triggers. Explicit "this session" / "current session" self-targets; any other named target is resolved against the appropriate list and acts only on an exact single match, otherwise asks which session - it never silently falls back to the current session. List by command type: `claude-mux -l` (running sessions) for commands that need a live session (stop, restart, restart-fresh, switch mode/model, compact, clear, get-mode); `claude-mux -L` / `-L --hidden` for project-level commands that can target idle/stopped/hidden projects (hide, show/unhide, protect, unprotect, delete). Removed the prior "or current session if none given" default from all of these. Rationale: an unresolved NAME (e.g. "the claude-mux session" said from `home`, tool-name vs session-name collision) used to restart the *current* session instead of asking.
 - "update claude-mux": warn user that all sessions will restart, get confirmation, then run `--update` followed by `--restart`
 - "save this as a template named NAME": `--save-template NAME` (defaults to current dir)
@@ -234,6 +234,7 @@ claude-mux --tip            → print a tip (standalone; no daily gate)
 **Additional capabilities** — compressed feature list for capability discovery:
 ```
 - Attach interactively to a session (-t — user-only, never from inside a session)
+- Start a stopped session by name (--start SESSION — no-op if already running; --restart also starts a stopped session)
 - Start all sessions at once (-a)
 - New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
 - Force-shutdown a protected session (--shutdown SESSION --force)
@@ -281,6 +282,17 @@ while true; do
     break   # crash: leave pane + marker for the tick
 done
 ```
+
+#### launch_home_session()
+
+Centralizes the home-launch setup: sets `LAUNCH_DIR=$BASE_DIR`, `HOME_LAUNCH=true`, `LAUNCH_SESSION_NAME=home`, then calls `launch_single_session`. Home must go through this path (not `create_claude_session`) because the home model flag (`--model $HOME_SESSION_MODEL`) is only assembled inside `launch_single_session` under `HOME_LAUNCH`. Callers set `NO_ATTACH=true` first when they want a non-attaching start (`--start home`, `--restart home`-when-stopped, the LaunchAgent autolaunch); the interactive `-d $BASE_DIR` path leaves `NO_ATTACH` unset so it still attaches. Used by `autolaunch_dispatch` and the stopped-home branches of `--start` / `--restart`.
+
+#### Starting sessions by name: `--start` and `--restart`-on-stopped
+
+Both bring a session up *by name* (via `resolve_session_dir`: basename scan of `PROJECT_DIRS` + `HIDDEN_PROJECT_DIRS`, special-casing `home`→`$BASE_DIR`), so neither needs a directory path. They differ only on the already-running case:
+
+- **`--start NAME...`** (COMMAND `start-session`): "ensure it's running, don't disturb it." Stopped → start it (resume, or `--fresh` for a new conversation). Running → no-op, prints "Session 'NAME' is already running." and never cycles the live session. Multiple names handled independently; per-name errors don't abort the rest; exit non-zero if any failed. No names → error pointing to `-a` (do not silently alias start-all).
+- **`--restart NAME`**: "bring it up fresh." Running non-caller → kill+recreate; running caller → in-place (restart-in-place). Stopped → just start it. The stopped path was added by falling back to `resolve_session_dir` when `session_marker_dir` (live-tmux-only) returns empty, then branching on `claude_running_in_session`: running → the existing cycle; stopped `home` → `launch_home_session`; stopped non-home → `create_claude_session` (no shutdown, since nothing is running). `create_claude_session`'s own collision guard (no-op when claude is already running) is the race backstop for `--start`.
 
 After sending the launch command, the script waits for Claude to be genuinely ready via `poll_until_ready` (shared by both launch paths). It auto-accepts the workspace trust prompt and the bypassPermissions warning (option 1 / "Yes, I accept"), then treats the session as ready only when it is not busy (the status line lacks `esc to interrupt` in its bottom lines), a prompt is drawn, and the pane is quiescent (two captures >=1.1s apart match). This avoids the old bug where the `❯` prompt is drawn during a resume-time auto-compaction (~50s) so `Ready?` misfired against the 10s timeout; the timeout is now ~120s. When ready (or on timeout) it sends `Ready?` and expects Claude to respond with "Session ready!" followed by "Running [model] in [mode] mode." All managed directories are the user's own projects. `create_claude_session` runs this synchronously; `launch_single_session` runs it backgrounded so attach is not blocked.
 

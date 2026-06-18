@@ -2,6 +2,12 @@
 
 ## Open
 
+### No way to start an idle session by name; `--restart` fails on a stopped session
+**Severity:** Medium (UX gap + injection inconsistency)
+**Status:** Resolved in v2.0.7
+**Description:** Surfaced 2026-06-17 when the home orchestrator was asked to start a named subset of idle sessions and could not do it cleanly. Two related gaps: (1) no "start a session by name" command - `-d` launches by directory *path*, `-a` starts *all*, `-t` only attaches, so starting one idle session by name required deriving its full path; the `start session SESSION` injection trigger mapped to `-d SESSION --no-attach`, which fails because `-d` needs a path. (2) `claude-mux --restart NAME` errored "not found or cannot determine working directory" on a *stopped* session, because it resolved the working dir only from the live tmux session.
+**Fix:** new `--start NAME...` (start-if-stopped, no-op-if-running, by name); `--restart NAME` now falls back to `resolve_session_dir` and skips the shutdown when nothing is running, so it also starts stopped sessions; stopped-home cases route through a new `launch_home_session()` helper that preserves `HOME_SESSION_MODEL`; the injection trigger now maps "start session NAME" to `--start NAME`. See `dev/features/start-by-name.md` + `-tests.md`. Out of scope: running-`--restart home` from another session still drops the model (pre-existing, same class as "Permission mode lost on `--restart`").
+
 ### Restart-all from home brings home back fresh, losing its conversation
 **Severity:** High (context loss on a common action)
 **Status:** Resolved in v2.0.6

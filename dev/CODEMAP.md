@@ -103,7 +103,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `session_marker_dir` | 2131 | `(session)` | Resolve a session's launch dir via `@claude-mux-dir` (falls back to pane_current_path) |
 | `should_be_alive` | 2142 | `(session, dir)` | Predicate shared by tick + `-l`: marker + AUTORESTORE + not tripped (or `.claudemux-autostart`) |
 | `autorestore_status` | 2157 | `(name, dir, [fallback])` | Map a non-running session to `queued`/`failed`/`stopped`/fallback |
-| `resolve_session_dir` | 2172 | `(session_name)` | Return working dir for a named session (tmux or PROJECT_DIRS scan) |
+| `resolve_session_dir` | 2172 | `(session_name)` | Return working dir for a named session (tmux or PROJECT_DIRS scan). Used by `--start` and by `--restart`'s stopped-session dir fallback (where `session_marker_dir` comes up empty) |
 | `hide_command` | 2209 | `(session_name)` | Create `.claudemux-ignore` marker |
 | `session_name_for_dir` | 2249 | `(dir)` | Return session name that would be assigned to dir |
 | `protect_command` | 2263 | `(session_name)` | Create `.claudemux-protected` marker; set tmux option |
@@ -118,6 +118,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `poll_until_ready` | 2846 | `(session, [timeout=120])` | Wait until a session is genuinely ready: busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt + quiescent. Handles trust/bypass auto-accept. Returns 0 ready / 1 timeout |
 | `await_ready_handshake` | 2894 | `(session)` | `--await-ready` body: `poll_until_ready` then send "Ready?". Used by the looped launch wrapper to fire the handshake from OUTSIDE the pane after an in-place restart relaunch (the pane itself is busy relaunching claude) |
 | `restart_caller_in_place` | 2908 | `(session, [fresh])` | Restart the calling session in place: set `@claude-mux-restart` (`resume`/`fresh`) + send `/exit`. Must NOT kill-session the caller (SIGHUP would kill this script). The looped wrapper relaunches in-pane + handshakes |
+| `launch_home_session` | ~2920 | `()` | Sets `LAUNCH_DIR=$BASE_DIR`/`HOME_LAUNCH=true`/`LAUNCH_SESSION_NAME=home` then calls `launch_single_session` (preserves `HOME_SESSION_MODEL`, which `create_claude_session` would drop). Callers set `NO_ATTACH=true` first for a non-attaching start. Used by `autolaunch_dispatch` and the stopped-home branches of `--start`/`--restart` |
 | `create_claude_session` | 2920 | `(session_name, working_dir, [mode_override], [fresh_start])` | Core launcher: tmux session, set `@claude-mux-dir`/`@claude-mux-claude-id`, write `.claudemux-running`, write LOOPED launch wrapper (prompt at `<dir>/.claudemux-prompt` via `--append-system-prompt-file`; clean exit with `@claude-mux-restart` set → regenerate prompt via `--print-system-prompt` + relaunch in-pane + background `--await-ready`; clean exit without it → remove marker+prompt and `kill-session`), `poll_until_ready`, send Ready? (prompt NOT deleted - wrapper owns its lifetime) |
 | `migrate_stray_sessions` | 2965 | `()` | Claim existing tmux sessions that have Claude running but lack managed marker |
 | `discover_projects` | 3021 | `()` | Scan BASE_DIR for directories with `.claude/`; return list |
@@ -144,7 +145,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `create_new_project` | 4024 | `()` | `-n` path: mkdir, git init, apply template, launch session |
 | `notify_home` | 4082 | `(msg)` | Best-effort one-line notice to the home session (only if home looks idle) |
 | `autorestore_walk` | 4240 | `()` | Restore tick: relaunch should-be-alive but dead sessions, staggered, with crash-loop guard. Consumes `.claudemux-restarting` on sight (rmdir + skip this tick) so it doesn't race an in-flight `--restart` |
-| `autolaunch_dispatch` | 4177 | `()` | LaunchAgent entry point; starts home then calls `autorestore_walk` (mode `home`) |
+| `autolaunch_dispatch` | 4177 | `()` | LaunchAgent entry point; starts home (via `launch_home_session`) then calls `autorestore_walk` (mode `home`) |
 
 ---
 
@@ -162,7 +163,8 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `-t SESSION` | `attach` | `attach_to_session` |
 | `-s SESSION CMD` | `send` | inline |
 | `--shutdown` | `shutdown` | `shutdown_claude_sessions` |
-| `--restart` | `restart` | inline |
+| `--start SESSION...` | `start-session` | inline (start-if-stopped / no-op-if-running, by name) |
+| `--restart` | `restart` | inline (also starts a *stopped* session via Change A) |
 | `--permission-mode MODE SESSION` | `setmode` | inline |
 | `--get-mode SESSION` | `getmode` | `get_session_mode` |
 | `--update` | `update` | `do_update` |

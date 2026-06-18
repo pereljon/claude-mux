@@ -2,6 +2,17 @@
 
 All notable changes to claude-mux are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.7] - 2026-06-17
+
+### Added
+- **`--start SESSION...`**: start one or more sessions *by name*. Starts a session if it is stopped (resuming its prior conversation, or `--fresh` for a new one), and is a no-op if it is already running (prints "Session 'NAME' is already running." and never cycles a live session). Distinct from `-d` (which launches by directory *path*) and `-a` (which starts *all* projects). Conversational trigger "start session NAME" now maps to `--start NAME` (resolves by name, no path) instead of the misleading `-d NAME --no-attach`.
+
+### Changed
+- **`--restart NAME` now works on a stopped session.** Previously it resolved the working directory only from the live tmux session, so a stopped session errored "not found or cannot determine working directory". It now falls back to a by-name project lookup (`resolve_session_dir`) and, when nothing is running, skips the shutdown and just starts the session. Running-session restart (including the caller in-place path) is unchanged.
+
+### Internal
+- New `launch_home_session()` helper centralizes the home-launch setup (`LAUNCH_DIR`/`HOME_LAUNCH`/`LAUNCH_SESSION_NAME` + `launch_single_session`) so the stopped-home cases of `--start`/`--restart` bring home up via the proper path, preserving `HOME_SESSION_MODEL`. The LaunchAgent autolaunch path now uses it too.
+
 ## [2.0.6] - 2026-06-17
 
 ### Fixed

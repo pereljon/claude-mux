@@ -69,7 +69,7 @@ Say: "list stopped sessions"
 Shows only stopped sessions
 
 Say: "start a session for my api-server project"
-Launches a session in ~/Claude/work/api-server
+Starts the session by name; no-op if it is already running
 
 Say: "create a new project called mobile-app using the web template"
 Creates the project directory, initializes git, applies the template, launches a session
