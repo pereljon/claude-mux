@@ -257,6 +257,16 @@ Highest-leverage project investment before v2.1. Pragmatic floor, no TUI/Claude 
 - **shellcheck** with a curated `.shellcheckrc`.
 Rationale: ~4650 lines, zero automated tests, and v2.1/v2.2 are exactly where regressions hide. Every release currently rides on manual smoke-testing one developer's `~/Claude` tree.
 
+### `src/` module split with build-time concatenation (v2.0.x)
+
+Moved here from "Open Questions -> Language / runtime reconsideration" (2026-06-17): this is a behavior-preserving refactor, so by semver it is a **patch (v2.0.x), not a v2.1 minor**. The earlier "best timed at the start of v2.1" note was about *sequencing* (do it before piling feature work on top), which argues for doing it *earlier*, not later. Exception to the Planned-Patches "each patch adds new behavior" framing above: this one adds none.
+
+Split the monolith into bash modules (`src/00-defaults.sh`, `src/10-config.sh`, `src/20-tui.sh`, `src/30-dispatch.sh`, ...) with a `make build` that concatenates them into the released single-file `claude-mux`. Distribution unchanged (curl install and Homebrew formula still ship one file); developer ergonomics improve dramatically; the `dev/CODEMAP.md` line-number drift problem largely disappears (or auto-generate CODEMAP line numbers from `grep -n` as a release make target). At ~4650 lines and with v2.1/v2.2 likely pushing past 6000, this buys years before Go becomes attractive.
+
+**Sequencing + caveats:**
+- **Do the Test suite + CI entry above *first*.** The one risk in a 4650-line split is the concatenated output silently diverging from today's file. A bats suite + `bash -n`/shellcheck lets you *prove* `make build` changed nothing (diff the concatenated artifact against the current `claude-mux`, run the suite). Tests are the equivalence proof the refactor rides on.
+- **May not need a release.** If the concatenated artifact is functionally identical, the shipped `claude-mux` does not meaningfully change, so this can land as a repo-structure patch with no GitHub release (the release gate is "did `claude-mux`/`install.sh` change meaningfully"). Confirm the build output diff before deciding.
+
 ### TUI-scraping quarantine + upstream asks (from architecture review, 2026-06-12)
 
 The structural fragility is pane-capture pattern matching: `poll_until_ready`, `esc to interrupt` busy detection, the `Yes, I accept` auto-confirm, `^❯|^> ` prompt regexes, the `/compact` monitor. Mitigations:
@@ -566,6 +576,48 @@ Conversational triggers and/or CLI flags for managing Claude Code's per-project 
 
 **How to apply:** Not yet scoped for a specific release. Consider alongside other v2.0 features.
 
+### Conversational trigger robustness: bare one-word triggers under contention (help, status, tip, ...)
+
+**Raised 2026-06-17; slotted to v2.x (aligns with v2.2 Agent network).** Some
+triggers are deliberately **bare single common words**: `help` -> `claude-mux
+--guide`, `status` -> report session + `claude-mux -l`, `tip` -> `claude-mux
+--tip`, plus `ready` (the handshake). One-word triggers are *what claude-mux
+targets* - the conversational-first surface; inside a claude-mux session a bare
+`help` / `status` / `tip` *should* mean claude-mux. The problem is **wrong-capture
+under contention**: in a session loaded with other skills/plugins/instruction
+sets (this environment routinely has dozens), those same words are claimed
+elsewhere too (a user typing `help` may want Claude Code's own help; `status`
+collides with git/project status or a chief-of-staff skill; `tip` is generic),
+and claude-mux silently fires its command. The **domain-qualified** triggers are
+low-risk by contrast - "list active *sessions*", "restart this *session*" carry
+vocabulary that namespaces them; only the bare words overload.
+
+**Why v2.2:** the Agent network milestone *expands* the conversational trigger
+surface (inter-agent messaging verbs, routing phrases), which raises collision
+probability - so trigger-disambiguation robustness is a natural companion to that
+work rather than a standalone patch. Could pull earlier if collisions bite sooner.
+
+**Direction (prefix requirement is explicitly OFF the table - it defeats the
+one-word design):**
+1. **Status quo.** Bare words always fire; contested words are silently captured
+   by whichever instruction set wins. Current behavior.
+2. **Disambiguation instruction (recommended):** keep bare words primary, add an
+   injection rule telling Claude to **disambiguate** (ask briefly, or defer) only
+   when context makes a non-claude-mux reading genuinely plausible - another
+   active skill claims the word, or the prior turn was clearly about something
+   else. Unambiguous sessions fire as today; friction added *only* on real
+   contention. The hard part is scoping "genuinely plausible" tightly so Claude
+   does not second-guess every normal `help`/`status`.
+3. **Optional `claude-mux <verb>` escape (additive):** also accept `claude-mux
+   help` etc. as an always-unambiguous override. Pure addition; does not weaken
+   the bare trigger.
+
+**Work involved:** audit the trigger list for collision-prone bare phrases
+(start: `help`, `status`, `tip`, `ready`); injection-prompt work in
+`build_system_prompt` (every session, restart to take effect); README "Session
+System Prompt" sync; i18n dimension (any `claude-mux <verb>` escape and the
+disambiguation rule must read naturally across the translated trigger sets).
+
 ---
 
 ## Parked: Blocked on upstream
@@ -591,9 +643,20 @@ Not features. Long-running design questions to revisit periodically.
 ### Language / runtime reconsideration
 The monolithic bash script is the right call at current scope. If claude-mux grows significantly - project rename/move/copy operations, a relay layer, cross-platform packaging, a data directory - bash starts fighting back. At that point, rewriting the session management core in Go or another typed language (with bash as a thin CLI wrapper) is worth evaluating.
 
-Trigger to re-evaluate: when any single bash function exceeds ~150 lines of branching logic, when cross-platform packaging needs more than `uname -s` dispatch, or when the script as a whole crosses ~5000 lines.
+Trigger to re-evaluate: when any single bash function exceeds ~150 lines of branching logic, when cross-platform packaging needs more than `uname -s` dispatch, or when the script as a whole crosses ~5000 lines. **The line-count trigger is now essentially met (4897 lines at v2.0.8).** That does not force a rewrite - it means the *intermediate* step (the `src/` split below) is due, and this question should be actively held open rather than parked.
 
-**Intermediate step (architecture review, 2026-06-12): `src/` module split with build-time concatenation.** Before any language rewrite: split the script into bash modules (`src/00-defaults.sh`, `src/10-config.sh`, `src/20-tui.sh`, `src/30-dispatch.sh`, ...) with a `make build` that concatenates them into the released single-file `claude-mux`. Distribution unchanged (curl install and Homebrew formula still ship one file); developer ergonomics improve dramatically; the `dev/CODEMAP.md` line-number drift problem largely disappears (or auto-generate CODEMAP line numbers from `grep -n` as a release make target). At ~4650 lines and with v2.1/v2.2 likely pushing past 6000, this buys years before Go becomes attractive. Best timed at the start of v2.1, not retrofitted mid-feature.
+**Two separable axes (decide together, but the driver differs):**
+- **Distribution form - script vs compiled binary.** Today: one interpreted file, fetched raw by curl/brew, auditable as source. A binary buys instant startup and zero runtime deps, but loses "read the source" transparency and turns the Homebrew formula into a per-platform bottle + a real cross-compile/release pipeline.
+- **Language - bash vs Python vs Go.** See below.
+
+**On Python (considered 2026-06-17; weaker fit for *this* tool, recorded so it is not re-litigated):** Python looks like the friendly step up but is the weaker candidate here, for tool-specific reasons:
+- **Startup cost is load-bearing.** `--on-prompt` / `--on-compact` fire on *every* prompt/compact. Bash and a Go binary start ~instantly; Python pays ~50-100ms+ (interpreter + imports) on *every* hook invocation - user-visible latency on the hot path.
+- **Distribution.** Go yields a single static binary matching the existing one-file curl/brew model with no runtime dep; Python either keeps a `python3` dependency (version/venv fragility) or freezes to a large PyInstaller binary. (Caveat: the script already shells to `/usr/bin/python3` for JSON parsing, so Python is not fully net-new - but a rewrite would deepen that dep.)
+- **Cross-platform.** The v2.5 Windows goal favors Go's cross-compilation; bash and Python both fight Windows.
+
+**Conclusion:** if/when bash is left, the realistic drivers (distribution + cross-platform + hot-hook latency) point at **Go, not Python**. Python wins on dev ergonomics alone - which the `src/` split already buys without Python's runtime/startup tax. A pure rewrite is also unlikely: the tool shells out heavily (`tmux send-keys`/`capture-pane`), so a typed Go core with thin bash glue is the probable end-state, not a from-scratch port.
+
+**Intermediate step before any language rewrite: an `src/` module split with build-time concatenation.** Scoped and moved to **Planned Patches -> `src/` module split with build-time concatenation (v2.0.x)** on 2026-06-17 (it is a behavior-preserving refactor = patch, not a v2.1 minor). This is the deliberate "buy time before the rewrite" answer to the now-met line-count trigger. See that entry for the full plan and the "tests first" sequencing.
 
 ---
 
