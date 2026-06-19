@@ -4,6 +4,8 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.0.9] - 2026-06-19
+
 ### Fixed
 - **claude-mux no longer rejects valid models it doesn't recognize.** The home-session model was checked against a closed allowlist `{sonnet, haiku, opus}` at three sites (config validation, `--home-model` flag, interactive install prompt), so a valid newer model like `fable` or `opus-4-8` errored with "must be sonnet, haiku, opus, or empty." The allowlist had to be hand-updated every release and was already stale.
 
