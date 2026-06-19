@@ -1,12 +1,18 @@
 ---
 feature: make-codemap
-status: PLANNED — pre-build
+lifecycle: ready
+status: PLANNED — pre-build (architect-reviewed; feature-index generation folded in 2026-06-19)
 target_version: 2.0.x (patch; dev-tooling, no runtime change)
 severity: N/A (developer-tooling) — but it closes the structural-doc-drift class that produced a real, propagated error (build_system_prompt mislabeled module 70 instead of 30 across 5 docs, 2026-06-17→19)
 related: src-module-split (this is its deferred decision D4), test-suite-ci
 ---
 
-# Feature: `make codemap` — generate the CODEMAP index from source, guard it like the artifact
+# Feature: `make codemap` — generate the drift-prone doc indexes from source, guard them like the artifact
+
+Two generated indexes, one machine: **(1) the CODEMAP function→module:line index** (from
+`src/`), and **(2) the feature index** `dev/features/INDEX.md` (from each feature doc's
+frontmatter — the "what's queued to build, of any size" view). Both are
+generate-then-guard, same as `make check` guards the built `claude-mux`.
 
 ## Why (the incident this exists to prevent)
 
@@ -53,6 +59,98 @@ authoritative `module:within-module-line` index (it even places `check_for_updat
 - **Later (incremental):** the **dispatch table** (parse the `case "$COMMAND" in` arms in
   `src/90-dispatch.sh`), and **config vars** (variable assignments in `src/00-defaults.sh`).
 
+## Generated index #2: the feature index (`dev/features/INDEX.md`)
+
+> **Framing (architect): this is NOT the same class of artifact as the CODEMAP index.**
+> The CODEMAP index is a projection of *ground truth* (`src/` — you cannot mistype a grep
+> result). The feature index is a projection of *author-asserted opinions* (the `lifecycle:`
+> frontmatter), so generating it does **not** close a mechanical drift class. What it
+> guards is only "the INDEX.md table matches the frontmatter values someone typed" — a real
+> but thin guarantee. Its actual value is a **convenience projection**: after a context
+> clear, a fresh session gets a sorted, grouped, one-glance build queue without reading 20
+> files. Generate it (vs hand-maintain) for the cheap reason — a hand index goes stale
+> every time you flip a status and forget — but **do not sell it as drift-prevention.**
+> **It is a SEPARATE Make target from `make codemap` (see "Two targets, not one").**
+
+### Standardized frontmatter: `lifecycle:` + `kind:`
+
+Today each feature doc has free-text `status:` ("PLANNED — pre-build", "SHELVED (pending…)",
+"IMPLEMENTED (date)", a full paragraph for inter-agent) — human-readable but **not
+machine-aggregatable**. Add two normalized fields; keep `status:` as the free-text
+detail/history line.
+
+**`kind:` — controlled vocab `feature | investigation`** (architect). Some `dev/features/`
+docs are *investigations/analysis*, not buildable features (e.g.
+`caller-restart-resume-investigation.md`). Those have no build lifecycle and must be
+**excluded from the build queue** — exactly as `*-tests.md` are. `kind: investigation` rows
+are dropped from INDEX.md; `kind: feature` is the default and the only kind that needs a
+`lifecycle`.
+
+**`lifecycle:` — controlled vocab (exactly these values):**
+
+| `lifecycle` | Meaning |
+|---|---|
+| `idea` | raw idea; no design doc body yet |
+| `designing` | design doc being written; not build-blessed (incl. reopened-from-shelved) |
+| `ready` | design complete **and** architect-reviewed; build-ready |
+| `building` | implementation in progress |
+| `shipped` | released / implemented in the live script (a "pending real-world test" caveat still counts as shipped; put it in `status:`) |
+| `shelved` | deliberately parked / won't-build-now (may carry gates) |
+| `superseded` | abandoned / reverted-wrong / replaced — kept for the record, never building |
+
+- **History/transient state lives in `status:`, NOT in a new lifecycle value.** "Reopened
+  from shelved" → `lifecycle: designing` + `status:` carries the story. Do not invent
+  `reopened`.
+- **Validator: FAIL (not warn) on a missing `lifecycle` for a `kind: feature` doc, and FAIL
+  on an unknown value.** A warning in a drift guard is worthless (pre-commit/CI pass with a
+  warning → a malformed row ships). `*-tests.md` and `kind: investigation` are excluded
+  **by a filename/kind filter applied FIRST**, before the missing-lifecycle check, so they
+  never trip it.
+
+### Migration (one-time, explicit) — every current `dev/features/*.md`
+
+Land this migration + the generator + the guard in **ONE commit** (a partial migration
+bricks the pre-commit hook for everyone, since a `kind: feature` doc missing `lifecycle`
+now fails). Verified mapping:
+
+| Doc | `kind` | `lifecycle` |
+|---|---|---|
+| make-codemap | feature | ready |
+| notice-delivery-reliability | feature | ready |
+| model-handling-derot | feature | ready |
+| launched-version-detection | feature | designing |
+| cross-cli-coders | feature | designing |
+| inter-agent-messaging | feature | designing (status: reopened from shelved) |
+| restart-all-throttle | feature | shelved (tabled pending measurement) |
+| caller-restart-resume-race | feature | superseded (reverted-wrong hypothesis) |
+| caller-restart-resume-investigation | **investigation** | — (excluded) |
+| auto-restore | feature | shipped |
+| ready-handshake | feature | shipped |
+| claude-code-upgrade-detection | feature | shipped |
+| precompact-hook-backfill | feature | shipped |
+| restart-caller-shutdown-fix | feature | shipped (v2.0.4) |
+| restart-in-place | feature | shipped (status: pending restart-all-from-home test) |
+| session-target-disambiguation | feature | shipped (v2.0.5) |
+| src-module-split | feature | shipped |
+| start-by-name | feature | shipped (v2.0.7) |
+| status-filter | feature | shipped |
+| tip-ready-handshake | feature | shipped (v2.0.8) |
+
+(`*-tests.md` files carry no `kind`/`lifecycle` and are excluded by glob.)
+
+### Generation — `make features-index`
+
+`make features-index` reads each `dev/features/*.md` frontmatter (excluding `*-tests.md` and
+`kind: investigation` **first**), validates `kind`/`lifecycle` against the controlled vocab
+(FAIL on missing/unknown), and emits `dev/features/INDEX.md` — a table grouped by
+`lifecycle` (ready → building → designing → idea → shelved → superseded → shipped) then
+sorted by `feature`, each row: `feature | lifecycle | target_version | status (free-text) |
+severity | link`. Deterministic ordering so the diff is meaningful; generated + committed,
+guarded by `check-features-index` (see below).
+
+This gives the persistent, size-agnostic build queue: after a context clear, a fresh
+session reads `dev/features/INDEX.md` and knows exactly what's `ready` to build.
+
 ## Design
 
 ### `make codemap` — regenerate the index
@@ -78,31 +176,48 @@ with its module name and within-module line; group for the per-module table. Out
 Read the `MODULES` list from the Makefile (single source of truth) rather than hardcoding
 it a second time.
 
-The generated file is **committed, not gitignored** — so GitHub/at-rest browsing still
-shows the index, and `make check-codemap` has a committed baseline to diff against.
+### Two targets, not one (architect HIGH — decouple)
 
-### `make check-codemap` — guard it (the "hook")
+`make codemap` and the feature index have **two unrelated inputs** (`src/*.sh` vs
+`dev/features/` frontmatter), **two unrelated outputs**, for **two unrelated audiences**
+(code navigation vs build planning). They share only the *pattern*, which is not a reason
+to share a target — and "codemap" is a misleading name for the build queue. So **two
+separate Make targets** (one feature doc is fine; two targets is not optional):
 
 ```makefile
-check-codemap: codemap
-	git diff --exit-code dev/CODEMAP.index.md   # committed index must match a fresh generation
+codemap:           ; # src/*.sh        -> dev/CODEMAP.index.md
+features-index:    ; # dev/features/*  -> dev/features/INDEX.md
+check-codemap:        codemap        ; git diff --exit-code dev/CODEMAP.index.md
+check-features-index: features-index ; git diff --exit-code dev/features/INDEX.md
+check: build check-codemap check-features-index   # one drift command guards artifact + both indexes
 ```
 
-- **Fold into the existing drift guard**, not a bespoke hook. Two MANDATORY wiring details
-  the architect flagged (the guard does not work without them):
-  - **`make check` MUST gain `check-codemap`** as a dependency (today `make check` only
-    diffs `claude-mux`, `Makefile:29`). This is mandatory, not "or just call `make check`."
-  - **The `.githooks/pre-commit` engage filter MUST add the generated index path.** Today
-    the hook only engages when staged files match `^(src/|claude-mux$|Makefile$)`
-    (`.githooks/pre-commit:18`). As-is, a commit that **hand-edits `dev/CODEMAP.index.md`
-    alone** (no `src/` change) would **skip the hook entirely** → the manual-edit case is
-    unguarded. Add `dev/CODEMAP.index.md` (and the generator script, if separate) to the
-    regex, and run `make codemap` + `git diff --quiet dev/CODEMAP.index.md` in the hook body
-    (or call `make check`, now that it includes `check-codemap`).
-  - **CI** (`.github/workflows/ci.yml`) runs `make check`, which now also covers the index.
-- This mirrors the artifact guard exactly: a stale committed index fails the commit/CI —
-  whether the staleness came from a `src/` move (forgot to regenerate) or a hand-edit of
-  the generated file.
+Decoupling also **de-risks the weaker half**: the feature index is the later-justified,
+opinion-projection addition — if the `lifecycle` convention proves annoying you can drop
+`features-index` without touching the proven CODEMAP guard. Folding them would weld the
+unproven half to the proven one. Ship `codemap` first; `features-index` can follow.
+
+### Guard wiring
+
+- **`make check` gains BOTH `check-codemap` and `check-features-index`** (today it only
+  diffs `claude-mux`, `Makefile:29`). Mandatory.
+- **Pre-commit `.githooks/pre-commit`.** Today it engages only on `^(src/|claude-mux$|Makefile$)`
+  (`:18`), so a hand-edit of a generated index alone, or a `dev/features/*.md` frontmatter
+  change, would skip the hook. Two options:
+  - **(recommended, clean) Make the index-freshness check UNCONDITIONAL** — the hook always
+    runs `make check-codemap` + `check-features-index` (regenerate + `git diff --quiet`)
+    regardless of which files staged. Regen is cheap; a clean diff is a fast no-op. This
+    avoids widening the path regex and the over-trigger below.
+  - **(blunt, fails-safe) Widen the engage filter** to add `dev/CODEMAP.index.md`,
+    `dev/features/INDEX.md`, and `dev/features/.*\.md`. **Caveat (architect):** this
+    over-triggers — editing *prose* in any feature doc now forces a regen even though the
+    index didn't change. It fails safe (redundant regen = no-op diff), but it couples
+    "edited a feature doc" to "run the codemap machinery." If you take this option, document
+    that the over-trigger is intentional. The unconditional check above is cleaner.
+- **CI** (`.github/workflows/ci.yml`) runs `make check` → covers both indexes.
+- Both generated files are **committed, not gitignored** (GitHub/at-rest browsing + a
+  committed baseline to diff). A stale index fails the commit/CI — whether from a `src/`
+  move, a frontmatter `lifecycle` flip, or a hand-edit of a generated file.
 
 ### CODEMAP.md adjustment
 
@@ -127,21 +242,42 @@ check-codemap: codemap
   pattern or a renamed-away module must not silently produce an empty/short index).
 - **The dispatch/config generation is more than a grep** (parsing `case` arms / assignment
   lines) — defer to a later increment; ship the function index first.
+- **The feature index reflects declared `lifecycle`, not reality.** It can't detect a doc
+  that *says* `ready` but isn't, or `shipped` that wasn't released — `lifecycle` is
+  author-asserted (semantic, like prose). Generation only guarantees the index *matches the
+  frontmatter*, not that the frontmatter is *true*. (Mitigation: the migration verifies each
+  initial value against the script/CHANGELOG; thereafter the Change Checklist owns accuracy.)
 
 ## Files to update (Change Checklist)
 
-- **New:** `dev/CODEMAP.index.md` (generated), the `codemap` + `check-codemap` Make targets.
-- `Makefile`: add `codemap`, `check-codemap`; fold `check-codemap` into `check`.
-- `.githooks/pre-commit`: run `make codemap` + diff (or call `make check`).
-- `.github/workflows/ci.yml`: covered via `make check` (no change if it already runs `make check`).
+- **New (generated, committed):** `dev/CODEMAP.index.md`, **`dev/features/INDEX.md`**; the
+  `codemap`, `features-index`, `check-codemap`, `check-features-index` Make targets (and the
+  two generator scripts if separate).
+- **Migration (land in ONE commit with the generator + guard, else the hook bricks):** add
+  `kind:` (default `feature`) and `lifecycle:` to **every** `dev/features/*.md` per the
+  explicit mapping table above; `kind: investigation` docs need no `lifecycle`. `make-codemap.md`
+  itself is already migrated (`lifecycle: ready`).
+- `Makefile`: add the four targets (each `check-*` diffs its one generated file); `check`
+  depends on `build` + both `check-*`.
+- `.githooks/pre-commit`: **recommended** — run both `check-*` unconditionally (don't widen
+  the path regex); **or** widen the engage filter to both index paths + `dev/features/.*\.md`
+  (over-triggers, fails safe). See "Guard wiring."
+- `.github/workflows/ci.yml`: covered via `make check`.
 - `dev/CODEMAP.md`: move the Function Index + Source Layout contents to the generated file;
   link to it; update "How to Maintain" (index is generated).
-- `dev/IMPLEMENTATION-SPEC.md`: note the generated index under "Build / Source Layout."
-- `CLAUDE.md`: Change Checklist — "run `make codemap` after adding/renaming/moving a
-  function" (and the pre-commit/CI now enforce it).
-- `docs/ISSUES.md`: mark the src-module-split D4 ("auto-gen CODEMAP") as resolved by this.
+- `dev/IMPLEMENTATION-SPEC.md`: note both generated indexes under "Build / Source Layout."
+- `CLAUDE.md`: Change Checklist — "run `make codemap` after a function move; run
+  `make features-index` after adding a feature doc or changing its `lifecycle`/`kind`"
+  (pre-commit/CI now enforce both); document the `kind` + `lifecycle` controlled vocabs and
+  that new `kind: feature` docs MUST declare a `lifecycle`.
+- **Feature-doc convention** (Documentation Roles): every `dev/features/<feature>.md` MUST
+  carry `kind:` (default `feature`); every `kind: feature` doc MUST carry a `lifecycle:` from
+  the controlled vocab. `kind: investigation` docs are analysis-only and excluded from the
+  build queue.
+- `docs/ISSUES.md`: mark the src-module-split D4 ("auto-gen CODEMAP") resolved; point its
+  roadmap prose at the generated `dev/features/INDEX.md` for the build queue.
 
 ## Out of scope
 - Generating prose/purpose descriptions (not derivable).
-- Semantic-drift detection (prose vs behavior) — stays manual.
+- Semantic-drift detection (prose vs behavior; truthfulness of a declared `lifecycle`) — stays manual.
 - A full bespoke doc-lint beyond the index/dispatch/config facts.

@@ -24,6 +24,31 @@ the same contract as `make check` for `claude-mux`.
 - **T1.4 Sanity assertion.** The generator errors/ warns if it finds an implausible count
   (e.g. 0 functions in a non-trivial fragment) — guards against a broken grep pattern.
 
+## Feature index (`make features-index` → `dev/features/INDEX.md`) + lifecycle/kind
+
+- **T1.6 Separate target.** `make features-index` is its OWN target (distinct from
+  `make codemap`); it reads `dev/features/*.md` frontmatter and emits `dev/features/INDEX.md`
+  with one row per `kind: feature` doc, each carrying `feature`, `lifecycle`,
+  `target_version`, `status`, `severity`, and a working link.
+- **T1.7 Grouped + deterministic.** Rows grouped by `lifecycle` (ready → building →
+  designing → idea → shelved → superseded → shipped) then sorted by `feature`; two runs
+  byte-identical.
+- **T1.8a Unknown lifecycle FAILS.** A doc with `lifecycle: bogus` makes
+  `make features-index` / `check-features-index` **exit non-zero**, naming the doc.
+- **T1.8b Missing lifecycle FAILS (not warns).** A `kind: feature` doc with **no**
+  `lifecycle` **fails** the guard (a warning would let a malformed row ship).
+- **T1.8c `superseded` is valid.** `caller-restart-resume-race` (`lifecycle: superseded`)
+  generates a row in the `superseded` group, not an error.
+- **T1.9 The build queue is reachable.** `dev/features/INDEX.md` shows `make-codemap`,
+  `notice-delivery-reliability`, `model-handling-derot` as `ready`, `inter-agent-messaging`
+  as `designing` (reopened) — a fresh post-clear session reads it and finds the `ready` work.
+- **T1.10a Exclusions applied FIRST (the ordering trap).** `*-tests.md` AND
+  `kind: investigation` docs (e.g. `caller-restart-resume-investigation`) are filtered
+  **before** the missing-lifecycle check, so they do NOT trip the FAIL even though they have
+  no `lifecycle`; and they do NOT appear as index rows.
+- **T1.10b `kind` enforced.** A doc with `kind: bogus` fails; default (absent `kind`) is
+  treated as `feature`.
+
 ## Drift guard
 
 - **T2.1 `check-codemap` passes when in sync.** After `make codemap` + commit,
@@ -33,17 +58,25 @@ the same contract as `make check` for `claude-mux`.
 - **T2.3 FAILS on a hand-edited index.** Hand-edit `dev/CODEMAP.index.md` → next
   `make codemap` overwrites it and the diff flags the divergence (index is generated, not
   authoritative).
-- **T2.4 Folded into `make check`.** `make check` now fails if *either* `claude-mux` *or*
-  the index is stale (one drift command guards both).
-- **T2.5 Pre-commit enforces it — both directions.** With the hook installed: (a)
-  committing a `src/` function move without regenerating the index is blocked; (b)
-  committing a **hand-edit of `dev/CODEMAP.index.md` ALONE** (no `src/` change) is ALSO
-  blocked — i.e. the hook's engage filter includes the generated index path (the gap the
-  architect flagged: today's filter is `^(src/|claude-mux$|Makefile$)` and would skip
-  case (b)).
-- **T2.6 The exact historical bug is caught.** Reproduce: label a function under the wrong
-  module by hand-editing the index → `make check-codemap` fails. (Generation makes the
-  *original* mislabel impossible; the check catches a manual one.)
+- **T2.4 Both checks folded into `make check`.** `make check` depends on `check-codemap`
+  AND `check-features-index`; it fails if `claude-mux`, `dev/CODEMAP.index.md`, OR
+  `dev/features/INDEX.md` is stale.
+- **T2.5 Pre-commit enforces it — all directions.** With the hook installed, each is blocked:
+  (a) a `src/` function move without regenerating; (b) a hand-edit of `dev/CODEMAP.index.md`
+  ALONE; (c) a hand-edit of `dev/features/INDEX.md` ALONE; (d) a `dev/features/*.md`
+  `lifecycle`/`kind` change without regenerating. Whether via the **unconditional** index
+  check (recommended) or the **widened path filter**, the b/c/d cases (which today's
+  `^(src/|claude-mux$|Makefile$)` filter would skip) are caught.
+- **T2.6 The exact historical bug is caught.** Hand-edit the CODEMAP index to mislabel a
+  function's module → `make check-codemap` fails. (Generation makes the *original* mislabel
+  impossible; the check catches a manual one.)
+- **T2.7 Two separate targets.** `check-codemap` diffs only `dev/CODEMAP.index.md`;
+  `check-features-index` diffs only `dev/features/INDEX.md`; a stale feature index fails
+  `check-features-index` (and `make check`) independently of the CODEMAP index.
+- **T2.8 One-commit migration (hook-brick guard).** Verify the migration (add `kind`/`lifecycle`
+  to all docs) + the generator + the guard land together: a state where the guard is live but
+  a `kind: feature` doc lacks `lifecycle` must FAIL — proving a partial migration would brick
+  the hook, which is why it ships in one commit.
 
 ## Regression / hygiene
 
