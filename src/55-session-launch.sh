@@ -113,8 +113,10 @@ create_claude_session() {
     # A trap inside the script guarantees cleanup even if claude exits unexpectedly.
     # The prompt is written to a separate file to avoid any quoting issues in the heredoc.
     #
-    # NOTE: session_name is stripped to [a-zA-Z0-9-] by sanitize_session_name,
-    # model_flag is whitelisted, and perm_flag_value comes from a validated whitelist.
+    # NOTE: session_name is stripped to [a-zA-Z0-9-] by sanitize_session_name and
+    # perm_flag_value comes from a validated whitelist. (This function does not assemble or
+    # interpolate the model flag — that happens only in launch_single_session; see :32. The
+    # model value, when used there, is format-validated to a shell-safe token at set-time.)
     #
     # fresh_start=true omits -c so Claude Code starts a new conversation instead of resuming.
     local resume_flag="-c"

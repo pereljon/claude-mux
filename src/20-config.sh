@@ -70,14 +70,23 @@ case "$DEFAULT_PERMISSION_MODE" in
         ;;
 esac
 
-# Validate HOME_SESSION_MODEL
-case "$HOME_SESSION_MODEL" in
-    ""|sonnet|haiku|opus) ;;
-    *)
-        echo "ERROR: Invalid HOME_SESSION_MODEL '$HOME_SESSION_MODEL' — must be sonnet, haiku, opus, or empty" >&2
-        exit 1
-        ;;
-esac
+# A model name just needs to be a shell-SAFE TOKEN; *which* tokens are valid models is
+# Claude Code's call (it errors at launch on a genuinely bad name), not claude-mux's — so
+# we pass the value through instead of maintaining a model allowlist that rots every
+# release. The regex forbids a LEADING DASH: the value is interpolated UNQUOTED as
+# `claude --model ${HOME_SESSION_MODEL}` in the generated launch wrapper (src/70-start-launch.sh:177,187),
+# so a value like `-rm` would be misparsed by `claude` as a separate flag (arg-injection).
+# This format check is now the SOLE safety layer for that interpolation. Empty = Claude
+# Code default. This runs on every config load (the always-runs chokepoint), so even a
+# hand-edited ~/.claude-mux/config is caught here.
+MODEL_TOKEN_RE='^[A-Za-z0-9._][A-Za-z0-9._-]*$'
+is_valid_model() { [[ -z "$1" || "$1" =~ $MODEL_TOKEN_RE ]]; }
+
+# Validate HOME_SESSION_MODEL (format/pass-through, not membership)
+if ! is_valid_model "$HOME_SESSION_MODEL"; then
+    echo "ERROR: Invalid HOME_SESSION_MODEL '$HOME_SESSION_MODEL' — must be a model name claude accepts (letters/digits/._-, no leading dash) or empty" >&2
+    exit 1
+fi
 
 # Validate numeric tmux config values
 for _var_name in SLEEP_BETWEEN TMUX_HISTORY_LIMIT TMUX_ESCAPE_TIME STAGGER_CONCURRENCY STARTING_WINDOW; do

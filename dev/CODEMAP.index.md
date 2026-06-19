@@ -25,12 +25,14 @@ _(no function definitions)_
 | `echo_hint_end` | 79 |
 | `commands_help` | 87 |
 | `config_help` | 150 |
-| `usage` | 263 |
-| `set_command` | 332 |
+| `usage` | 265 |
+| `set_command` | 334 |
 
 ### `src/20-config.sh`
 
-_(no function definitions)_
+| Function | Line |
+|---|---|
+| `is_valid_model` | 83 |
 
 ### `src/30-helpers.sh`
 
@@ -43,12 +45,12 @@ _(no function definitions)_
 | `generate_plist` | 186 |
 | `write_install_config` | 228 |
 | `do_install` | 295 |
-| `claude_running_in_session` | 545 |
-| `sanitize_session_name` | 566 |
-| `apply_tmux_options` | 571 |
-| `get_version_prompt_lines` | 595 |
-| `get_session_mode` | 625 |
-| `build_system_prompt` | 660 |
+| `claude_running_in_session` | 543 |
+| `sanitize_session_name` | 564 |
+| `apply_tmux_options` | 569 |
+| `get_version_prompt_lines` | 593 |
+| `get_session_mode` | 623 |
+| `build_system_prompt` | 658 |
 
 ### `src/35-validate-deps.sh`
 
@@ -122,7 +124,7 @@ _(no function definitions)_
 |---|---|
 | `start_sessions` | 3 |
 | `launch_single_session` | 52 |
-| `encode_claude_path` | 263 |
+| `encode_claude_path` | 271 |
 
 ### `src/75-tip-notices.sh`
 
@@ -163,16 +165,16 @@ _(no function definitions)_
 | Function | Location |
 |---|---|
 | `apply_template` | `src/80-templates-restore.sh:26` |
-| `apply_tmux_options` | `src/30-helpers.sh:571` |
+| `apply_tmux_options` | `src/30-helpers.sh:569` |
 | `attach_to_session` | `src/35-validate-deps.sh:3` |
 | `autolaunch_dispatch` | `src/80-templates-restore.sh:242` |
 | `autorestore_status` | `src/50-restore-state.sh:180` |
 | `autorestore_walk` | `src/80-templates-restore.sh:153` |
 | `await_ready_handshake` | `src/55-session-launch.sh:5` |
-| `build_system_prompt` | `src/30-helpers.sh:660` |
+| `build_system_prompt` | `src/30-helpers.sh:658` |
 | `check_for_update` | `src/30-helpers.sh:35` |
 | `claude_binary_id` | `src/75-tip-notices.sh:67` |
-| `claude_running_in_session` | `src/30-helpers.sh:545` |
+| `claude_running_in_session` | `src/30-helpers.sh:543` |
 | `commands_help` | `src/10-flags.sh:87` |
 | `config_help` | `src/10-flags.sh:150` |
 | `create_claude_session` | `src/55-session-launch.sh:43` |
@@ -188,20 +190,21 @@ _(no function definitions)_
 | `echo_hint_end` | `src/10-flags.sh:79` |
 | `echo_hint` | `src/10-flags.sh:73` |
 | `enable_tips` | `src/75-tip-notices.sh:359` |
-| `encode_claude_path` | `src/70-start-launch.sh:263` |
+| `encode_claude_path` | `src/70-start-launch.sh:271` |
 | `ensure_base_dir` | `src/60-discovery.sh:92` |
 | `ensure_git_repo` | `src/50-restore-state.sh:3` |
 | `ensure_gitignore_entry` | `src/50-restore-state.sh:69` |
 | `generate_plist` | `src/30-helpers.sh:186` |
 | `get_managed_session_names` | `src/35-validate-deps.sh:100` |
-| `get_session_mode` | `src/30-helpers.sh:625` |
-| `get_version_prompt_lines` | `src/30-helpers.sh:595` |
+| `get_session_mode` | `src/30-helpers.sh:623` |
+| `get_version_prompt_lines` | `src/30-helpers.sh:593` |
 | `guide` | `src/10-flags.sh:40` |
 | `hide_command` | `src/50-restore-state.sh:232` |
 | `install_hooks_command` | `src/75-tip-notices.sh:350` |
 | `is_claude_mux_session` | `src/40-shutdown.sh:14` |
 | `is_managed_session` | `src/35-validate-deps.sh:112` |
 | `is_protected_session` | `src/40-shutdown.sh:4` |
+| `is_valid_model` | `src/20-config.sh:83` |
 | `launch_home_session` | `src/55-session-launch.sh:36` |
 | `launch_single_session` | `src/70-start-launch.sh:52` |
 | `list_templates` | `src/80-templates-restore.sh:1` |
@@ -222,11 +225,11 @@ _(no function definitions)_
 | `restore_state_last_attempt` | `src/50-restore-state.sh:111` |
 | `restore_state_tripped` | `src/50-restore-state.sh:126` |
 | `restore_state_write` | `src/50-restore-state.sh:132` |
-| `sanitize_session_name` | `src/30-helpers.sh:566` |
+| `sanitize_session_name` | `src/30-helpers.sh:564` |
 | `save_template_command` | `src/75-tip-notices.sh:495` |
 | `session_marker_dir` | `src/50-restore-state.sh:154` |
 | `session_name_for_dir` | `src/50-restore-state.sh:272` |
-| `set_command` | `src/10-flags.sh:332` |
+| `set_command` | `src/10-flags.sh:334` |
 | `set_tip_config` | `src/75-tip-notices.sh:301` |
 | `setup_claude_mux_permissions` | `src/50-restore-state.sh:549` |
 | `setup_default_mode` | `src/50-restore-state.sh:498` |
@@ -242,7 +245,7 @@ _(no function definitions)_
 | `unprotect_command` | `src/50-restore-state.sh:326` |
 | `update_all_project_hooks` | `src/75-tip-notices.sh:324` |
 | `update_check_bg` | `src/75-tip-notices.sh:271` |
-| `usage` | `src/10-flags.sh:263` |
+| `usage` | `src/10-flags.sh:265` |
 | `version_gt` | `src/30-helpers.sh:22` |
 | `write_install_config` | `src/30-helpers.sh:228` |
 | `write_running_marker` | `src/50-restore-state.sh:87` |

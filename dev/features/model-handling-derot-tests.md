@@ -14,8 +14,11 @@ version number** (drift-proof).
 - **V0.1** Confirm the current closed-allowlist sites reject non-`{sonnet,haiku,opus}`:
   `HOME_SESSION_MODEL=fable bash ./claude-mux <config-requiring cmd>` errors today;
   `--home-model fable` errors today. (Baseline for the fix.)
-- **V0.2** Confirm the model value flows into `claude --model <x>` in both launch wrappers
-  (`src/55`, `src/70`) and is quoted — so the format check is the right safety layer.
+- **V0.2** Confirm the model value flows into `claude ... --model <x>` at the **sole**
+  interpolation site `src/70-start-launch.sh:177,187` (`${model_flag}`, assembled at
+  `src/70:130-132`) — unquoted bare-word, so the leading-dash-forbidding format check is the
+  right safety layer. `src/55:117` only *mentions* `model_flag` in a stale comment and does
+  NOT interpolate it; its fix is cosmetic.
 
 ## Pass-through validation (A)
 
@@ -36,6 +39,9 @@ version number** (drift-proof).
 - **T2.1 Shell-unsafe token rejected.** A model containing shell metacharacters (e.g.
   `opus; rm -rf x`, backticks, `$()`) is **rejected** by the
   `^[A-Za-z0-9._][A-Za-z0-9._-]*$` format check before reaching the launch command.
+- **T2.1b Interior-space value rejected.** A value with an embedded space (e.g. `opus 4 8`)
+  is **rejected** — the most likely benign-looking typo that would word-split the unquoted
+  `${model_flag}` interpolation at `src/70:177,187`. The regex excludes spaces; confirm.
 - **T2.2 Leading-dash value rejected (arg-injection guard).** `HOME_SESSION_MODEL=-rm` and
   `--home-model --foo` are **rejected** by the leading-dash-forbidding regex — they must
   NOT reach the unquoted `claude --model ${model}` interpolation (where they'd be misparsed

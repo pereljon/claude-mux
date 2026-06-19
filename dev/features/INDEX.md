@@ -12,7 +12,6 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
-| `model-handling-derot` | ready | 2.0.x (patch; one real bug + drift removal) | PLANNED — pre-build | MEDIUM — claude-mux's closed model allowlist now REJECTS valid models (e.g. `fable`); p... | [model-handling-derot.md](model-handling-derot.md) |
 | `notice-delivery-reliability` | ready | 2.0.x (patch; the actionable-notice fix is a real bug fix... | PLANNED — investigated 2026-06-19 (live evidence); pre-build | HIGH for the actionable notices (claude-mux update available, Claude binary upgraded) —... | [notice-delivery-reliability.md](notice-delivery-reliability.md) |
 
 ## designing
@@ -42,6 +41,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `auto-restore` | shipped | — | — | — | [auto-restore.md](auto-restore.md) |
 | `claude-code-upgrade-detection` | shipped | — | — | — | [claude-code-upgrade-detection.md](claude-code-upgrade-detection.md) |
 | `make-codemap` | shipped | 2.0.x (patch; dev-tooling, no runtime change) | IMPLEMENTED 2026-06-19 (dev-tooling; claude-mux artifact byte-identical, no release) | N/A (developer-tooling) — but it closes the structural-doc-drift class that produced a ... | [make-codemap.md](make-codemap.md) |
+| `model-handling-derot` | shipped | 2.0.9 (patch; one real bug + drift removal) | IMPLEMENTED 2026-06-19 (v2.0.9; membership→format pass-through + de-versioned injection) | MEDIUM — claude-mux's closed model allowlist now REJECTS valid models (e.g. `fable`); p... | [model-handling-derot.md](model-handling-derot.md) |
 | `precompact-hook-backfill` | shipped | — | shipped | — | [precompact-hook-backfill.md](precompact-hook-backfill.md) |
 | `ready-handshake` | shipped | — | — | — | [ready-handshake.md](ready-handshake.md) |
 | `restart-caller-shutdown-fix` | shipped | 2.0.4 | implemented (v2.0.4) | HIGH (correctness) | [restart-caller-shutdown-fix.md](restart-caller-shutdown-fix.md) |

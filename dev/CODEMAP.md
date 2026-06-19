@@ -2,7 +2,7 @@
 
 Navigation reference for the `claude-mux` script. Use this to locate functions and config vars. For logic and control flow, see `dev/SKELETON.md`.
 
-**Current version:** 2.0.8 (~4897 lines, built from `src/*.sh`)
+**Current version:** 2.0.9 (~4900 lines, built from `src/*.sh`)
 
 > **The function→`module:line` index is GENERATED**, not hand-maintained: see
 > [`CODEMAP.index.md`](CODEMAP.index.md) (run `make codemap` to regenerate). That file is
@@ -100,6 +100,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `config_help` | `()` | Print all config vars with defaults and descriptions (`--config-help`) |
 | `usage` | `()` | Print short usage summary (`-h`) |
 | `set_command` | `(flag_name, command_name)` | Set COMMAND, error on conflict |
+| `is_valid_model` | `(value)` | Return 0 if value is empty or a shell-safe model token (`^[A-Za-z0-9._][A-Za-z0-9._-]*$`, no leading dash). Pass-through model validation (format, not membership); the format check is the sole safety layer for the unquoted `--model` interpolation. Defined in `20-config` so the always-runs config chokepoint can call it |
 | `log` | `(message)` | Write timestamped entry to LOG_FILE (stdout in --dry-run) |
 | `version_gt` | `(a, b)` | Return 0 if version a > b |
 | `check_for_update` | `()` | Non-blocking daily update check via GitHub API (TTY only); caches result |

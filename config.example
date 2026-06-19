@@ -89,7 +89,9 @@
 #   home  - launch a single 'home' session in $BASE_DIR (protected from shutdown) (default)
 #LAUNCHAGENT_MODE=home
 
-# Model for the home session. Set to "" to use the default model.
+# Model for the home session. Any model alias or ID claude --model accepts
+# (e.g. sonnet, haiku, opus, opus-4-8, fable); passed through and validated by
+# claude at launch. Set to "" to use Claude Code's default model.
 # Default: sonnet
 #HOME_SESSION_MODEL="sonnet"
 

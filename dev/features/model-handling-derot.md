@@ -1,9 +1,9 @@
 ---
 kind: feature
-lifecycle: ready
+lifecycle: shipped
 feature: model-handling-derot
-status: PLANNED — pre-build
-target_version: 2.0.x (patch; one real bug + drift removal)
+status: IMPLEMENTED 2026-06-19 (v2.0.9; membership→format pass-through + de-versioned injection)
+target_version: 2.0.9 (patch; one real bug + drift removal)
 severity: MEDIUM — claude-mux's closed model allowlist now REJECTS valid models (e.g. `fable`); plus two drift liabilities (stale injection example, hand-maintained allowlist)
 related: make-codemap (same "stop hardcoding source-of-truth that drifts" theme), notice-delivery-reliability
 ---
@@ -120,13 +120,20 @@ closed list would also have to track availability tiers it has no business knowi
   `src/70-start-launch.sh:137` and `src/55-session-launch.sh:117` carry inline comments
   justifying the unquoted `--model` interpolation as safe *"because model_flag is
   whitelisted."* After this change the value is **format-validated, not whitelisted** — the
-  comments go false. Rewrite the **model clause only** to: *"model is validated to
+  model clause goes false. Rewrite it to: *"model is validated to
   `^[A-Za-z0-9._][A-Za-z0-9._-]*$` (shell-safe, no leading dash) at every set-boundary."*
   **Preserve the permission-mode clause** — perm modes REMAIN a closed allowlist (a fixed,
   Claude-Code-defined set, not a drift-prone model list), so `src/55:117`'s
   "perm_flag_value comes from a validated whitelist" stays accurate, as does the
-  `mode_override` whitelist note at `src/55:101`. Only the *model* half goes false. This is
-  the load-bearing safety invariant for the model path.
+  `mode_override` whitelist note at `src/55:101`. Only the *model* half goes false.
+  - **The SOLE live model interpolation is `src/70-start-launch.sh:177` and `:187`**
+    (`claude ... ${model_flag} ...`, where `model_flag="--model ${HOME_SESSION_MODEL}"` is
+    assembled at `src/70:130-132`). This is the load-bearing safety invariant for the model
+    path — the format check protects exactly these two lines. **`src/55:117` does NOT
+    assemble or interpolate `model_flag`** (`src/55:32` documents that the model flag is
+    built only inside `launch_single_session`); its "model_flag is whitelisted" mention is a
+    **vestigial reference**, so fixing that comment is hygiene, not a guard on a live
+    interpolation. Don't treat `src/55` as a model-interpolation chokepoint — `src/70` is.
 - **Injection change → README "Session System Prompt" section must match** the version-agnostic
   example.
 - `config.example` + `config_help()` — `HOME_SESSION_MODEL` description: "any model

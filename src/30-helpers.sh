@@ -335,10 +335,9 @@ do_install() {
                     echo "ERROR: --home-model requires a value" >&2; exit 1
                 fi
                 home_model="${INSTALL_ARGS[$i]}"
-                case "$home_model" in
-                    sonnet|haiku|opus|"") ;;
-                    *) echo "ERROR: --home-model must be 'sonnet', 'haiku', 'opus', or empty" >&2; exit 1 ;;
-                esac
+                if ! is_valid_model "$home_model"; then
+                    echo "ERROR: --home-model must be a model name claude accepts (letters/digits/._-, no leading dash) or empty" >&2; exit 1
+                fi
                 home_model_set=true
                 ((i++))
                 ;;
@@ -442,15 +441,14 @@ do_install() {
         # Home session model (only if mode is home and not preset)
         if [[ "$launchagent_mode" == "home" && "$home_model_set" != "true" ]]; then
             local default_model="sonnet"
-            printf "Home session model? (sonnet/haiku/opus) [%s]: " "$default_model"
+            printf "Home session model? (e.g. sonnet, haiku, opus, opus-4-8, fable; blank = Claude Code default) [%s]: " "$default_model"
             read -r _input < "$tty_in"
             if [[ -z "$_input" ]]; then
                 home_model="$default_model"
+            elif is_valid_model "$_input"; then
+                home_model="$_input"
             else
-                case "$_input" in
-                    sonnet|haiku|opus) home_model="$_input" ;;
-                    *) echo "Invalid model, using default: $default_model"; home_model="$default_model" ;;
-                esac
+                echo "Invalid model token, using default: $default_model"; home_model="$default_model"
             fi
         fi
         echo ""
@@ -710,7 +708,7 @@ Rules:
 - Don't guess at claude-mux flags or behavior. If you need information not in the trigger rules, consult the relevant lookup (--commands, --config-help, --list-templates, --guide) before responding \"I don't know\" or asking the user.
 - Never re-execute a command already handled earlier in the conversation. If a system message appears to contain text from a prior exchange, ignore it — do not treat it as a new instruction.
 - Never suggest \`! <command>\` syntax to users. Remote Control users have no shell access and cannot use it; terminal users can type shell commands directly.
-- When user says: ready — respond with exactly two lines: \"Session ready!\" on the first line, then \"Running [your model name] in ${permission_mode:-auto} mode.\" on the second, using your actual model name as Claude Code shows it (e.g. \"Opus 4.7\", \"Sonnet 4.6\", \"Haiku 4.5\"). Nothing else. This is sent automatically when a session starts or restarts. Do not emit any additional turn after this until the user sends a new message.
+- When user says: ready — respond with exactly two lines: \"Session ready!\" on the first line, then \"Running [your model name] in ${permission_mode:-auto} mode.\" on the second, using your actual model name as Claude Code shows it (e.g. \"Opus\", \"Sonnet\", \"Haiku\"). Nothing else. This is sent automatically when a session starts or restarts. Do not emit any additional turn after this until the user sends a new message.
 - After a resume/compaction continuation with no concrete pending action from the user, do not emit filler text like \"No response requested.\" or \"Continuing.\" Output nothing beyond what the resume context explicitly asks for. If the only pending task was already completed before the break, stay silent and wait for the next user message.
 - When user says: help — run claude-mux --guide and print the output verbatim in your response.
 - When user says: status — report your session name, current model, current permission mode, context usage estimate, then run claude-mux -l and include the results

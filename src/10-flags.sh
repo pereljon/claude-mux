@@ -179,9 +179,11 @@ LAUNCHAGENT_MODE                 default: "home"
                marker in BASE_DIR).
 
 HOME_SESSION_MODEL               default: "sonnet"
-  Type: sonnet | haiku | opus | (empty)
-  Description: Model used for the home session at launch. Empty inherits
-               Claude's default.
+  Type: any model alias or ID claude accepts (e.g. sonnet, haiku, opus,
+        opus-4-8, fable) | (empty)
+  Description: Model used for the home session at launch. Passed through to
+               claude --model; claude validates it. Empty inherits Claude's
+               default.
 
 AUTORESTORE                      default: true
   Type: true | false
@@ -303,7 +305,7 @@ Commands:
   --install [OPTS...]      Run interactive setup (config + LaunchAgent)
                            Options: --non-interactive, --base-dir DIR,
                                     --launchagent-mode {none,home},
-                                    --home-model {sonnet,haiku,opus},
+                                    --home-model MODEL (any alias/ID claude accepts),
                                     --no-launchagent
   --uninstall              Remove hooks, permissions, LaunchAgent, and config
 

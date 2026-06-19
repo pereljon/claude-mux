@@ -129,14 +129,22 @@ launch_single_session() {
     # Build model flag for home sessions
     local model_flag=""
     if [[ "$HOME_LAUNCH" == "true" && -n "$HOME_SESSION_MODEL" ]]; then
+        # Defense-in-depth: re-validate at the interpolation boundary. The config
+        # chokepoint already format-checks HOME_SESSION_MODEL on every load, but this
+        # is the one site that bakes it unquoted into the generated script, so guard it
+        # here too in case a future path ever sets the value without re-validating.
+        is_valid_model "$HOME_SESSION_MODEL" || { echo "ERROR: HOME_SESSION_MODEL '$HOME_SESSION_MODEL' is not a valid model token" >&2; return 1; }
         model_flag="--model ${HOME_SESSION_MODEL}"
     fi
 
     # Write prompt and launch script to per-user temp dir (not world-readable /tmp)
     # NOTE: model_flag and LAUNCH_SESSION_NAME are interpolated as text into this generated
-    # script. They are safe because model_flag is assembled from a whitelisted HOME_SESSION_MODEL
-    # and LAUNCH_SESSION_NAME is sanitized to [a-zA-Z0-9-]. Any future use of additional
-    # variables here must apply the same validation — the heredoc provides no further protection.
+    # script. They are safe because HOME_SESSION_MODEL is validated to
+    # ^[A-Za-z0-9._][A-Za-z0-9._-]*$ (shell-safe token, no leading dash → cannot inject a
+    # separate claude flag) at every set-boundary (config/flag/install), and
+    # LAUNCH_SESSION_NAME is sanitized to [a-zA-Z0-9-]. This is the sole model-interpolation
+    # site. Any future use of additional variables here must apply the same validation — the
+    # heredoc provides no further protection.
     #
     # FRESH_START=true omits -c so Claude Code starts a new conversation instead of resuming.
     local resume_flag="-c"
