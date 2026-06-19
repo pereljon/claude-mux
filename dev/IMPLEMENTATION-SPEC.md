@@ -63,13 +63,13 @@ Note: `com.user.claude-mux.plist` was removed from the repo in v1.8.0. The plist
 | `src/00-defaults.sh` | shebang, `VERSION`, default config-var declarations |
 | `src/10-flags.sh` | flag-parsing loop + `guide`/`echo_hint`/`commands_help`/`config_help` |
 | `src/20-config.sh` | legacy `--tipotd` no-op, user-config sourcing + auto-migration, constants |
-| `src/30-helpers.sh` | general helpers (`do_update`, `get_version_prompt_lines`, ...) |
+| `src/30-helpers.sh` | general helpers (`check_for_update`, `do_update`, `get_version_prompt_lines`, `build_system_prompt`, ...) |
 | `src/35-validate-deps.sh` | attach helper, validate `-d`/`-n`, dependency check, managed-session names |
 | `src/40-shutdown.sh` | shutdown functions |
 | `src/50-restore-state.sh` | restore-state bookkeeping (`restore_state_*`, `should_be_alive`, `poll_until_ready`) |
 | `src/55-session-launch.sh` | `await_ready_handshake`, `restart_caller_in_place`, `create_claude_session` |
 | `src/60-discovery.sh` | migrate stray sessions, discover projects, ensure base dir |
-| `src/70-start-launch.sh` | `start_sessions`, `launch_single_session`, `build_system_prompt` |
+| `src/70-start-launch.sh` | `start_sessions`, `launch_single_session` (both call `build_system_prompt`, defined in `30-helpers`) |
 | `src/75-tip-notices.sh` | `tip_of_day`, `detect_claude_upgrade`, `on_prompt`, `on_compact`, update-check machinery |
 | `src/80-templates-restore.sh` | `list_templates`, `apply_template`, `autorestore_walk`, `autolaunch_dispatch` |
 | `src/90-dispatch.sh` | `check_for_update` call, first-run guard `case`, terminal dispatch `case` |

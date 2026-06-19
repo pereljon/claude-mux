@@ -95,13 +95,13 @@ travelling with it):
 | `src/00-defaults.sh` | 1-112 | 112 | shebang, `VERSION`, all default config-var declarations |
 | `src/10-flags.sh` | 113-684 | 572 | flag-parsing loop + `guide`, `echo_hint`, `commands_help`, `config_help` |
 | `src/20-config.sh` | 685-820 | 136 | legacy `--tipotd` no-op, user-config sourcing + auto-migration, constants |
-| `src/30-helpers.sh` | 821-1599 | 779 | general helpers (`do_update` 903, `get_version_prompt_lines` 1415, ...) |
+| `src/30-helpers.sh` | 821-1599 | 779 | general helpers (`check_for_update` 855, `do_update` 903, `get_version_prompt_lines` 1415, `build_system_prompt` 1480, ...) |
 | `src/35-validate-deps.sh` | 1600-1718 | 119 | attach helper, validate `-d`/`-n`, dependency check, managed-session names |
 | `src/40-shutdown.sh` | 1719-2048 | 330 | shutdown functions |
 | `src/50-restore-state.sh` | 2049-2903 | 855 † | "Functions" + restore-state bookkeeping (`restore_state_*`, `should_be_alive`, `poll_until_ready`) — over cap, one internal split needed |
 | `src/55-session-launch.sh` | 2904-3149 | 246 | `await_ready_handshake` (2904), `restart_caller_in_place` (2918), `create_claude_session` (2942) |
 | `src/60-discovery.sh` | 3150-3250 | 101 | migrate stray, discover projects, ensure base dir |
-| `src/70-start-launch.sh` | 3251-3517 | 267 | `start_sessions` (3253), `launch_single_session` (3302), `build_system_prompt` |
+| `src/70-start-launch.sh` | 3251-3517 | 267 | `start_sessions` (3253), `launch_single_session` (3302) — both *call* `build_system_prompt` (defined in `30-helpers`) |
 | `src/75-tip-notices.sh` | 3518-4252 | 735 † | `tip_of_day` (3521), `detect_claude_upgrade` (3598), `on_prompt` (3618), `on_compact`, update-check machinery — near cap, subdividable |
 | `src/80-templates-restore.sh` | 4253-4515 | 263 | `list_templates` (4253), `apply_template` (4278), `autorestore_walk` (4405), `autolaunch_dispatch` |
 | `src/90-dispatch.sh` | 4516-4897 | 382 | `check_for_update` call, first-run guard `case` (4524), the terminal dispatch `case` (4557) |

@@ -40,13 +40,13 @@ Read only the section you need - `grep -n "^## <name>" dev/SKELETON.md` for its 
 | Defaults / config-var declarations (phase 1-2) | `src/00-defaults.sh` |
 | Flag parsing (phase 4-5) + guide/commands_help/config_help | `src/10-flags.sh` |
 | Legacy `--tipotd` no-op, user config, constants (phase 6-8) | `src/20-config.sh` |
-| General helpers | `src/30-helpers.sh` |
+| General helpers (incl. `build_system_prompt`, `check_for_update`, `do_update`) | `src/30-helpers.sh` |
 | Attach + validate `-d`/`-n` + dep check (phase 9 pre-dispatch) | `src/35-validate-deps.sh` |
 | Shutdown paths | `src/40-shutdown.sh` |
 | restore-state / `poll_until_ready` | `src/50-restore-state.sh` |
 | `await_ready_handshake` / `restart_caller_in_place` / `create_claude_session` | `src/55-session-launch.sh` |
 | migrate / discover projects | `src/60-discovery.sh` |
-| `start_sessions` / `launch_single_session` / `build_system_prompt` | `src/70-start-launch.sh` |
+| `start_sessions` / `launch_single_session` (call `build_system_prompt`, defined in `30-helpers`) | `src/70-start-launch.sh` |
 | `tip_of_day` / `on_prompt` / `on_compact` / update machinery | `src/75-tip-notices.sh` |
 | templates / `autorestore_walk` / `autolaunch_dispatch` | `src/80-templates-restore.sh` |
 | Main dispatch `case` | `src/90-dispatch.sh` |

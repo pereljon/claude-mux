@@ -13,16 +13,16 @@ Navigation reference for the `claude-mux` script. Use this to locate functions a
 | `src/00-defaults.sh` | 1-112 | shebang, `VERSION`, default config vars |
 | `src/10-flags.sh` | 113-684 | flag parsing + `guide`/`commands_help`/`config_help` |
 | `src/20-config.sh` | 685-820 | user-config sourcing + migration, constants |
-| `src/30-helpers.sh` | 821-1599 | general helpers (`do_update`, `get_version_prompt_lines`) |
+| `src/30-helpers.sh` | 821-1599 | general helpers (`check_for_update`, `do_update`, `get_version_prompt_lines`, `build_system_prompt`) |
 | `src/35-validate-deps.sh` | 1600-1718 | attach helper, validate `-d`/`-n`, dep check |
 | `src/40-shutdown.sh` | 1719-2048 | shutdown functions |
 | `src/50-restore-state.sh` | 2049-2899 | restore-state (`restore_state_*`, `should_be_alive`, `poll_until_ready`) |
 | `src/55-session-launch.sh` | 2900-3149 | `await_ready_handshake`, `restart_caller_in_place`, `create_claude_session` |
 | `src/60-discovery.sh` | 3150-3250 | migrate stray, discover projects, ensure base dir |
-| `src/70-start-launch.sh` | 3251-3517 | `start_sessions`, `launch_single_session`, `build_system_prompt` |
+| `src/70-start-launch.sh` | 3251-3517 | `start_sessions`, `launch_single_session` (both *call* `build_system_prompt`, defined in `30-helpers`) |
 | `src/75-tip-notices.sh` | 3518-4252 | `tip_of_day`, `detect_claude_upgrade`, `on_prompt`, `on_compact`, update machinery |
 | `src/80-templates-restore.sh` | 4253-4515 | `list_templates`, `apply_template`, `autorestore_walk`, `autolaunch_dispatch` |
-| `src/90-dispatch.sh` | 4516-4897 | `check_for_update`, first-run guard `case`, dispatch `case` |
+| `src/90-dispatch.sh` | 4516-4897 | `check_for_update` call (defined in `30-helpers`), first-run guard `case`, dispatch `case` |
 
 ## How to Use
 
@@ -102,7 +102,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `apply_tmux_options` | 1346 | `(session_name)` | Apply TMUX_* config vars to session options |
 | `get_version_prompt_lines` | 1370 | `()` | Return version string + optional update notice for injection |
 | `get_session_mode` | 1400 | `(session_name)` | Read `permissions.defaultMode` from session's settings.local.json |
-| `build_system_prompt` | 1435 | `(session_name, permission_mode)` | Build full injection prompt string |
+| `build_system_prompt` | 1480 | `(session_name, permission_mode)` | Build full injection prompt string (defined in `30-helpers`; called from launch paths) |
 | `attach_to_session` | 1549 | `(session_name)` | Attach or switch-client to a tmux session |
 | `get_managed_session_names` | 1646 | `()` | Populate `MANAGED_SESSIONS` array from tmux user option |
 | `is_managed_session` | 1658 | `(session_name)` | Return 0 if session is in MANAGED_SESSIONS |
