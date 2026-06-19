@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: shipped
 feature: src-module-split
 status: IMPLEMENTED (2026-06-17)
 target_version: 2.0.x (patch; no release - shipped artifact byte-identical)

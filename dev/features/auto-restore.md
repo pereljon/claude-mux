@@ -1,3 +1,9 @@
+---
+feature: auto-restore
+kind: feature
+lifecycle: shipped
+---
+
 # Feature: Auto-restore (v2.0 self-healing keystone)
 
 Implementable design spec. Lifted from the v2.0 Milestone section of `docs/ISSUES.md` once ready to build; assumptions verified before finalizing (see "Verified assumptions"). Test plan: `auto-restore-tests.md`.

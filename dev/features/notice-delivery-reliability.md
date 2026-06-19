@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: ready
 feature: notice-delivery-reliability
 status: PLANNED — investigated 2026-06-19 (live evidence); pre-build
 target_version: 2.0.x (patch; the actionable-notice fix is a real bug fix) + an upstream Claude Code feature request

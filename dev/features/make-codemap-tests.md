@@ -19,10 +19,15 @@ the same contract as `make check` for `claude-mux`.
 - **T1.3 Deterministic + MODULES-ordered.** `make codemap` twice → byte-identical output;
   the generator iterates the explicit `MODULES` list (not a `src/*.sh` glob), so a stray
   file dropped in `src/` does NOT reorder or pollute the index.
+- **T1.4 Sanity assertion (regression, NOT "every module > 0").** The generator fails
+  loudly if a module yields 0 functions where the committed baseline had >0 (broken grep
+  pattern / renamed-away module). It must NOT fail on the three legitimately-0-function
+  modules (`00-defaults`, `20-config`, `90-dispatch`) — those are 0 from the first run.
 - **T1.5 No absolute-line column.** The generated index emits `module:within-module-line`
   only (no absolute built line) — there is no second, drift-prone line source.
-- **T1.4 Sanity assertion.** The generator errors/ warns if it finds an implausible count
-  (e.g. 0 functions in a non-trivial fragment) — guards against a broken grep pattern.
+- **T1.5b Empty-function modules render cleanly.** `00-defaults`, `20-config`,
+  `90-dispatch` (0 functions each) appear in the generated output without erroring — either
+  as an empty function set or omitted from the Function Index, never a crash or short-index.
 
 ## Feature index (`make features-index` → `dev/features/INDEX.md`) + lifecycle/kind
 

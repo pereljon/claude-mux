@@ -1,4 +1,5 @@
 ---
+kind: investigation
 feature: caller-restart-resume-investigation
 status: RESOLVED in v2.0.6 via restart-in-place (see restart-in-place.md). Root cause confirmed: killing the caller's pane SIGHUP'd the in-pane restart script before recreate. Fix: looped wrapper relaunches the caller in-pane instead of killing it. The "helper session" candidate was abandoned in favor of this.
 severity: HIGH (context loss on a common action)

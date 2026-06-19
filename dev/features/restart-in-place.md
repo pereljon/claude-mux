@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: shipped
 feature: restart-in-place
 status: IMPLEMENTED in v2.0.6 (pending the real restart-all-from-home test)
 target_version: 2.0.6 (patch - fixes existing broken behavior, not new functionality)

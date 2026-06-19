@@ -1,3 +1,9 @@
+---
+feature: ready-handshake
+kind: feature
+lifecycle: shipped
+---
+
 # Feature: Ready-handshake during compact/resume (v2.0 self-healing)
 
 Implementable design spec. Lifted from `docs/ISSUES.md` (v2.0 Milestone, "Ready handshake during compact/resume"); assumptions verified before finalizing (see "Verified assumptions"). Test plan: `ready-handshake-tests.md`.

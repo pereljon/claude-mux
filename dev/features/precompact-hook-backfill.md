@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: shipped
 feature: precompact-hook-backfill
 status: shipped
 version: 2.0.3

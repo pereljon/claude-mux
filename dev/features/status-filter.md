@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: shipped
 feature: status-filter
 status: shipped
 version: 2.0.2

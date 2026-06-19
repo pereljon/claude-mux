@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: superseded
 feature: caller-restart-resume-race
 status: SUPERSEDED / REVERTED - hypothesis was wrong
 superseded_by: caller-restart-resume-investigation.md

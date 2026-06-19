@@ -42,12 +42,19 @@ Infrastructure, not a framework. Keep sessions alive, get out of the way.
 | `docs/INSTALL.md` | Full installation guide (curl, Homebrew, manual, uninstall) |
 | `docs/FAQ.md` | Common questions about claude-mux |
 | `docs/ISSUES.md` | Open bugs, planned features, resolved issues |
-| `dev/CODEMAP.md` | Function index, config vars, dispatch table, marker file registry — for locating things in the script |
+| `dev/CODEMAP.md` | Function **purposes** (prose), config vars, dispatch table, marker file registry — for locating things in the script. The function→location index is generated (see next row) |
+| `dev/CODEMAP.index.md` | **Generated** by `make codemap` — function→`module:within-module-line` index. Never hand-edit; guarded by `make check` |
+| `dev/features/INDEX.md` | **Generated** by `make features-index` — the build queue projected from each feature doc's `kind:`/`lifecycle:` frontmatter. Read it after a context clear to see what's `ready` to build |
 | `dev/SKELETON.md` | Pseudo-code showing script structure, logic flow, and key invariants — for understanding how the script works |
-| `dev/features/<feature>.md` | Per-feature design doc: the implementable spec for a feature, extracted from `docs/ISSUES.md` once it's ready to build |
+| `dev/features/<feature>.md` | Per-feature design doc: the implementable spec for a feature, extracted from `docs/ISSUES.md` once it's ready to build. MUST carry `kind:` + (for `kind: feature`) `lifecycle:` frontmatter |
 | `dev/features/<feature>-tests.md` | Per-feature test plan: happy path, edge cases, verification steps, pre-build and post-build checks |
 
 **Feature design + test docs convention (decided 2026-06-07):** when a planned feature in `docs/ISSUES.md` matures to "ready to build," lift it into a dedicated design doc at `dev/features/<feature>.md` and a matching test plan at `dev/features/<feature>-tests.md`. `docs/ISSUES.md` stays the planned-features tracker; the `dev/features/` pair is the implementable spec + test plan that the build works from. Verify assumptions the design rests on *before* finalizing the design doc, so the docs reflect verified reality, not assumptions.
+
+**Feature-doc frontmatter (controlled vocab, enforced by `make features-index`):** every `dev/features/<feature>.md` carries `kind:` and, for `kind: feature`, a `lifecycle:`. The feature index FAILs the commit on a missing/unknown value, so these are not optional.
+- **`kind:`** — `feature` (default; buildable) or `investigation` (analysis-only, no build lifecycle; excluded from the build queue, like `*-tests.md`).
+- **`lifecycle:`** (exactly one of) — `idea` → `designing` → `ready` (design complete **and** architect-reviewed) → `building` → `shipped` (released/implemented; a "pending real-world test" caveat still counts as shipped) → plus `shelved` (parked) and `superseded` (abandoned/replaced). History/transient state goes in the free-text `status:` line, NOT in a new lifecycle value (e.g. reopened-from-shelved → `lifecycle: designing` + `status:` tells the story).
+- After adding a feature doc or changing its `lifecycle`/`kind`, run `make features-index` (the pre-commit hook + CI enforce freshness).
 
 ## Non-Obvious Behaviors
 
@@ -189,7 +196,9 @@ Before coding a new feature or change, review with the user: happy path, edge ca
 
 After any code change, check whether these need updating:
 
-- **`make build` + `make check`** — code edits go in `src/*.sh`; rebuild the `claude-mux` artifact and confirm `make check` is clean. The pre-commit hook blocks otherwise. (Never edit `claude-mux` directly.)
+- **`make build` + `make check`** — code edits go in `src/*.sh`; rebuild the `claude-mux` artifact and confirm `make check` is clean (it now also runs `check-codemap` + `check-features-index`). The pre-commit hook blocks otherwise. (Never edit `claude-mux` directly.)
+- **`make codemap`** — after adding/renaming/moving/removing a function in `src/*.sh`, regenerate `dev/CODEMAP.index.md` (the location index; never hand-edit it). Then update the function's **purpose** row in `dev/CODEMAP.md` by hand.
+- **`make features-index`** — after adding a feature doc or changing its `kind`/`lifecycle` frontmatter, regenerate `dev/features/INDEX.md`. (`make check` / pre-commit / CI fail if either index is stale.)
 - `README.md` + `translations/README.*.md` (translation standards in `dev/IMPLEMENTATION-SPEC.md`)
 - `config.example` + `~/.claude-mux/config` (new settings)
 - `install.sh` (new flags, config generation)
@@ -197,7 +206,8 @@ After any code change, check whether these need updating:
 - `CLAUDE.md` (if key behaviors changed)
 - **Injection prompt** in both `create_claude_session` (`src/55-session-launch.sh`) and `launch_single_session` (`src/70-start-launch.sh`)
 - **Session System Prompt** section in README (must match injection)
-- `dev/CODEMAP.md` (new/renamed/removed functions, new dispatch cases, new config vars, significant line range shifts)
+- `dev/CODEMAP.md` (function **purpose** rows, new dispatch cases, new config vars) + `make codemap` for the generated location index
+- `dev/features/INDEX.md` via `make features-index` (when a feature doc's `kind`/`lifecycle` changed)
 - `dev/SKELETON.md` (logic flow changes: new conditions, changed call sequences, new control paths)
 - `ISSUES.md` (new bugs, resolved entries)
 - `CHANGELOG.md` (new features, fixes, removals per release)

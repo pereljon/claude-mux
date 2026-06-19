@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: shipped
 feature: session-target-disambiguation
 status: implemented (v2.0.5)
 target_version: 2.0.5

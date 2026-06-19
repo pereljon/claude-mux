@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: shelved
 feature: restart-all-throttle
 status: PLANNED
 target_version: 2.0.9 (patch)

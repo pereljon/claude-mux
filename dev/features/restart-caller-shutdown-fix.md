@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: shipped
 feature: restart-caller-shutdown-fix
 status: implemented (v2.0.4)
 target_version: 2.0.4

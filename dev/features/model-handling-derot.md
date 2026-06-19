@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: ready
 feature: model-handling-derot
 status: PLANNED — pre-build
 target_version: 2.0.x (patch; one real bug + drift removal)

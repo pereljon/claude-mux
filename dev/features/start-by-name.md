@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: shipped
 feature: start-by-name
 status: IMPLEMENTED in v2.0.7 (2026-06-17); both open questions resolved 2026-06-17
 target_version: 2.0.7 (patch) - user decision 2026-06-17

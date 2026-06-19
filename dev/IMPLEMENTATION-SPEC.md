@@ -76,11 +76,16 @@ Note: `com.user.claude-mux.plist` was removed from the repo in v1.8.0. The plist
 
 Module numbers leave gaps (`00/10/20...`) so future inserts don't force a renumber. The shebang lives only as line 1 of `00-defaults.sh`; the other fragments are headerless (adding a per-fragment shellcheck header would inject bytes and break byte-identity, so it is deliberately omitted — shellcheck runs on the **built** file, where cross-fragment references resolve).
 
-**Build targets** (`Makefile`): `make build` (cat → `claude-mux`, `chmod +x`), `make check` (`build` + `git diff --exit-code claude-mux`, the drift guard), `make lint` (`bash -n` + shellcheck on the built file), `make smoke` (read-only commands).
+**Build targets** (`Makefile`): `make build` (cat → `claude-mux`, `chmod +x`), `make check` (`build` + `check-codemap` + `check-features-index` + `git diff --exit-code claude-mux`, the drift guard), `make lint` (`bash -n` + shellcheck on the built file), `make smoke` (read-only commands).
+
+**Generated doc indexes** (same generate-then-guard pattern as `claude-mux`; see `dev/features/make-codemap.md`): two committed files are produced from source and guarded against drift, so a structural fact can never be mistyped by hand (this closed a real incident where `build_system_prompt` was hand-mislabeled to module `70` instead of `30` and the error propagated across 5 docs).
+- `make codemap` → `dev/CODEMAP.index.md`: every `^funcname()` in `src/*.sh` mapped to `module:within-module-line`. Iterates the explicit `$(MODULES)` (passed as args, never a glob) so a stray `src/` file can't reorder it. `dev/CODEMAP.md` keeps the prose (purposes, dispatch table, config vars); the location index is generated.
+- `make features-index` → `dev/features/INDEX.md`: the build queue, projected from each feature doc's `kind:`/`lifecycle:` frontmatter (FAIL on a missing/unknown value for a `kind: feature` doc; `kind: investigation` and `*-tests.md` excluded). Unlike the codemap index this projects author-asserted opinion, not ground truth — it guards only "INDEX.md matches the frontmatter."
+- Guarded by `check-codemap` / `check-features-index` (folded into `make check`), the pre-commit hook (runs the index checks **unconditionally**), and CI (`make check`).
 
 **Drift guard (the real risk: `src/` and the committed `claude-mux` diverging).** Adopted together, not pick-one:
 1. `make check` in CI on every PR (catches "edited `src/`, forgot `make build`").
-2. **Mandatory pre-commit hook** at `.githooks/pre-commit` (`git config core.hooksPath .githooks`): refuses a commit whose `claude-mux` doesn't match a fresh build — the only thing that reliably catches a direct artifact edit at commit time.
+2. **Mandatory pre-commit hook** at `.githooks/pre-commit` (`git config core.hooksPath .githooks`): runs `make check`, refusing a commit where `claude-mux`, `dev/CODEMAP.index.md`, or `dev/features/INDEX.md` doesn't match a fresh build — the only thing that reliably catches a direct artifact/index edit (or a frontmatter-only change) at commit time. The index checks run unconditionally (not gated on staged paths), so a lone hand-edit of a generated index can't slip past.
 3. CLAUDE.md doc rule: edit `src/`, never `claude-mux` directly.
 4. `.gitattributes` marks `claude-mux linguist-generated=true`; conflicts in it are resolved by rebuilding from `src/`, never hand-merged.
 5. Release gate: `make check` must pass clean immediately before `git tag`, so a release can never tag a stale artifact.

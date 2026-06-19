@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: designing
 feature: inter-agent-messaging
 status: REOPENED (was SHELVED) — discussion-log #15 narrowed the obstacle: a worker boots in the project folder with full CLAUDE.md + persisted context, so it IS useful (gate #3 met) and simplifies (gate #2 removed). Remaining hard problem = gate #1 (exfiltration / cross-project blast radius). Pending review #4. (History: review #2 mailbox-v1, #3 full-shelve, #14 single-user-utility refutation.)
 target_version: UNSCHEDULED — parked behind 3 gates (close exfiltration-egress; verify CLAUDE.md suppression; prove a files-only worker satisfies "what's happening in B?"). Differentiated value is worker→worker chaining (research-grade), not the single-user mailbox/query.

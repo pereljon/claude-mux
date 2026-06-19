@@ -261,6 +261,8 @@ Rationale: ~4650 lines, zero automated tests, and v2.1/v2.2 are exactly where re
 
 **DONE (2026-06-17) — see Resolved.** Implemented per `dev/features/src-module-split.md`: `claude-mux` is now built from 13 ordered `src/*.sh` fragments via `make build`, byte-identical to the pre-split file (`cmp`-verified). No release (shipped artifact unchanged byte-for-byte).
 
+**Deferred decision D4 ("auto-generate the CODEMAP index") — DONE (2026-06-19).** Implemented per `dev/features/make-codemap.md`: `make codemap` generates `dev/CODEMAP.index.md` (function→`module:within-module-line`) and `make features-index` generates `dev/features/INDEX.md` (the build queue from `kind:`/`lifecycle:` frontmatter); both guarded by `make check` + the pre-commit hook + CI. **The live build queue is now `dev/features/INDEX.md`** — a fresh post-clear session reads it to see what's `ready` to build, instead of grepping feature docs by hand.
+
 ### TUI-scraping quarantine + upstream asks (from architecture review, 2026-06-12)
 
 The structural fragility is pane-capture pattern matching: `poll_until_ready`, `esc to interrupt` busy detection, the `Yes, I accept` auto-confirm, `^❯|^> ` prompt regexes, the `/compact` monitor. Mitigations:

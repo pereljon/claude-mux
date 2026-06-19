@@ -1,3 +1,9 @@
+---
+feature: claude-code-upgrade-detection
+kind: feature
+lifecycle: shipped
+---
+
 # Feature: Claude Code upgrade detection (v2.0 self-healing)
 
 Implementable design spec. Lifted from `docs/ISSUES.md` (v2.0 Milestone, "Claude Code upgrade detection"); assumptions verified before finalizing (see "Verified assumptions"). Test plan: `claude-code-upgrade-detection-tests.md`.

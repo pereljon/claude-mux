@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: designing
 feature: launched-version-detection
 status: PLANNED
 target_version: 2.x (minor; notify-only behavior)

@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: shipped
 feature: tip-ready-handshake
 status: IMPLEMENTED in v2.0.8 (complete version - handshake check precedes detect_claude_upgrade)
 target_version: 2.0.8 (patch)

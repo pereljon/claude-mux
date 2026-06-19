@@ -1,4 +1,6 @@
 ---
+kind: feature
+lifecycle: designing
 feature: cross-cli-coders
 status: planned
 milestone: v2.x (dovetails with v2.2 agent network)

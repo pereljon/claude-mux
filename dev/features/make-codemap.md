@@ -1,7 +1,8 @@
 ---
 feature: make-codemap
-lifecycle: ready
-status: PLANNED — pre-build (architect-reviewed; feature-index generation folded in 2026-06-19)
+kind: feature
+lifecycle: shipped
+status: IMPLEMENTED 2026-06-19 (dev-tooling; claude-mux artifact byte-identical, no release)
 target_version: 2.0.x (patch; dev-tooling, no runtime change)
 severity: N/A (developer-tooling) — but it closes the structural-doc-drift class that produced a real, propagated error (build_system_prompt mislabeled module 70 instead of 30 across 5 docs, 2026-06-17→19)
 related: src-module-split (this is its deferred decision D4), test-suite-ci
@@ -138,6 +139,13 @@ now fails). Verified mapping:
 
 (`*-tests.md` files carry no `kind`/`lifecycle` and are excluded by glob.)
 
+**Migration wrinkle (verified 2026-06-19): three docs have NO YAML frontmatter at all** —
+`auto-restore.md`, `claude-code-upgrade-detection.md`, `ready-handshake.md` open directly
+with `# Feature:`. For these the migration must **create a full frontmatter block** (at
+minimum `feature` + `kind` + `lifecycle`), not append two fields. The remaining docs
+already have a `---` block with a free-text `status:` to preserve; there the migration
+only adds `kind` + `lifecycle`. Don't assume a `---` block exists everywhere.
+
 ### Generation — `make features-index`
 
 `make features-index` reads each `dev/features/*.md` frontmatter (excluding `*-tests.md` and
@@ -173,8 +181,22 @@ lexical and a stray file in `src/` would silently reorder the index (the Makefil
 the glob for exactly this reason). Per module in `MODULES` order: emit each `^funcname()`
 with its module name and within-module line; group for the per-module table. Output is
 **deterministic** (modules in `MODULES` order, then by line) so the diff is meaningful.
-Read the `MODULES` list from the Makefile (single source of truth) rather than hardcoding
-it a second time.
+
+**D5 (impl) — pass `$(MODULES)` into the generator; do NOT re-parse the Makefile.** The
+`MODULES` variable spans 5 lines with `\`-continuations; re-parsing it in shell/awk is
+fiddly and duplicative. Instead the `codemap:` recipe invokes the generator with
+`$(MODULES)` as positional arguments — Make expands the list, the script iterates `"$@"`.
+Same single-source-of-truth guarantee (the list still lives only in the Makefile), zero
+Makefile-parsing code.
+
+**D6 (impl) — three modules legitimately have ZERO functions** (verified 2026-06-19:
+`00-defaults`, `20-config`, `90-dispatch` — vars / config-sourcing / dispatch-`case`
+only). The generator MUST render these gracefully (list the module with an empty function
+set, or omit from the Function Index but never error). The per-module "contents" that the
+hand-table carried as prose ("shebang, `VERSION`, default config vars") is NOT
+generatable — only the function list is; those three modules simply have no functions to
+emit. **This directly shapes the sanity check below: it must be a _regression_ check, not
+"every module > 0."**
 
 ### Two targets, not one (architect HIGH — decouple)
 
@@ -240,6 +262,10 @@ unproven half to the proven one. Ship `codemap` first; `features-index` can foll
   equals `grep -c '^[a-z_][a-z0-9_]*()' $(MODULES)` summed, AND no module yields 0
   functions where the previously-committed index had >0 — else fail loudly (a broken grep
   pattern or a renamed-away module must not silently produce an empty/short index).
+  **TRAP (impl, see D6): this is a _regression_ check, NOT "every module > 0."** Three
+  modules (`00-defaults`, `20-config`, `90-dispatch`) are legitimately 0-function; a naive
+  "fail if any module is empty" assertion would be wrong from the first run. Compare
+  per-module counts against the committed baseline, not against zero.
 - **The dispatch/config generation is more than a grep** (parsing `case` arms / assignment
   lines) — defer to a later increment; ship the function index first.
 - **The feature index reflects declared `lifecycle`, not reality.** It can't detect a doc
