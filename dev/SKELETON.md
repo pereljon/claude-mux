@@ -146,9 +146,15 @@ while args remain:
         uptime=$(sysctl kern.boottime)
         if uptime <= 45s → sleep 45   # let system services initialize
 
-    # Dependency check
-    if TMUX_BIN missing or not executable → error, exit 1
-    if CLAUDE_BIN missing or not executable → error, exit 1
+    # Dependency check — only for commands that actually manage tmux sessions.
+    # Dep-free commands (list-templates, tip, enable/disable-tips, install-hooks,
+    # update-check-bg) are exempt so they run without tmux/claude. (save-template is
+    # NOT exempt — its default form resolves the current session via tmux.)
+    case COMMAND in
+      list-templates|tip|enable-tips|disable-tips|install-hooks|update-check-bg: skip
+      *:
+        if TMUX_BIN missing or not executable → error, exit 1
+        if CLAUDE_BIN missing or not executable → error, exit 1
 
     check_for_update()   # non-blocking, TTY-only, cached daily
 

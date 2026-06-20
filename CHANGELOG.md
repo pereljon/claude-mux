@@ -4,6 +4,14 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.0.11] - 2026-06-19
+
+### Fixed
+- **Commands that don't need tmux or claude no longer require them.** The startup dependency check ran for every command and `exit 1`ed if `tmux` or `claude` was missing — even for `--list-templates`, `--tip`, `--enable-tips`/`--disable-tips`, and `--install-hooks`, none of which touch tmux or claude (they only read/print or edit on-disk config). Those commands are now exempt; the check still gates every session-managing command (including `--save-template`, whose default form resolves the current session via tmux). This also unblocked the `build-and-check` CI job, whose read-only smoke runs `--list-templates` on a Linux runner with no tmux/claude. (`--guide`/`--commands`/`--config-help` were already unaffected — they exit during arg-parse, before the check.)
+
+### Internal
+- CI (`.github/workflows/ci.yml`) now installs `tmux` and a no-op `claude` stub before the read-only smoke, so the smoke exercises real command paths representatively rather than tripping the dependency check.
+
 ## [2.0.10] - 2026-06-19
 
 ### Fixed

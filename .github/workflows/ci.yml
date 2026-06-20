@@ -25,6 +25,17 @@ jobs:
           shellcheck -S warning claude-mux || true
           shellcheck -S error claude-mux
 
+      - name: Install smoke deps (tmux + stub claude)
+        # claude-mux's dependency check requires tmux and claude on PATH before any
+        # command runs. The Linux runner has neither; install tmux and drop a no-op
+        # claude stub so the read-only smoke exercises real command paths rather than
+        # tripping the dep check. (The script-side exemption for dep-free commands
+        # lands in v2.0.11; this keeps CI representative regardless.)
+        run: |
+          sudo apt-get install -y tmux
+          printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/claude >/dev/null
+          sudo chmod +x /usr/local/bin/claude
+
       - name: Read-only smoke
         run: |
           ./claude-mux --guide >/dev/null

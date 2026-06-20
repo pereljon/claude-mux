@@ -57,8 +57,8 @@ _(no function definitions)_
 | Function | Line |
 |---|---|
 | `attach_to_session` | 3 |
-| `get_managed_session_names` | 100 |
-| `is_managed_session` | 112 |
+| `get_managed_session_names` | 112 |
+| `is_managed_session` | 124 |
 
 ### `src/40-shutdown.sh`
 
@@ -195,14 +195,14 @@ _(no function definitions)_
 | `ensure_git_repo` | `src/50-restore-state.sh:3` |
 | `ensure_gitignore_entry` | `src/50-restore-state.sh:69` |
 | `generate_plist` | `src/30-helpers.sh:195` |
-| `get_managed_session_names` | `src/35-validate-deps.sh:100` |
+| `get_managed_session_names` | `src/35-validate-deps.sh:112` |
 | `get_session_mode` | `src/30-helpers.sh:632` |
 | `get_version_prompt_lines` | `src/30-helpers.sh:602` |
 | `guide` | `src/10-flags.sh:40` |
 | `hide_command` | `src/50-restore-state.sh:232` |
 | `install_hooks_command` | `src/75-tip-notices.sh:350` |
 | `is_claude_mux_session` | `src/40-shutdown.sh:14` |
-| `is_managed_session` | `src/35-validate-deps.sh:112` |
+| `is_managed_session` | `src/35-validate-deps.sh:124` |
 | `is_protected_session` | `src/40-shutdown.sh:4` |
 | `is_valid_model` | `src/20-config.sh:83` |
 | `launch_home_session` | `src/55-session-launch.sh:45` |

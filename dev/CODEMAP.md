@@ -21,7 +21,7 @@ Navigation reference for the `claude-mux` script. Use this to locate functions a
 | `src/10-flags.sh` | 113-684 | flag parsing + `guide`/`commands_help`/`config_help` |
 | `src/20-config.sh` | 685-820 | user-config sourcing + migration, constants |
 | `src/30-helpers.sh` | 821-1599 | general helpers (`check_for_update`, `do_update`, `get_version_prompt_lines`, `build_system_prompt`) |
-| `src/35-validate-deps.sh` | 1600-1718 | attach helper, validate `-d`/`-n`, dep check |
+| `src/35-validate-deps.sh` | 1600-1718 | attach helper, validate `-d`/`-n`, dep check (tmux/claude required only for session-managing commands; dep-free commands like `list-templates`/`tip`/`*-tips`/`install-hooks` exempt) |
 | `src/40-shutdown.sh` | 1719-2048 | shutdown functions |
 | `src/50-restore-state.sh` | 2049-2899 | restore-state (`restore_state_*`, `should_be_alive`, `poll_until_ready`) |
 | `src/55-session-launch.sh` | 2900-3149 | `await_ready_handshake`, `restart_caller_in_place`, `create_claude_session` |

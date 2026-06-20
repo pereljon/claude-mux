@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.10"
+VERSION="2.0.11"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -1700,16 +1700,28 @@ if [[ "$COMMAND" == "autolaunch" && ! -t 1 && "$DRY_RUN" != "true" ]]; then
 fi
 
 # ── Dependency check ──────────────────────────────────────────────────────────
+# tmux + claude are required only for commands that actually create or manage tmux
+# sessions. Commands that just read/print or edit on-disk config (templates, tips,
+# hooks) need neither, so exempt them — otherwise `claude-mux --list-templates` (or
+# --tip / --enable-tips ...) would fail on a host without tmux or claude installed.
+# (--guide / --commands / --config-help exit during arg-parse, before this check, so
+# they need no entry here. --save-template is intentionally NOT exempt: its default
+# form resolves the *current* session via tmux, so it genuinely needs tmux.)
+case "$COMMAND" in
+    list-templates|tip|enable-tips|disable-tips|install-hooks|update-check-bg)
+        : ;;  # no tmux/claude needed
+    *)
+        if [[ -z "$TMUX_BIN" || ! -x "$TMUX_BIN" ]]; then
+            log "ERROR: tmux not found — install with 'brew install tmux' or set TMUX_BIN in ~/.claude-mux/config"
+            exit 1
+        fi
 
-if [[ -z "$TMUX_BIN" || ! -x "$TMUX_BIN" ]]; then
-    log "ERROR: tmux not found — install with 'brew install tmux' or set TMUX_BIN in ~/.claude-mux/config"
-    exit 1
-fi
-
-if [[ -z "$CLAUDE_BIN" || ! -x "$CLAUDE_BIN" ]]; then
-    log "ERROR: claude not found — install with 'brew install claude' or set CLAUDE_BIN in ~/.claude-mux/config"
-    exit 1
-fi
+        if [[ -z "$CLAUDE_BIN" || ! -x "$CLAUDE_BIN" ]]; then
+            log "ERROR: claude not found — install with 'brew install claude' or set CLAUDE_BIN in ~/.claude-mux/config"
+            exit 1
+        fi
+        ;;
+esac
 
 # ── Managed session names ─────────────────────────────────────────────────────
 # Build the set of session names that claude-mux would create, so -l and
