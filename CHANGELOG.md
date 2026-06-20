@@ -14,6 +14,7 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ### Internal
 - The upgrade notice's `detect_claude_upgrade` no longer acks-on-emit (it used to overwrite `@claude-mux-claude-id` after echoing once). Self-clear now depends entirely on a restart re-capturing the id, so the in-place caller-restart path (the default for "restart this session" / restart-all-from-home, which bypasses the kill+recreate capture sites) now re-captures the id in `await_ready_handshake`. Without this the upgrade notice would re-inject forever after an in-place restart. Per-session state pruned to `{tip_date}` (the dead `update_notify`/`notify_version` fields removed).
+- **`log()` is now self-healing and never affects control flow**, fixing the `build-and-check` CI job (red since the `src/*.sh` split). It `mkdir -p`s the log dir, makes the `touch`/`chmod`/append best-effort, and `return 0`s unconditionally — the trailing `[[ -t 1 ]] && echo` used to return 1 whenever stdout wasn't a TTY (CI, pipes), aborting callers under `bash -e`, and the macOS-only `~/Library/Logs` is absent on the Linux runner. Also hardens real macOS use if the Logs dir is wiped or relocated.
 
 ## [2.0.9] - 2026-06-19
 

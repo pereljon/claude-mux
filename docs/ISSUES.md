@@ -21,6 +21,13 @@
 **Status:** Open — upstream ask (not claude-mux's to fix)
 **Description:** claude-mux's notices (tip / update / upgrade) reach the user only if the session's Claude *relays* the injected `UserPromptSubmit` context. There is no claude-mux-owned channel that renders text directly to a Remote-Control user — RC is Claude Code's own `--remote-control` feature and renders only the conversation, so tmux-native channels (status line, `display-popup`, bell) are invisible to the primary user. v2.0.10 made delivery best-effort-strong (persist-while-relevant + `<assistant-must-display>` wrapping + a standing surface rule), but **deterministic** delivery needs an upstream Claude Code feature: a hook (or RC) channel that renders text directly to the remote user, bypassing the model. Tracked here for completeness; resolution is upstream. See `dev/features/notice-delivery-reliability.md` Part D.
 
+### CI `build-and-check` red on Linux: `log()` aborts when stdout isn't a TTY / `~/Library/Logs` is absent
+**Severity:** Low (CI-only; macOS users always have `~/Library/Logs` and an interactive TTY)
+**Status:** Resolved in v2.0.10
+**Observed:** The `build-and-check` job (`.github/workflows/ci.yml`, `runs-on: ubuntu-latest`) had been failing since the `src/*.sh` split. The "Read-only smoke" step runs `./claude-mux --guide` etc. under `bash -e` and died with `touch: cannot touch '/home/runner/Library/Logs/claude-mux.log': No such file or directory`, exit 1. (Release jobs are unaffected — they don't run the smoke step.)
+**Root cause (two stacked):** (1) `LOG_DIR="$HOME/Library/Logs"` (`src/00-defaults.sh:14`) is the macOS-default log dir, absent on a Linux runner — `log()` `touch`ed/appended without ensuring the parent dir existed or tolerating failure. (2) More fundamentally, `log()` ended with `[[ -t 1 ]] && echo "$msg"`, which **returns 1 whenever stdout is not a TTY** (CI, pipes), so the function itself returned non-zero and aborted callers under `bash -e`. A logging helper must never affect control flow.
+**Fix:** `log()` now `mkdir -p`s the log dir and makes `touch`/`chmod`/append best-effort (`2>/dev/null || true`), and **`return 0`** unconditionally so it can never propagate a failure. Self-heals a wiped/relocated Logs dir on real macOS too. (`src/30-helpers.sh`.)
+
 ### Actionable notices (update available / Claude Code upgraded) silently lost on a missed relay
 **Severity:** High (update notice lost for 7 days; upgrade notice lost until the next binary upgrade)
 **Status:** Resolved in v2.0.10

@@ -39,18 +39,18 @@ _(no function definitions)_
 | Function | Line |
 |---|---|
 | `log` | 3 |
-| `version_gt` | 22 |
-| `check_for_update` | 35 |
-| `do_update` | 83 |
-| `generate_plist` | 186 |
-| `write_install_config` | 228 |
-| `do_install` | 295 |
-| `claude_running_in_session` | 543 |
-| `sanitize_session_name` | 564 |
-| `apply_tmux_options` | 569 |
-| `get_version_prompt_lines` | 593 |
-| `get_session_mode` | 623 |
-| `build_system_prompt` | 658 |
+| `version_gt` | 31 |
+| `check_for_update` | 44 |
+| `do_update` | 92 |
+| `generate_plist` | 195 |
+| `write_install_config` | 237 |
+| `do_install` | 304 |
+| `claude_running_in_session` | 552 |
+| `sanitize_session_name` | 573 |
+| `apply_tmux_options` | 578 |
+| `get_version_prompt_lines` | 602 |
+| `get_session_mode` | 632 |
+| `build_system_prompt` | 667 |
 
 ### `src/35-validate-deps.sh`
 
@@ -165,16 +165,16 @@ _(no function definitions)_
 | Function | Location |
 |---|---|
 | `apply_template` | `src/80-templates-restore.sh:26` |
-| `apply_tmux_options` | `src/30-helpers.sh:569` |
+| `apply_tmux_options` | `src/30-helpers.sh:578` |
 | `attach_to_session` | `src/35-validate-deps.sh:3` |
 | `autolaunch_dispatch` | `src/80-templates-restore.sh:242` |
 | `autorestore_status` | `src/50-restore-state.sh:180` |
 | `autorestore_walk` | `src/80-templates-restore.sh:153` |
 | `await_ready_handshake` | `src/55-session-launch.sh:13` |
-| `build_system_prompt` | `src/30-helpers.sh:658` |
-| `check_for_update` | `src/30-helpers.sh:35` |
+| `build_system_prompt` | `src/30-helpers.sh:667` |
+| `check_for_update` | `src/30-helpers.sh:44` |
 | `claude_binary_id` | `src/75-tip-notices.sh:67` |
-| `claude_running_in_session` | `src/30-helpers.sh:543` |
+| `claude_running_in_session` | `src/30-helpers.sh:552` |
 | `commands_help` | `src/10-flags.sh:87` |
 | `config_help` | `src/10-flags.sh:150` |
 | `create_claude_session` | `src/55-session-launch.sh:52` |
@@ -184,9 +184,9 @@ _(no function definitions)_
 | `detect_github_ssh_accounts` | `src/50-restore-state.sh:770` |
 | `disable_tips` | `src/75-tip-notices.sh:366` |
 | `discover_projects` | `src/60-discovery.sh:62` |
-| `do_install` | `src/30-helpers.sh:295` |
+| `do_install` | `src/30-helpers.sh:304` |
 | `do_uninstall` | `src/75-tip-notices.sh:378` |
-| `do_update` | `src/30-helpers.sh:83` |
+| `do_update` | `src/30-helpers.sh:92` |
 | `echo_hint_end` | `src/10-flags.sh:79` |
 | `echo_hint` | `src/10-flags.sh:73` |
 | `enable_tips` | `src/75-tip-notices.sh:359` |
@@ -194,10 +194,10 @@ _(no function definitions)_
 | `ensure_base_dir` | `src/60-discovery.sh:92` |
 | `ensure_git_repo` | `src/50-restore-state.sh:3` |
 | `ensure_gitignore_entry` | `src/50-restore-state.sh:69` |
-| `generate_plist` | `src/30-helpers.sh:186` |
+| `generate_plist` | `src/30-helpers.sh:195` |
 | `get_managed_session_names` | `src/35-validate-deps.sh:100` |
-| `get_session_mode` | `src/30-helpers.sh:623` |
-| `get_version_prompt_lines` | `src/30-helpers.sh:593` |
+| `get_session_mode` | `src/30-helpers.sh:632` |
+| `get_version_prompt_lines` | `src/30-helpers.sh:602` |
 | `guide` | `src/10-flags.sh:40` |
 | `hide_command` | `src/50-restore-state.sh:232` |
 | `install_hooks_command` | `src/75-tip-notices.sh:350` |
@@ -225,7 +225,7 @@ _(no function definitions)_
 | `restore_state_last_attempt` | `src/50-restore-state.sh:111` |
 | `restore_state_tripped` | `src/50-restore-state.sh:126` |
 | `restore_state_write` | `src/50-restore-state.sh:132` |
-| `sanitize_session_name` | `src/30-helpers.sh:564` |
+| `sanitize_session_name` | `src/30-helpers.sh:573` |
 | `save_template_command` | `src/75-tip-notices.sh:495` |
 | `session_marker_dir` | `src/50-restore-state.sh:154` |
 | `session_name_for_dir` | `src/50-restore-state.sh:272` |
@@ -246,6 +246,6 @@ _(no function definitions)_
 | `update_all_project_hooks` | `src/75-tip-notices.sh:324` |
 | `update_check_bg` | `src/75-tip-notices.sh:271` |
 | `usage` | `src/10-flags.sh:265` |
-| `version_gt` | `src/30-helpers.sh:22` |
-| `write_install_config` | `src/30-helpers.sh:228` |
+| `version_gt` | `src/30-helpers.sh:31` |
+| `write_install_config` | `src/30-helpers.sh:237` |
 | `write_running_marker` | `src/50-restore-state.sh:87` |

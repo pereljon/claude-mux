@@ -101,7 +101,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `usage` | `()` | Print short usage summary (`-h`) |
 | `set_command` | `(flag_name, command_name)` | Set COMMAND, error on conflict |
 | `is_valid_model` | `(value)` | Return 0 if value is empty or a shell-safe model token (`^[A-Za-z0-9._][A-Za-z0-9._-]*$`, no leading dash). Pass-through model validation (format, not membership); the format check is the sole safety layer for the unquoted `--model` interpolation. Defined in `20-config` so the always-runs config chokepoint can call it |
-| `log` | `(message)` | Write timestamped entry to LOG_FILE (stdout in --dry-run) |
+| `log` | `(message)` | Write timestamped entry to LOG_FILE (stdout in --dry-run). Self-healing + non-fatal: `mkdir -p`s the log dir, best-effort write, always `return 0` (never aborts a caller under `set -e`) |
 | `version_gt` | `(a, b)` | Return 0 if version a > b |
 | `check_for_update` | `()` | Non-blocking daily update check via GitHub API (TTY only); caches result |
 | `do_update` | `()` | Download and install latest release; backfill hooks via `update_all_project_hooks` on version change; offer restart |

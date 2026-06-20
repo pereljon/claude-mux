@@ -5,14 +5,23 @@ log() {
     if [[ "$DRY_RUN" == "true" ]]; then
         echo "$msg"
     else
+        # Logging is best-effort and MUST NOT abort the caller. $LOG_DIR defaults to
+        # the macOS log location (~/Library/Logs), which may be absent on Linux/CI or
+        # a wiped macOS Logs dir — so ensure the parent dir exists and tolerate any
+        # write failure rather than propagating a non-zero exit out of a command.
+        mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
         # Enforce 600 on log file if it is newly created
         if [[ ! -f "$LOG_FILE" ]]; then
-            touch "$LOG_FILE" && chmod 600 "$LOG_FILE"
+            touch "$LOG_FILE" 2>/dev/null && chmod 600 "$LOG_FILE" 2>/dev/null
         fi
-        echo "$msg" >> "$LOG_FILE"
+        echo "$msg" >> "$LOG_FILE" 2>/dev/null || true
         # Mirror to stdout when running interactively in a terminal
         [[ -t 1 ]] && echo "$msg"
     fi
+    # Always succeed: logging must never affect control flow. Without this, the
+    # trailing `[[ -t 1 ]] && echo` returns 1 whenever stdout is not a TTY (e.g. CI,
+    # pipes), which would abort any caller running under `set -e`.
+    return 0
 }
 
 # Returns true (0) if $1 > $2 using semantic versioning.
