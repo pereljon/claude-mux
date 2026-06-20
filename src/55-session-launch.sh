@@ -2,9 +2,18 @@
 # Internal: backgrounded by the looped launch wrapper after a restart-in-place relaunch, so
 # the handshake fires from inside the surviving pane (the external launcher's process is gone
 # by then). Reuses poll_until_ready (busy/quiescence + trust auto-accept).
+#
+# Re-capture @claude-mux-claude-id here: the in-place relaunch path (the wrapper loop) is the
+# ONLY restart path that does not pass through create_claude_session / launch_single_session,
+# so it is the only one that would otherwise leave a stale binary id. detect_claude_upgrade
+# is persist-while-relevant (no ack-on-emit), so the upgrade notice self-clears ONLY when a
+# restart re-captures the id — re-capturing on the in-place relaunch (which has just loaded
+# the current binary) is what makes "restart this session" actually clear the notice. This is
+# the claude-mux-process home for the re-capture the wrapper heredoc can't do (no functions).
 await_ready_handshake() {
     local session="$1"
     [[ -z "$session" ]] && return 1
+    "$TMUX_BIN" set-option -t "$session" @claude-mux-claude-id "$(claude_binary_id)" 2>/dev/null
     poll_until_ready "$session" || true
     "$TMUX_BIN" send-keys -t "$session" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session" Enter 2>/dev/null
 }

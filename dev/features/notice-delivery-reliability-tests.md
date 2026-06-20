@@ -54,7 +54,16 @@ it" (which the hook can't observe).
 
 - **T2.5 Re-injects while binary id mismatched.** With `@claude-mux-claude-id` ≠ live
   `claude_binary_id`, `detect_claude_upgrade` emits on every prompt (not acked-once).
-- **T2.6 Self-clears on restart.** After `--restart` re-captures the id, the notice stops.
+- **T2.6 Self-clears on restart — BOTH paths (architect CRITICAL).** The id must be
+  re-captured on *every* restart path, not just kill+recreate:
+  - **T2.6a kill+recreate.** After `--restart` of a non-caller session re-captures
+    `@claude-mux-claude-id` (`src/55:74,93` / `src/70:96,243`), the notice stops.
+  - **T2.6b in-place caller restart (the default path).** Trigger an in-place restart
+    ("restart this session" / restart-all-from-home — the wrapper loop relaunch branch,
+    `src/55:191-202`), then confirm `@claude-mux-claude-id` was re-captured and the upgrade
+    notice **stops**. Without the new id re-capture in that branch the notice would
+    re-inject forever (the masked-by-ack-on-emit bug Part B exposes). This variant is
+    mandatory — it covers the most common restart path.
 - **T2.7 No ack-on-emit.** `detect_claude_upgrade` no longer overwrites the option on
   emit (only a restart updates it).
 

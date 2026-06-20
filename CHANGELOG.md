@@ -4,6 +4,17 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.0.10] - 2026-06-19
+
+### Fixed
+- **The two actionable notices (claude-mux update available, Claude Code binary upgraded) can no longer be silently lost.** They previously "spent their gate" the moment the `UserPromptSubmit` hook injected them — not when the user actually saw them — but delivery depends on the session's Claude *relaying* the injected context (especially in Remote Control, which renders only the conversation). So a single non-relay permanently burned the notice: the update notice was suppressed for 7 days, the upgrade notice until the next binary upgrade. Now both are **persist-while-relevant**: re-injected every prompt while their condition holds (update: while a newer version is cached and `latest > VERSION`; upgrade: while the live `claude` binary id differs from the launch-captured `@claude-mux-claude-id`), so a missed relay simply retries next turn. Each self-clears when the user acts (update → VERSION rises; upgrade → restart re-captures the id). Claude de-dups within the conversation via a "mention once per session" instruction baked into the notice text. Design: `dev/features/notice-delivery-reliability.md`.
+
+### Changed
+- **Notices now ride the Remote-Control-proven `<assistant-must-display>` mechanism.** All three notices (tip, update, upgrade) are wrapped in `<assistant-must-display>` tags with firmer "MUST relay verbatim at the start of your reply" wording, and `build_system_prompt` gained a standing rule telling Claude to surface bracketed `[claude-mux ...]` notices verbatim, once per session. Honest scoping: the tag's force is *proven* for tool/command output, not for `UserPromptSubmit`-injected context, so this raises the odds materially but remains best-effort — deterministic delivery to a Remote-Control user needs an upstream Claude Code feature (a hook/RC channel that renders text directly to the remote user, bypassing the model); filed as an upstream ask.
+
+### Internal
+- The upgrade notice's `detect_claude_upgrade` no longer acks-on-emit (it used to overwrite `@claude-mux-claude-id` after echoing once). Self-clear now depends entirely on a restart re-capturing the id, so the in-place caller-restart path (the default for "restart this session" / restart-all-from-home, which bypasses the kill+recreate capture sites) now re-captures the id in `await_ready_handshake`. Without this the upgrade notice would re-inject forever after an in-place restart. Per-session state pruned to `{tip_date}` (the dead `update_notify`/`notify_version` fields removed).
+
 ## [2.0.9] - 2026-06-19
 
 ### Fixed

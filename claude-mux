@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.9"
+VERSION="2.0.10"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -1531,7 +1531,8 @@ Rules:
 - Always use --no-attach with -d and -n — attach is interactive only
 - --shutdown and --restart never attach — safe to run from inside a session; do NOT add --no-attach to these commands
 - Always print command output verbatim in your response text — never run a command silently or rely on tool output being visible; if a command fails, report the error
-- When command output contains <assistant-must-display> tags, output every single line between the tags verbatim. Do NOT collapse, summarize, omit, or abbreviate ranges of rows — especially in lists or tables where consecutive rows share a parent directory or status (e.g. \"5-19 idle (15 work sessions)\" is forbidden; emit all 15 rows individually). The output may include a row-count footer like \"<!-- N rows above. Output must contain all N verbatim. -->\"; treat that as a check, not part of the display. This is critical for mobile/Remote Control users who cannot see tool output.
+- When command output OR hook-injected turn context contains <assistant-must-display> tags, output every single line between the tags verbatim. Do NOT collapse, summarize, omit, or abbreviate ranges of rows — especially in lists or tables where consecutive rows share a parent directory or status (e.g. \"5-19 idle (15 work sessions)\" is forbidden; emit all 15 rows individually). The output may include a row-count footer like \"<!-- N rows above. Output must contain all N verbatim. -->\"; treat that as a check, not part of the display. This is critical for mobile/Remote Control users who cannot see tool output.
+- claude-mux may inject bracketed [claude-mux ...] notices (a daily tip, an \"update available\" notice, or a \"Claude Code was upgraded\" notice) into your turn context via a hook, wrapped in <assistant-must-display> tags. When present, surface the notice to the user verbatim at the START of your reply, before answering their request — do not paraphrase or drop it. Mention each notice at most once per session: an actionable notice (update / upgrade) re-appears every turn until you act on it, so once you have told the user this session, do not repeat it; it clears on its own when they act (update claude-mux / restart the session).
 - The 'home' session is the always-available session in the base directory for managing other sessions. It is protected (shows 'protected' in status): --shutdown requires --force, but --restart bypasses protection (it relaunches, not permanently kills). Protection is driven by the .claudemux-protected marker in the session's working directory.
 - Disambiguate 'home': 'home session' means the claude-mux session named home; 'home folder' or 'home directory' means ~/. If context is ambiguous, ask which the user means.
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
@@ -2910,9 +2911,18 @@ poll_until_ready() {
 # Internal: backgrounded by the looped launch wrapper after a restart-in-place relaunch, so
 # the handshake fires from inside the surviving pane (the external launcher's process is gone
 # by then). Reuses poll_until_ready (busy/quiescence + trust auto-accept).
+#
+# Re-capture @claude-mux-claude-id here: the in-place relaunch path (the wrapper loop) is the
+# ONLY restart path that does not pass through create_claude_session / launch_single_session,
+# so it is the only one that would otherwise leave a stale binary id. detect_claude_upgrade
+# is persist-while-relevant (no ack-on-emit), so the upgrade notice self-clears ONLY when a
+# restart re-captures the id — re-capturing on the in-place relaunch (which has just loaded
+# the current binary) is what makes "restart this session" actually clear the notice. This is
+# the claude-mux-process home for the re-capture the wrapper heredoc can't do (no functions).
 await_ready_handshake() {
     local session="$1"
     [[ -z "$session" ]] && return 1
+    "$TMUX_BIN" set-option -t "$session" @claude-mux-claude-id "$(claude_binary_id)" 2>/dev/null
     poll_until_ready "$session" || true
     "$TMUX_BIN" send-keys -t "$session" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session" Enter 2>/dev/null
 }
@@ -3610,10 +3620,14 @@ claude_binary_id() {
 
 # Claude Code upgrade detection (always-on). Compares the session's launch-time
 # binary id (@claude-mux-claude-id) against the current one; on change, echoes a
-# one-shot notice and acknowledges by overwriting the option, so it does not
-# repeat until the next upgrade. Uses the tmux session (inherited $TMUX in the
-# hook), not stdin, so it runs even when tips/update notices are off. Silent
-# no-op if not in tmux or the option is unset (pre-feature session).
+# notice. persist-while-relevant: it does NOT ack/overwrite the option on emit, so
+# the notice re-appears every prompt until a RESTART re-captures the id (kill+recreate
+# via create_claude_session/launch_single_session, or in-place relaunch via
+# await_ready_handshake) — a single missed relay can no longer silently lose it.
+# Claude de-dups within the session via the once-per-session instruction in the notice
+# text. Uses the tmux session (inherited $TMUX in the hook), not stdin, so it runs even
+# when tips/update notices are off. Silent no-op if not in tmux or the option is unset
+# (pre-feature session).
 detect_claude_upgrade() {
     local _sess
     _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null) || return 0
@@ -3624,27 +3638,28 @@ detect_claude_upgrade() {
     local _id_now
     _id_now=$(claude_binary_id)
     if [[ "$_id_now" != "$_id0" ]]; then
-        echo "[claude-mux — tell the user, in their conversation language]: Claude Code was upgraded since this session started; say \"restart this session\" to load the new binary."
-        "$TMUX_BIN" set-option -t "$_sess" @claude-mux-claude-id "$_id_now" 2>/dev/null
+        echo "<assistant-must-display>[claude-mux — MUST relay to the user verbatim at the start of your reply, in their conversation language; mention once per session, do not repeat if you already told them this session — it clears when they restart]: Claude Code was upgraded since this session started; say \"restart this session\" to load the new binary.</assistant-must-display>"
     fi
 }
 
-# UserPromptSubmit hook handler. Injects (via stdout) a daily tip and an update
-# notice into the conversation context — the only delivery path proven to surface
-# in Remote Control. Gated per session (keyed on the session_id from the hook's
-# stdin JSON). Must return fast and never block on the network: the GitHub API
-# call is delegated to a disowned --update-check-bg process.
+# UserPromptSubmit hook handler. Injects (via stdout) a daily tip and the two
+# actionable notices (update available, Claude Code upgraded) into the conversation
+# context — the only delivery path proven to surface in Remote Control. The tip is
+# gated once-per-day per session (keyed on the session_id from the hook's stdin JSON);
+# the actionable notices are persist-while-relevant (re-injected every prompt while
+# their condition holds, no burn-on-emit gate). Must return fast and never block on
+# the network: the GitHub API call is delegated to a disowned --update-check-bg process.
 on_prompt() {
     local _state_dir="$CLAUDE_MUX_DIR/tip-state"
 
     # One python3 call parses the hook's stdin JSON: session_id (validated as a safe
     # filename token), whether this is the synthetic "Ready?" handshake, and the
-    # per-session state file (tip_date, update_notify, notify_version — "_" marks
-    # empty; sid is "_" when missing/invalid). notify_version lets a brand-new release
-    # re-notify even inside the 7-day window. Always prints exactly 5 fields so the
-    # is_handshake flag survives even when session_id is absent.
-    local _sid _is_handshake _tip_date _update_notify _notify_version
-    read -r _sid _is_handshake _tip_date _update_notify _notify_version < <(/usr/bin/python3 -c '
+    # per-session tip_date ("_" marks empty; sid is "_" when missing/invalid). The
+    # actionable notices keep no per-session state (persist-while-relevant), so only
+    # tip_date is read. Always prints exactly 3 fields so the is_handshake flag
+    # survives even when session_id is absent.
+    local _sid _is_handshake _tip_date
+    read -r _sid _is_handshake _tip_date < <(/usr/bin/python3 -c '
 import json, sys, os, re
 try: obj = json.load(sys.stdin)
 except Exception: obj = {}
@@ -3652,16 +3667,14 @@ sid = obj.get("session_id", "") or ""
 is_handshake = "1" if (obj.get("prompt", "") or "").strip() == "Ready?" else "0"
 if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", sid):
     sid = "_"
-tip_date, un, nv = "_", 0, "_"
+tip_date = "_"
 if sid != "_":
     try:
         d = json.load(open(os.path.join(sys.argv[1], sid + ".json")))
         tip_date = d.get("tip_date", "") or "_"
-        un = int(d.get("update_notify", 0) or 0)
-        nv = d.get("notify_version", "") or "_"
     except Exception:
         pass
-print(sid, is_handshake, tip_date, un, nv)
+print(sid, is_handshake, tip_date)
 ' "$_state_dir" 2>/dev/null)
 
     # The "Ready?" handshake is a synthetic prompt claude-mux sends itself after a
@@ -3696,22 +3709,20 @@ print(sid, is_handshake, tip_date, un, nv)
     _now=$(date +%s)
     local _state_file="$_state_dir/$_sid.json"
     [[ "$_tip_date" == "_" ]] && _tip_date=""
-    [[ "$_notify_version" == "_" ]] && _notify_version=""
-    [[ -z "$_update_notify" ]] && _update_notify=0
 
-    local _out="" _new_tip_date="$_tip_date" _new_notify="$_update_notify" _new_notify_version="$_notify_version"
+    local _out="" _new_tip_date="$_tip_date"
 
     # ── Daily tip (per session) ──────────────────────────────────────────────
     if [[ "${TIP_OF_DAY:-true}" == "true" && "$_tip_date" != "$_today" ]]; then
         local _tip
         _tip=$(tip_of_day 2>/dev/null || true)
         if [[ -n "$_tip" ]]; then
-            _out+="[claude-mux tip — share with the user, in their conversation language]: $_tip"$'\n'
+            _out+="<assistant-must-display>[claude-mux tip — MUST relay to the user verbatim at the start of your reply, in their conversation language]: $_tip</assistant-must-display>"$'\n'
             _new_tip_date="$_today"
         fi
     fi
 
-    # ── Update notice (cache-gated; 7-day throttle per session) ──────────────
+    # ── Update notice (persist-while-relevant; cache-gated) ──────────────────
     if [[ "${UPDATE_CHECK:-true}" == "true" ]]; then
         local _cache="$CLAUDE_MUX_DIR/.update-check"
         local _last_check=0 _latest="" _gnotify=0
@@ -3720,16 +3731,13 @@ print(sid, is_handshake, tip_date, un, nv)
         fi
         [[ -z "$_last_check" ]] && _last_check=0
 
-        # Emit notice if a newer version is cached and either this session has
-        # not been notified in 7 days, or the available version differs from the
-        # one we last notified about (a fresh release should not wait out the
-        # window).
+        # persist-while-relevant: re-inject every prompt while a newer version is
+        # cached. The condition self-clears when the user updates (VERSION rises past
+        # _latest), so there is no per-session stamp to burn — a missed relay just
+        # retries next turn. Claude de-dups within the conversation via the
+        # once-per-session instruction baked into the notice text.
         if [[ -n "$_latest" ]] && version_gt "$_latest" "$VERSION"; then
-            if (( _update_notify == 0 || _now - _update_notify >= 604800 )) || [[ "$_latest" != "$_notify_version" ]]; then
-                _out+="[claude-mux update available — tell the user, in their conversation language]: version $_latest is out (current: $VERSION). Suggest they say \"update claude-mux\"."$'\n'
-                _new_notify="$_now"
-                _new_notify_version="$_latest"
-            fi
+            _out+="<assistant-must-display>[claude-mux update available — MUST relay to the user verbatim at the start of your reply, in their conversation language; mention once per session, do not repeat if you already told them this session — it clears when they update]: version $_latest is out (current: $VERSION). Suggest they say \"update claude-mux\".</assistant-must-display>"$'\n'
         fi
 
         # Refresh the cache in the background if it is stale (>24h). Never block.
@@ -3751,12 +3759,14 @@ print(sid, is_handshake, tip_date, un, nv)
         fi
     fi
 
-    # Persist per-session state only if something changed.
-    if [[ "$_new_tip_date" != "$_tip_date" || "$_new_notify" != "$_update_notify" || "$_new_notify_version" != "$_notify_version" ]]; then
+    # Persist per-session state (just tip_date) only if it changed. The actionable
+    # notices keep no per-session state — they are persist-while-relevant, gated on a
+    # live condition rather than a stamp.
+    if [[ "$_new_tip_date" != "$_tip_date" ]]; then
         mkdir -p "$_state_dir" 2>/dev/null
         /usr/bin/python3 -c 'import json,sys
-json.dump({"tip_date": sys.argv[2], "update_notify": int(sys.argv[3]), "notify_version": sys.argv[4]}, open(sys.argv[1],"w"))' \
-            "$_state_file" "$_new_tip_date" "$_new_notify" "$_new_notify_version" 2>/dev/null || true
+json.dump({"tip_date": sys.argv[2]}, open(sys.argv[1],"w"))' \
+            "$_state_file" "$_new_tip_date" 2>/dev/null || true
     fi
 
     # Prepend the always-on upgrade notice (computed before the cheap-guard).

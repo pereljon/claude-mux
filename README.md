@@ -44,7 +44,7 @@ Remote Control promises Claude Code from anywhere - but without session manageme
 - **Switch models and permission modes** - say "switch to Haiku" or "switch to plan mode" and Claude handles it, even over Remote Control
 - **Create new projects** - "create a new project called my-app" sets up the directory, git, CLAUDE.md, and launches a session. CLAUDE.md templates let you reuse instructions across projects.
 - **Send slash commands over Remote Control** - Claude routes `/model`, `/compact`, `/clear`, and other slash commands to the running session, working around a [known limitation](https://github.com/anthropics/claude-code/issues/30674). RC reconnects automatically after `/compact` via a `PreCompact` hook.
-- **Claude Code upgrade detection** - when the `claude` binary changes (after `brew upgrade` or an npm update), the next prompt in any running session surfaces a one-shot notice to restart and load the new binary
+- **Claude Code upgrade detection** - when the `claude` binary changes (after `brew upgrade` or an npm update), running sessions surface a notice to restart and load the new binary; it persists across prompts until you restart, so a missed turn can't lose it
 - **Preserve conversation history** - renaming, moving, and restarting projects all preserve conversation history automatically
 - **Organize projects** - hide, rename, move, delete, and protect projects from inside any session
 - **GitHub multi-account support** - detects SSH aliases in `~/.ssh/config` and injects them into sessions so Claude uses the right account per project

@@ -1,9 +1,9 @@
 ---
 kind: feature
-lifecycle: ready
+lifecycle: shipped
 feature: notice-delivery-reliability
-status: PLANNED — investigated 2026-06-19 (live evidence); pre-build
-target_version: 2.0.x (patch; the actionable-notice fix is a real bug fix) + an upstream Claude Code feature request
+status: IMPLEMENTED 2026-06-19 (v2.0.10; persist-while-relevant for update+upgrade notices, <assistant-must-display> wrapping + standing surface rule, in-place-restart id re-capture in await_ready_handshake). Upstream RC-delivery ask still open (Part D).
+target_version: 2.0.10 (patch; the actionable-notice fix is a real bug fix) + an upstream Claude Code feature request
 severity: HIGH for the actionable notices (claude-mux update available, Claude binary upgraded) — they can be silently lost for 7 days / until next upgrade. LOW for the daily tip.
 related: tip-ready-handshake (v2.0.8 handshake fix), inter-agent-messaging (same relay-dependence)
 ---
@@ -105,6 +105,20 @@ condition holds**, and let Claude de-dup within its own conversation:
   self-clears when the user updates (VERSION rises). Drop the `update_notify`/7-day stamp.
 - **Binary upgraded:** re-inject while the live binary id differs from `@claude-mux-claude-id`.
   Self-clears on restart (which re-captures the id). Drop the ack-on-emit.
+  - **CRITICAL pre-req (architect, 2026-06-19) — in-place restart must re-capture the id.**
+    Dropping the ack-on-emit makes self-clear depend *entirely* on a restart re-capturing
+    `@claude-mux-claude-id`. But that option is captured only on the **kill+recreate** path
+    (`src/55:74,93`, `src/70:96,243`); the **in-place caller restart** (the documented
+    default for "restart this session" and restart-all-from-home — the wrapper loop's
+    relaunch branch, `src/55:191-202` + `src/70`'s equivalent) regenerates the prompt and
+    `continue`s but **never re-runs `claude_binary_id` / re-sets the option**. Today this is
+    masked because `detect_claude_upgrade` acks-on-emit; once Part B drops that ack, an
+    in-place restart-to-load-the-new-binary leaves the stale stored id → the upgrade notice
+    **re-injects every turn, forever** (the exact fail-to-clear failure mode, on the most
+    common restart path). **Fix is part of this build:** add
+    `set-option @claude-mux-claude-id "$(claude_binary_id)"` inside both in-place relaunch
+    branches (`src/55` ~L200 and `src/70`'s equivalent, alongside the `--await-ready &` /
+    `continue`), so the in-place path re-captures the baseline like kill+recreate does.
 - **De-dup instruction (avoids spam):** *"mention this once; do not repeat if you've
   already told the user this session; it clears when they act."* Claude's own conversation
   memory provides the de-dup.
@@ -119,6 +133,12 @@ condition holds**, and let Claude de-dup within its own conversation:
     (Rejected alternative: a persisted `announced_version=X` de-dup hint that survives
     compaction and re-arms only on restart or a changed condition value — reintroduces a
     stamp, not worth it here; revisit only if the compact re-announce proves annoying.)
+  - **Upgrade-notice corollary (architect MEDIUM, 2026-06-19):** the upgrade notice clears
+    on the action (restart), and restart is what wipes conversation memory — so a
+    restart-to-fix legitimately re-announces once on the new session (correct). The only
+    extra-mention path is a user who `/compact`s repeatedly while ignoring the upgrade
+    notice instead of restarting: each compact re-announces once. Still bounded per-compact
+    and self-clearing on the action; disposition stands.
 
 Result: a missed relay just retries next turn → the actionable alert can't be silently
 lost; it persists until the user acts; no burn-on-inject gate at all. Mild repetition
@@ -163,6 +183,16 @@ this as a feature request; it is the only path to deterministic notice delivery.
     launch-time and restart-time capture** of that option (it is the detection *baseline*;
     without it `detect_claude_upgrade` has nothing to compare against). Gate both on the
     live condition instead; add the de-dup instruction to the notice text.
+  - **`src/55-session-launch.sh` + `src/70-start-launch.sh` — in-place relaunch branches
+    (CRITICAL, architect):** add `set-option @claude-mux-claude-id "$(claude_binary_id)"`
+    inside each wrapper loop's in-place relaunch branch (`src/55:191-202`, `src/70`'s
+    equivalent), so an in-place restart re-captures the baseline like kill+recreate already
+    does (`src/55:74,93`, `src/70:96,243`). Without this the upgrade notice never
+    self-clears on the default restart path once the ack-on-emit is dropped (see Part B).
+  - **`src/75-tip-notices.sh` — prune dead state (LOW, architect):** after dropping the
+    update stamp, `notify_version`/`update_notify` lose their only writers. Prune the
+    persist block + the python state read down to just `tip_date` (or leave intact
+    deliberately and note why), so the fields don't linger as dead state.
 - **Session System Prompt section in README** must match the new injection rule.
 - `dev/CODEMAP.md` / `dev/SKELETON.md` — note the on_prompt notice flow change (persist
   vs stamp); `dev/IMPLEMENTATION-SPEC.md` — the notice-delivery model + RC limitation.

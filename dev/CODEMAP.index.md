@@ -105,10 +105,10 @@ _(no function definitions)_
 
 | Function | Line |
 |---|---|
-| `await_ready_handshake` | 5 |
-| `restart_caller_in_place` | 19 |
-| `launch_home_session` | 36 |
-| `create_claude_session` | 43 |
+| `await_ready_handshake` | 13 |
+| `restart_caller_in_place` | 28 |
+| `launch_home_session` | 45 |
+| `create_claude_session` | 52 |
 
 ### `src/60-discovery.sh`
 
@@ -132,8 +132,8 @@ _(no function definitions)_
 |---|---|
 | `tip_of_day` | 4 |
 | `claude_binary_id` | 67 |
-| `detect_claude_upgrade` | 81 |
-| `on_prompt` | 101 |
+| `detect_claude_upgrade` | 85 |
+| `on_prompt` | 106 |
 | `on_compact` | 239 |
 | `update_check_bg` | 271 |
 | `set_tip_config` | 301 |
@@ -170,17 +170,17 @@ _(no function definitions)_
 | `autolaunch_dispatch` | `src/80-templates-restore.sh:242` |
 | `autorestore_status` | `src/50-restore-state.sh:180` |
 | `autorestore_walk` | `src/80-templates-restore.sh:153` |
-| `await_ready_handshake` | `src/55-session-launch.sh:5` |
+| `await_ready_handshake` | `src/55-session-launch.sh:13` |
 | `build_system_prompt` | `src/30-helpers.sh:658` |
 | `check_for_update` | `src/30-helpers.sh:35` |
 | `claude_binary_id` | `src/75-tip-notices.sh:67` |
 | `claude_running_in_session` | `src/30-helpers.sh:543` |
 | `commands_help` | `src/10-flags.sh:87` |
 | `config_help` | `src/10-flags.sh:150` |
-| `create_claude_session` | `src/55-session-launch.sh:43` |
+| `create_claude_session` | `src/55-session-launch.sh:52` |
 | `create_new_project` | `src/80-templates-restore.sh:79` |
 | `delete_command` | `src/50-restore-state.sh:390` |
-| `detect_claude_upgrade` | `src/75-tip-notices.sh:81` |
+| `detect_claude_upgrade` | `src/75-tip-notices.sh:85` |
 | `detect_github_ssh_accounts` | `src/50-restore-state.sh:770` |
 | `disable_tips` | `src/75-tip-notices.sh:366` |
 | `discover_projects` | `src/60-discovery.sh:62` |
@@ -205,7 +205,7 @@ _(no function definitions)_
 | `is_managed_session` | `src/35-validate-deps.sh:112` |
 | `is_protected_session` | `src/40-shutdown.sh:4` |
 | `is_valid_model` | `src/20-config.sh:83` |
-| `launch_home_session` | `src/55-session-launch.sh:36` |
+| `launch_home_session` | `src/55-session-launch.sh:45` |
 | `launch_single_session` | `src/70-start-launch.sh:52` |
 | `list_templates` | `src/80-templates-restore.sh:1` |
 | `log` | `src/30-helpers.sh:3` |
@@ -213,13 +213,13 @@ _(no function definitions)_
 | `move_to_trash` | `src/50-restore-state.sh:365` |
 | `notify_home` | `src/80-templates-restore.sh:137` |
 | `on_compact` | `src/75-tip-notices.sh:239` |
-| `on_prompt` | `src/75-tip-notices.sh:101` |
+| `on_prompt` | `src/75-tip-notices.sh:106` |
 | `poll_until_ready` | `src/50-restore-state.sh:808` |
 | `protect_command` | `src/50-restore-state.sh:286` |
 | `remove_running_marker` | `src/50-restore-state.sh:97` |
 | `rename_move_command` | `src/75-tip-notices.sh:555` |
 | `resolve_session_dir` | `src/50-restore-state.sh:195` |
-| `restart_caller_in_place` | `src/55-session-launch.sh:19` |
+| `restart_caller_in_place` | `src/55-session-launch.sh:28` |
 | `restore_state_clear` | `src/50-restore-state.sh:144` |
 | `restore_state_death_count` | `src/50-restore-state.sh:118` |
 | `restore_state_last_attempt` | `src/50-restore-state.sh:111` |

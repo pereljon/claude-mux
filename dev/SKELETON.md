@@ -21,7 +21,7 @@ Read only the section you need - `grep -n "^## <name>" dev/SKELETON.md` for its 
 - **shutdown_single_session / shutdown_claude_sessions** - teardown paths
 - **rename_move_command** - rename/move with history migration
 - **tip_of_day** - tip selection (no gating)
-- **on_prompt** - UserPromptSubmit hook: per-session tip + update notice + bg check spawn
+- **on_prompt** - UserPromptSubmit hook: per-session daily tip + persist-while-relevant update/upgrade notices (wrapped in `<assistant-must-display>`) + bg check spawn
 - **update_check_bg** - disowned background GitHub release check
 - **Key Invariants** - rules that must hold across changes
 
@@ -360,7 +360,9 @@ write launch script → /tmp/claude-launch-XXXXX:
         _resume = (_restart == "fresh") ? "" : "-c"
         regenerate prompt: claude-mux --print-system-prompt name MODE > _prompt.new
           if non-empty → chmod 600 + mv over _prompt  (else keep old prompt)
-        claude-mux --await-ready name &    # handshake from OUTSIDE this busy pane
+        claude-mux --await-ready name &    # handshake from OUTSIDE this busy pane;
+                                           #   also re-captures @claude-mux-claude-id so the
+                                           #   upgrade notice self-clears on in-place restart
         continue                           # loop → relaunch claude, pane never dies
       # no restart pending → intent to stop: teardown
       rm -f "$_marker" "$_prompt" launch_script
@@ -753,29 +755,31 @@ print tips[index]   # no gating; --tip always works, on_prompt gates per-session
 # Injected stdout is seen by Claude (and reaches Remote Control), unlike the
 # old Stop hook whose stdout was transcript-only.
 
-# Read stdin JSON ONCE (python3) → session_id, is_handshake, state.
+# Read stdin JSON ONCE (python3) → session_id, is_handshake, tip_date.
 #   session_id: validated [A-Za-z0-9_-]{1,128}, sentinel "_" if missing/invalid
 #   is_handshake: prompt.strip() == "Ready?"
-#   state = ~/.claude-mux/tip-state/<session_id>.json  # {tip_date, update_notify, notify_version}
-#   Always prints exactly 5 fields so `read` stays aligned even when session_id absent.
-read stdin JSON → session_id, is_handshake, state
+#   state = ~/.claude-mux/tip-state/<session_id>.json  # {tip_date} ONLY — the two
+#     actionable notices keep no per-session state (persist-while-relevant, v2.0.10).
+#   Always prints exactly 3 fields so `read` stays aligned even when session_id absent.
+read stdin JSON → session_id, is_handshake, tip_date
 
 # Handshake no-op (v2.0.8): the synthetic "Ready?" claude-mux sends itself after a
 # restart / compact-reconnect is NOT a real user turn. Its two-line ready reply
-# swallows any injected text AND would burn the tip's daily / update's 7-day /
-# upgrade's once-per-change budget. Exit before detect_claude_upgrade so the FIRST
-# REAL prompt surfaces all three.
+# swallows any injected text. Exit before detect_claude_upgrade so the FIRST REAL
+# prompt surfaces all three notices (no state burned either, since the actionable
+# notices no longer stamp anything).
 if is_handshake → exit 0
 
 # Claude Code upgrade detection (always-on; needs no session_id; runs AFTER the
-# handshake check so a "Ready?" turn never consumes the one-shot notice).
-# detect_claude_upgrade():
+# handshake check so a "Ready?" turn never consumes the notice).
+# detect_claude_upgrade():  (persist-while-relevant, v2.0.10)
 #   sess = tmux display-message -p '#S'        (needs $TMUX, inherited by the hook)
 #   id0  = tmux show-options -v @claude-mux-claude-id   (empty → skip: not in tmux / pre-feature)
 #   id_now = claude_binary_id()  (= realpath(claude):mtime)
 #   if id_now != id0:
-#     echo "[claude-mux — tell the user, in their conversation language]: Claude Code was upgraded … restart this session"
-#     tmux set-option @claude-mux-claude-id id_now   # ack → one-shot until next upgrade
+#     echo "<assistant-must-display>[claude-mux — MUST relay … mention once per session]: Claude Code was upgraded … restart this session</assistant-must-display>"
+#     # NO ack-on-emit: re-injects every prompt until a RESTART re-captures the id
+#     # (kill+recreate, or in-place via await_ready_handshake). A missed relay retries.
 bin_notice = detect_claude_upgrade()
 
 if TIP_OF_DAY != true AND UPDATE_CHECK != true:   # cheap guard
@@ -784,17 +788,17 @@ if TIP_OF_DAY != true AND UPDATE_CHECK != true:   # cheap guard
 if session_id == "_" (missing/invalid):           # no tip/update work possible
   print bin_notice (if any); exit 0
 
-# Daily tip (per session)
+# Daily tip (per session) — wrapped in <assistant-must-display>, MUST-relay wording
 if TIP_OF_DAY and state.tip_date != today:
-  out += "[claude-mux tip — share with the user, in their conversation language]: " + tip_of_day()
+  out += "<assistant-must-display>[claude-mux tip — MUST relay …]: " + tip_of_day() + "</assistant-must-display>"
   new tip_date = today
 
-# Update notice (cache-gated; 7-day throttle per session, version-aware)
+# Update notice (persist-while-relevant; cache-gated). NO stamp/throttle: re-inject
+# every prompt while latest > VERSION; self-clears when the user updates (VERSION rises).
 if UPDATE_CHECK:
   read ~/.claude-mux/.update-check → last_check, latest, _
-  if latest > VERSION and (notified never, or >7d ago, or latest != notify_version):
-    out += "[claude-mux update available — tell the user, in their conversation language]: ..."
-    new update_notify = now; new notify_version = latest
+  if latest > VERSION:
+    out += "<assistant-must-display>[claude-mux update available — MUST relay … mention once per session]: ...</assistant-must-display>"
   if cache stale (>24h):
     lock dir = ~/.claude-mux/.update-checking
     if lock dir mtime >5min: rmdir it (orphaned)

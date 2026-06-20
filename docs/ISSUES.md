@@ -16,6 +16,17 @@
 2. **Detect + retry the rate-limit line in `await_ready_handshake`** as a backstop (re-send `Ready?` after a short backoff when the pane shows the rate-limit error). Cheap insurance for the unattended path; may be rarely needed if throttling is effective. This also helps the auto-restore path (3 concurrent could still occasionally clip a busy org).
 3. Consider whether the same spacing should apply to the `Ready?` step specifically (the throttled resource is the API turn, not the TUI-ready poll).
 
+### Upstream: no guaranteed hook→Remote-Control delivery channel
+**Severity:** Low (best-effort relay works; this is the ceiling, not a regression)
+**Status:** Open — upstream ask (not claude-mux's to fix)
+**Description:** claude-mux's notices (tip / update / upgrade) reach the user only if the session's Claude *relays* the injected `UserPromptSubmit` context. There is no claude-mux-owned channel that renders text directly to a Remote-Control user — RC is Claude Code's own `--remote-control` feature and renders only the conversation, so tmux-native channels (status line, `display-popup`, bell) are invisible to the primary user. v2.0.10 made delivery best-effort-strong (persist-while-relevant + `<assistant-must-display>` wrapping + a standing surface rule), but **deterministic** delivery needs an upstream Claude Code feature: a hook (or RC) channel that renders text directly to the remote user, bypassing the model. Tracked here for completeness; resolution is upstream. See `dev/features/notice-delivery-reliability.md` Part D.
+
+### Actionable notices (update available / Claude Code upgraded) silently lost on a missed relay
+**Severity:** High (update notice lost for 7 days; upgrade notice lost until the next binary upgrade)
+**Status:** Resolved in v2.0.10
+**Description:** Surfaced 2026-06-19 (live evidence: three `tip-state` files stamped today across morning sessions, yet the user saw no tip; one came through later elsewhere). Each notice "spent its gate" the moment the hook *injected* it, not when the user *saw* it — but delivery depends on the session's Claude relaying the injected context (and there's no guaranteed hook→user path, especially in Remote Control). So one non-relay permanently burned the notice: the update notice for 7 days (`update_notify`/`notify_version` throttle), the upgrade notice until the next binary upgrade (`detect_claude_upgrade` acked by overwriting `@claude-mux-claude-id` on emit).
+**Fix:** the two actionable notices are now **persist-while-relevant** — re-injected every prompt while their live condition holds (update: `latest > VERSION`; upgrade: live binary id ≠ stored `@claude-mux-claude-id`), with no burn-on-inject gate, so a missed relay just retries next turn and each self-clears when the user acts. Dropping the upgrade ack-on-emit exposed a self-clear gap on the in-place caller-restart path (it bypasses the kill+recreate id-capture sites), fixed by re-capturing the id in `await_ready_handshake`. All three notices wrapped in `<assistant-must-display>` + a standing surface rule in `build_system_prompt`; per-session state pruned to `{tip_date}`. Relay remains best-effort (see the upstream ask above). See `dev/features/notice-delivery-reliability.md` + `-tests.md`.
+
 ### Daily tip and update notice eaten by the post-restart `Ready?` handshake
 **Severity:** Medium (daily tip almost never reaches the user; update notice suppressed for a week)
 **Status:** Resolved in v2.0.8

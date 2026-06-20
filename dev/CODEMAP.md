@@ -148,7 +148,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `setup_multi_coder_files` | `(project_dir)` | Create AGENTS.md / GEMINI.md symlinks to CLAUDE.md |
 | `detect_github_ssh_accounts` | `()` | Parse `~/.ssh/config` for GitHub accounts; set `GITHUB_SSH_INFO` |
 | `poll_until_ready` | `(session, [timeout=120])` | Wait until a session is genuinely ready: busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt + quiescent. Handles trust/bypass auto-accept. Returns 0 ready / 1 timeout |
-| `await_ready_handshake` | `(session)` | `--await-ready` body: `poll_until_ready` then send "Ready?". Used by the looped launch wrapper to fire the handshake from OUTSIDE the pane after an in-place restart relaunch (the pane itself is busy relaunching claude) |
+| `await_ready_handshake` | `(session)` | `--await-ready` body: re-capture `@claude-mux-claude-id` (so the upgrade notice self-clears on in-place restart — the only restart path skipping the kill+recreate capture sites), then `poll_until_ready` then send "Ready?". Used by the looped launch wrapper to fire the handshake from OUTSIDE the pane after an in-place restart relaunch (the pane itself is busy relaunching claude) |
 | `restart_caller_in_place` | `(session, [fresh])` | Restart the calling session in place: set `@claude-mux-restart` (`resume`/`fresh`) + send `/exit`. Must NOT kill-session the caller (SIGHUP would kill this script). The looped wrapper relaunches in-pane + handshakes |
 | `launch_home_session` | `()` | Sets `LAUNCH_DIR=$BASE_DIR`/`HOME_LAUNCH=true`/`LAUNCH_SESSION_NAME=home` then calls `launch_single_session` (preserves `HOME_SESSION_MODEL`, which `create_claude_session` would drop). Callers set `NO_ATTACH=true` first for a non-attaching start. Used by `autolaunch_dispatch` and the stopped-home branches of `--start`/`--restart` |
 | `create_claude_session` | `(session_name, working_dir, [mode_override], [fresh_start])` | Core launcher: tmux session, set `@claude-mux-dir`/`@claude-mux-claude-id`, write `.claudemux-running`, write LOOPED launch wrapper (prompt at `<dir>/.claudemux-prompt` via `--append-system-prompt-file`; clean exit with `@claude-mux-restart` set → regenerate prompt via `--print-system-prompt` + relaunch in-pane + background `--await-ready`; clean exit without it → remove marker+prompt and `kill-session`), `poll_until_ready`, send Ready? (prompt NOT deleted - wrapper owns its lifetime) |
@@ -160,9 +160,9 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `encode_claude_path` | `(path)` | URL-encode a path for Claude's project directory naming |
 | `tip_of_day` | `()` | Select and print one tip (no gating; used by `--tip` and `on_prompt`) |
 | `claude_binary_id` | `()` | Identity of the `claude` executable: `realpath:mtime` (cask realpath or in-place mtime changes on upgrade) |
-| `detect_claude_upgrade` | `()` | Compare `@claude-mux-claude-id` vs current; echo one-shot upgrade notice and ack the option |
+| `detect_claude_upgrade` | `()` | Compare `@claude-mux-claude-id` vs current; echo upgrade notice (wrapped in `<assistant-must-display>`) while they differ. persist-while-relevant: NO ack-on-emit — re-injects every prompt until a restart re-captures the id (so a missed relay can't lose it) |
 | `on_compact` | `()` | PreCompact hook: spawn disowned monitor that polls for prompt return post-compact, then sends Ready? to reconnect RC (`--on-compact`) |
-| `on_prompt` | `()` | UserPromptSubmit hook: single stdin parse (session_id + `is_handshake` + state) → no-op on the synthetic `Ready?` handshake → Claude Code upgrade notice (always-on) + per-session daily tip + update notice; spawn bg update check (`--on-prompt`) |
+| `on_prompt` | `()` | UserPromptSubmit hook: single stdin parse (session_id + `is_handshake` + `tip_date`) → no-op on the synthetic `Ready?` handshake → Claude Code upgrade notice (always-on, persist-while-relevant) + per-session daily tip + update notice (persist-while-relevant while `latest > VERSION`); all three wrapped in `<assistant-must-display>` with MUST-relay/once-per-session wording; spawn bg update check (`--on-prompt`) |
 | `update_check_bg` | `()` | Disowned background GitHub release check; refresh cache, clear lock (`--update-check-bg`) |
 | `set_tip_config` | `(enabled)` | Write TIP_OF_DAY to config |
 | `update_all_project_hooks` | `()` | Walk all projects, call `setup_claude_mux_permissions`; tally `HOOKS_SCANNED/PATCHED/CURRENT` globals. Callers: `enable_tips`, `disable_tips`, `install_hooks_command`, `do_update` |
@@ -239,7 +239,7 @@ Per-project state files. All use `.claudemux-` prefix. Auto-added to `.gitignore
 |---|---|---|---|
 | `.update-check` | `check_for_update`, `update_check_bg` | `on_prompt`, `get_version_prompt_lines`, `check_for_update` | Cached release info: `<last_check> <latest> <last_notify>` |
 | `.update-checking` | `on_prompt` (lock before bg spawn) | `on_prompt` | In-flight update-check lock; 5-min stale guard; cleared by `update_check_bg` |
-| `tip-state/<session_id>.json` | `on_prompt` | `on_prompt` | Per-session gate: `{tip_date, update_notify, notify_version}` |
+| `tip-state/<session_id>.json` | `on_prompt` | `on_prompt` | Per-session tip gate: `{tip_date}` only (the actionable notices are persist-while-relevant, no per-session state since v2.0.10) |
 | `restore-state/<session>.json` | `restore_state_write` (tick) | `autorestore_walk`, `should_be_alive`, `autorestore_status` | Crash-loop/stagger state: `{last_attempt_ts, death_count, tripped}`; cleared by `restore_state_clear` on user restart |
 
 **Internal constants** (set after config; not user-overridable): `RESTORE_STATE_DIR` (`~/.claude-mux/restore-state`), `AUTORESTORE_MIN_HEALTHY` (300s), `AUTORESTORE_TRIP_THRESHOLD` (3).
@@ -251,7 +251,7 @@ Per-project state files. All use `.claudemux-` prefix. Auto-added to `.gitignore
 | `@claude-mux-managed` | `create_claude_session`, `launch_single_session` | Session is managed by claude-mux |
 | `@claude-mux-protected` | `create_claude_session` at launch (if marker present) | Session is protected |
 | `@claude-mux-dir` | `create_claude_session`, `launch_single_session` at launch | Recorded launch (project-root) dir; authoritative source for marker removal (`session_marker_dir`) |
-| `@claude-mux-claude-id` | `create_claude_session`, `launch_single_session` at launch; re-acked by `detect_claude_upgrade` | `claude` binary identity at launch (`realpath:mtime`) for Claude Code upgrade detection |
+| `@claude-mux-claude-id` | `create_claude_session`, `launch_single_session` at launch (kill+recreate); `await_ready_handshake` on in-place restart | `claude` binary identity at launch (`realpath:mtime`) for Claude Code upgrade detection. Re-captured on every restart path so the persist-while-relevant upgrade notice self-clears (no longer acked by `detect_claude_upgrade`) |
 | `@claude-mux-restart` | `restart_caller_in_place` (`resume`/`fresh`) | Read + unset by the looped launch wrapper on a clean exit: signals "relaunch claude in this pane" (restart-in-place) instead of teardown. Consumed per relaunch (set-option `-u`) so one restart = one relaunch |
 
 ---

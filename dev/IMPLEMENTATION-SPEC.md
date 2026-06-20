@@ -123,7 +123,7 @@ The split is behavior-preserving by construction; it changes no feature, flag, c
 | `TMUX_MONITOR_ACTIVITY` | `true` | Activity notifications from other sessions |
 | `TIP_OF_DAY` | `true` | Inject a tip once per day per session via the `UserPromptSubmit` hook (`--on-prompt`). The hook is registered when `TIP_OF_DAY` or `UPDATE_CHECK` is `true`, and removed only when both are `false`. `--tip` on demand always works regardless. |
 | `TIP_MODE` | `daily` | `daily` picks the same tip all day via day-of-year hash. `random` picks a non-deterministic tip. |
-| `UPDATE_CHECK` | `true` | Check GitHub releases for newer versions (cached daily). When `true`, a running session is notified in-conversation via the `--on-prompt` hook (throttled once per 7 days per session) and the terminal prints a notice on interactive runs. Also keeps the on-prompt hook registered even when `TIP_OF_DAY` is `false`. |
+| `UPDATE_CHECK` | `true` | Check GitHub releases for newer versions (cached daily). When `true`, a running session is notified in-conversation via the `--on-prompt` hook (persist-while-relevant since v2.0.10: re-injected every prompt while a newer version is cached, self-clearing when the user updates — no per-session throttle to burn) and the terminal prints a notice on interactive runs. Also keeps the on-prompt hook registered even when `TIP_OF_DAY` is `false`. |
 
 The script sources `~/.claude-mux/config` after setting defaults, so any variable set in the config overrides the default. Tmux session options are applied via `apply_tmux_options()` after session creation.
 
