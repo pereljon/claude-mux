@@ -180,7 +180,7 @@ LAUNCHAGENT_MODE                 default: "home"
 
 HOME_SESSION_MODEL               default: "sonnet"
   Type: any model alias or ID claude accepts (e.g. sonnet, haiku, opus,
-        opus-4-8, fable) | (empty)
+        or a full ID like claude-opus-4-8) | (empty)
   Description: Model used for the home session at launch. Passed through to
                claude --model; claude validates it. Empty inherits Claude's
                default.

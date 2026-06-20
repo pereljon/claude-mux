@@ -21,7 +21,7 @@ The home session is **protected** by default - `--shutdown home` refuses to stop
 | `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing CLAUDE.md template files |
 | `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches when `-a` is used. Increase if RC registration fails. |
-| `HOME_SESSION_MODEL` | `sonnet` | Model for the home session. Any model alias or ID `claude --model` accepts (e.g. `sonnet`, `haiku`, `opus`, `opus-4-8`, `fable`); passed through and validated by `claude` at launch. Empty inherits Claude's default. |
+| `HOME_SESSION_MODEL` | `sonnet` | Model for the home session. Any model alias or ID `claude --model` accepts (e.g. `sonnet`, `haiku`, `opus`, or a full ID like `claude-opus-4-8`); passed through and validated by `claude` at launch. Empty inherits Claude's default. |
 | `MULTI_CODER_FILES` | `"AGENTS.md GEMINI.md"` | Space-separated list of files to create as symlinks to `CLAUDE.md` for other AI CLI tools. Set to `""` to disable. |
 | `LAUNCHAGENT_MODE` | `home` | LaunchAgent behavior at login: `none` (do nothing) or `home` (launch protected home session). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `home`. |
 
@@ -157,7 +157,7 @@ Rules:
 - When user says: restart all sessions - run claude-mux --restart
 - When user says: start new session in FOLDER - run claude-mux -n FOLDER --no-attach
 - When user says: switch this session to MODE mode / switch session NAME to MODE mode
-- When user says: switch this session to MODEL model / switch session NAME to MODEL model
+- When user says: switch this session to MODEL model / switch session NAME to MODEL model (a versioned shorthand like "opus 4.8" is normalized to the full `claude-opus-4-8` ID before sending `/model`; bare `opus`/`sonnet`/`haiku` pass through as-is)
 - When user says: compact/clear this session / compact/clear session NAME
 - When user says: update claude-mux - warn sessions will restart, get confirmation, run --update then --restart
 - When user says: hide this project / hide PROJECT - run claude-mux --hide

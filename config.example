@@ -90,8 +90,8 @@
 #LAUNCHAGENT_MODE=home
 
 # Model for the home session. Any model alias or ID claude --model accepts
-# (e.g. sonnet, haiku, opus, opus-4-8, fable); passed through and validated by
-# claude at launch. Set to "" to use Claude Code's default model.
+# (e.g. sonnet, haiku, opus, or a full ID like claude-opus-4-8); passed through
+# and validated by claude at launch. Set to "" to use Claude Code's default model.
 # Default: sonnet
 #HOME_SESSION_MODEL="sonnet"
 

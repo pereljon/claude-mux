@@ -4,6 +4,12 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.0.12] - 2026-06-19
+
+### Changed
+- **"Switch to opus 4.8" now resolves to the full `claude-opus-4-8` model ID.** The model-switch injection rule used to forward whatever the user said straight to `/model`, so a family-plus-version shorthand like "opus 4.8" (or "opus-4-8") was rejected by Claude Code as an unknown model. Sessions now rewrite a versioned shorthand to the canonical `claude-<family>-<major>-<minor>` form (e.g. "opus 4.8" → `claude-opus-4-8`) before sending `/model`, while bare family aliases (`opus`/`sonnet`/`haiku`), already-full IDs, and date-suffixed IDs (`claude-haiku-4-5-20251001`) pass through untouched. Injection-only change (takes effect after sessions restart).
+- **`HOME_SESSION_MODEL` examples corrected.** The install prompt, `--home-model` help, `config.example`, and the docs suggested values like `opus-4-8` and `fable` as if valid, but those are rejected by `claude --model` (they need a bare alias like `opus` or a full ID like `claude-opus-4-8`). Examples now show valid forms only. Note: config values are **not** auto-normalized the way the conversational `/model` trigger is — normalizing in shell would require a hardcoded model-family list, reintroducing the drift the pass-through design removed — so set `HOME_SESSION_MODEL` to a bare alias or a full `claude-…` ID.
+
 ## [2.0.11] - 2026-06-19
 
 ### Fixed

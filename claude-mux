@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.11"
+VERSION="2.0.12"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -292,7 +292,7 @@ LAUNCHAGENT_MODE                 default: "home"
 
 HOME_SESSION_MODEL               default: "sonnet"
   Type: any model alias or ID claude accepts (e.g. sonnet, haiku, opus,
-        opus-4-8, fable) | (empty)
+        or a full ID like claude-opus-4-8) | (empty)
   Description: Model used for the home session at launch. Passed through to
                claude --model; claude validates it. Empty inherits Claude's
                default.
@@ -1281,7 +1281,7 @@ do_install() {
         # Home session model (only if mode is home and not preset)
         if [[ "$launchagent_mode" == "home" && "$home_model_set" != "true" ]]; then
             local default_model="sonnet"
-            printf "Home session model? (e.g. sonnet, haiku, opus, opus-4-8, fable; blank = Claude Code default) [%s]: " "$default_model"
+            printf "Home session model? (e.g. sonnet, haiku, opus, or a full ID like claude-opus-4-8; blank = Claude Code default) [%s]: " "$default_model"
             read -r _input < "$tty_in"
             if [[ -z "$_input" ]]; then
                 home_model="$default_model"
@@ -1570,7 +1570,7 @@ Rules:
 - When user says: start new session in FOLDER — run claude-mux -n FOLDER --no-attach; append --template NAME if provided, use -p if parents needed; model and mode set after via switch commands; confirm with the session name only, not the directory path
 - When user says: what mode is this session / what permission mode — run claude-mux --get-mode CURRENT_SESSION and report the result. When user says: what mode is session NAME — resolve NAME per the rule above and run claude-mux --get-mode NAME; if NAME does not resolve to exactly one session, ask which session
 - When user says: switch this session to MODE mode — run claude-mux --permission-mode MODE on the current session. When user says: switch session NAME to MODE mode — resolve NAME per the rule above and run it on NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
-- When user says: switch this session to MODEL model — send /model MODEL via -s to the current session. When user says: switch session NAME to MODEL model — resolve NAME per the rule above and send it to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
+- When user says: switch this session to MODEL model — send /model MODEL via -s to the current session. When user says: switch session NAME to MODEL model — resolve NAME per the rule above and send it to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session. Before sending, only rewrite MODEL if it is a family-plus-version shorthand (a family like \`opus\`/\`sonnet\`/\`haiku\` followed by a version like \"4.8\", \"4-8\", or \"4 8\"): turn it into the dash-joined, \`claude-\`-prefixed form \`claude-<family>-<major>-<minor>\` (e.g. \"opus 4.8\" becomes \`claude-opus-4-8\`). Otherwise pass MODEL through unchanged: a bare family alias (\`opus\`), an already-full ID (\`claude-opus-4-8\`), and a date-suffixed ID (\`claude-haiku-4-5-20251001\`) are all already valid. Claude Code validates the result.
 - When user says: compact this session — send /compact via -s to the current session. When user says: compact session NAME — resolve NAME per the rule above and send it to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session. Inform the user that RC will reconnect automatically after compact completes (~30-60s)
 - When user says: clear this session — send /clear via -s to the current session. When user says: clear session NAME — resolve NAME per the rule above and send it to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
 - When user says: update claude-mux — check the installed version and latest available; warn the user that all sessions will be restarted and ask for confirmation before proceeding; if confirmed, run claude-mux --update then claude-mux --restart
