@@ -8,6 +8,12 @@ Projection of each feature doc's `lifecycle:`. This reflects the **declared** st
 verified reality (a doc can claim `ready` before it is). `kind: investigation` docs and
 `*-tests.md` plans are excluded. Grouped by lifecycle (build-priority order), then by name.
 
+## ready
+
+| Feature | Lifecycle | Target | Status | Severity | Doc |
+|---|---|---|---|---|---|
+| `model-switch-confirm` | ready | 2.1.x or 2.0.x patch (a real bug: in-session model switch... | DESIGNED 2026-06-21 (architect-reviewed). Pre-build. Hit live TWICE on the home session... | MEDIUM — a cached-conversation `/model` switch silently stalls the session on a confirm... | [model-switch-confirm.md](model-switch-confirm.md) |
+
 ## designing
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
@@ -15,6 +21,13 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `cross-cli-coders` | designing | — | planned | — | [cross-cli-coders.md](cross-cli-coders.md) |
 | `inter-agent-messaging` | designing | UNSCHEDULED — parked behind 3 gates (close exfiltration-e... | REOPENED (was SHELVED) — discussion-log #15 narrowed the obstacle: a worker boots in th... | N/A (new capability) — but ships a prompt-injection attack surface; see Threat Model | [inter-agent-messaging.md](inter-agent-messaging.md) |
 | `launched-version-detection` | designing | 2.x (minor; notify-only behavior) | PLANNED | LOW (a running session silently keeps stale injection/wrapper after an | [launched-version-detection.md](launched-version-detection.md) |
+
+## idea
+
+| Feature | Lifecycle | Target | Status | Severity | Doc |
+|---|---|---|---|---|---|
+| `context-cost-awareness` | idea | unscheduled | IDEA 2026-06-21 (concept + feasibility sketched; not yet designed/architect-reviewed). ... | N/A (enhancement) — addresses the observation that claude-mux's persistence biases towa... | [context-cost-awareness.md](context-cost-awareness.md) |
+| `terminate-session` | idea | unscheduled | IDEA 2026-06-22 (concept captured; not yet designed/architect-reviewed). | N/A (enhancement) — gives a "destructive stop" (next start is fresh) distinct from toda... | [terminate-session.md](terminate-session.md) |
 
 ## shelved
 
