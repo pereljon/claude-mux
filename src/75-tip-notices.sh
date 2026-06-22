@@ -78,8 +78,9 @@ claude_binary_id() {
 # the notice re-appears every prompt until a RESTART re-captures the id (kill+recreate
 # via create_claude_session/launch_single_session, or in-place relaunch via
 # await_ready_handshake) — a single missed relay can no longer silently lose it.
-# Claude de-dups within the session via the once-per-session instruction in the notice
-# text. Uses the tmux session (inherited $TMUX in the hook), not stdin, so it runs even
+# Claude de-dups within the session via the once-per-session instruction in the standing
+# notice rule (build_system_prompt), not the notice text — the notice text is the clean
+# user-facing line only. Uses the tmux session (inherited $TMUX in the hook), not stdin, so it runs even
 # when tips/update notices are off. Silent no-op if not in tmux or the option is unset
 # (pre-feature session).
 detect_claude_upgrade() {
@@ -92,7 +93,7 @@ detect_claude_upgrade() {
     local _id_now
     _id_now=$(claude_binary_id)
     if [[ "$_id_now" != "$_id0" ]]; then
-        echo "<assistant-must-display>[claude-mux — MUST relay to the user verbatim at the start of your reply, in their conversation language; mention once per session, do not repeat if you already told them this session — it clears when they restart]: Claude Code was upgraded since this session started; say \"restart this session\" to load the new binary.</assistant-must-display>"
+        echo "<assistant-must-display>claude-mux: Claude Code was upgraded since this session started. Say \"restart this session\" to load the new binary.</assistant-must-display>"
     fi
 }
 
@@ -171,7 +172,7 @@ print(sid, is_handshake, tip_date)
         local _tip
         _tip=$(tip_of_day 2>/dev/null || true)
         if [[ -n "$_tip" ]]; then
-            _out+="<assistant-must-display>[claude-mux tip — MUST relay to the user verbatim at the start of your reply, in their conversation language]: $_tip</assistant-must-display>"$'\n'
+            _out+="<assistant-must-display>claude-mux tip: $_tip</assistant-must-display>"$'\n'
             _new_tip_date="$_today"
         fi
     fi
@@ -189,9 +190,9 @@ print(sid, is_handshake, tip_date)
         # cached. The condition self-clears when the user updates (VERSION rises past
         # _latest), so there is no per-session stamp to burn — a missed relay just
         # retries next turn. Claude de-dups within the conversation via the
-        # once-per-session instruction baked into the notice text.
+        # once-per-session instruction in the standing notice rule (build_system_prompt).
         if [[ -n "$_latest" ]] && version_gt "$_latest" "$VERSION"; then
-            _out+="<assistant-must-display>[claude-mux update available — MUST relay to the user verbatim at the start of your reply, in their conversation language; mention once per session, do not repeat if you already told them this session — it clears when they update]: version $_latest is out (current: $VERSION). Suggest they say \"update claude-mux\".</assistant-must-display>"$'\n'
+            _out+="<assistant-must-display>claude-mux: update available — version $_latest is out (current: $VERSION). Say \"update claude-mux\" to update.</assistant-must-display>"$'\n'
         fi
 
         # Refresh the cache in the background if it is stale (>24h). Never block.

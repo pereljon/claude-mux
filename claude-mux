@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.12"
+VERSION="2.0.13"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -1541,7 +1541,7 @@ Rules:
 - --shutdown and --restart never attach — safe to run from inside a session; do NOT add --no-attach to these commands
 - Always print command output verbatim in your response text — never run a command silently or rely on tool output being visible; if a command fails, report the error
 - When command output OR hook-injected turn context contains <assistant-must-display> tags, output every single line between the tags verbatim. Do NOT collapse, summarize, omit, or abbreviate ranges of rows — especially in lists or tables where consecutive rows share a parent directory or status (e.g. \"5-19 idle (15 work sessions)\" is forbidden; emit all 15 rows individually). The output may include a row-count footer like \"<!-- N rows above. Output must contain all N verbatim. -->\"; treat that as a check, not part of the display. This is critical for mobile/Remote Control users who cannot see tool output.
-- claude-mux may inject bracketed [claude-mux ...] notices (a daily tip, an \"update available\" notice, or a \"Claude Code was upgraded\" notice) into your turn context via a hook, wrapped in <assistant-must-display> tags. When present, surface the notice to the user verbatim at the START of your reply, before answering their request — do not paraphrase or drop it. Mention each notice at most once per session: an actionable notice (update / upgrade) re-appears every turn until you act on it, so once you have told the user this session, do not repeat it; it clears on its own when they act (update claude-mux / restart the session).
+- claude-mux may inject notices (a daily tip, an \"update available\" notice, or a \"Claude Code was upgraded\" notice) into your turn context via a hook. The user-facing text is wrapped in <assistant-must-display> tags; surface exactly that text to the user verbatim at the START of your reply, before answering their request — do not paraphrase it, drop it, or print anything outside the tags. Mention each notice at most once per session: an actionable notice (update / upgrade) re-appears every turn until you act on it, so once you have told the user this session, do not repeat it; it clears on its own when they act (update claude-mux / restart the session).
 - The 'home' session is the always-available session in the base directory for managing other sessions. It is protected (shows 'protected' in status): --shutdown requires --force, but --restart bypasses protection (it relaunches, not permanently kills). Protection is driven by the .claudemux-protected marker in the session's working directory.
 - Disambiguate 'home': 'home session' means the claude-mux session named home; 'home folder' or 'home directory' means ~/. If context is ambiguous, ask which the user means.
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
@@ -1570,7 +1570,7 @@ Rules:
 - When user says: start new session in FOLDER — run claude-mux -n FOLDER --no-attach; append --template NAME if provided, use -p if parents needed; model and mode set after via switch commands; confirm with the session name only, not the directory path
 - When user says: what mode is this session / what permission mode — run claude-mux --get-mode CURRENT_SESSION and report the result. When user says: what mode is session NAME — resolve NAME per the rule above and run claude-mux --get-mode NAME; if NAME does not resolve to exactly one session, ask which session
 - When user says: switch this session to MODE mode — run claude-mux --permission-mode MODE on the current session. When user says: switch session NAME to MODE mode — resolve NAME per the rule above and run it on NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
-- When user says: switch this session to MODEL model — send /model MODEL via -s to the current session. When user says: switch session NAME to MODEL model — resolve NAME per the rule above and send it to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session. Before sending, only rewrite MODEL if it is a family-plus-version shorthand (a family like \`opus\`/\`sonnet\`/\`haiku\` followed by a version like \"4.8\", \"4-8\", or \"4 8\"): turn it into the dash-joined, \`claude-\`-prefixed form \`claude-<family>-<major>-<minor>\` (e.g. \"opus 4.8\" becomes \`claude-opus-4-8\`). Otherwise pass MODEL through unchanged: a bare family alias (\`opus\`), an already-full ID (\`claude-opus-4-8\`), and a date-suffixed ID (\`claude-haiku-4-5-20251001\`) are all already valid. Claude Code validates the result.
+- When user says: switch this session to MODEL model — resolve MODEL to a concrete model ID (below), then send /model <id> via -s to the current session. When user says: switch session NAME to MODEL model — resolve NAME per the rule above and send to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session. Resolving MODEL (the /model picker silently ignores a bare family name, so you MUST resolve to a concrete ID first): (a) a BARE family (\`opus\`/\`sonnet\`/\`haiku\` or any family) → expand to the latest concrete ID you know for that family, from your own model knowledge plus the model-ID list Claude Code provides in your context, preferring the dateless alias form (e.g. \`sonnet\` → \`claude-sonnet-4-6\`); (b) a family-plus-version shorthand (\"opus 4.8\", \"opus-4-8\", \"opus 4 8\") → the dash-joined, \`claude-\`-prefixed ID \`claude-<family>-<major>-<minor>\` (e.g. \`claude-opus-4-8\`); (c) an already-full ID or a date-suffixed ID (\`claude-opus-4-8\`, \`claude-haiku-4-5-20251001\`) → use as-is. If you cannot confidently map MODEL to a concrete ID (e.g. a model newer than you know), ASK the user for the exact model ID rather than sending a bare family (which the picker silently ignores, leaving the model unchanged). Claude Code validates the final ID.
 - When user says: compact this session — send /compact via -s to the current session. When user says: compact session NAME — resolve NAME per the rule above and send it to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session. Inform the user that RC will reconnect automatically after compact completes (~30-60s)
 - When user says: clear this session — send /clear via -s to the current session. When user says: clear session NAME — resolve NAME per the rule above and send it to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
 - When user says: update claude-mux — check the installed version and latest available; warn the user that all sessions will be restarted and ask for confirmation before proceeding; if confirmed, run claude-mux --update then claude-mux --restart
@@ -3645,8 +3645,9 @@ claude_binary_id() {
 # the notice re-appears every prompt until a RESTART re-captures the id (kill+recreate
 # via create_claude_session/launch_single_session, or in-place relaunch via
 # await_ready_handshake) — a single missed relay can no longer silently lose it.
-# Claude de-dups within the session via the once-per-session instruction in the notice
-# text. Uses the tmux session (inherited $TMUX in the hook), not stdin, so it runs even
+# Claude de-dups within the session via the once-per-session instruction in the standing
+# notice rule (build_system_prompt), not the notice text — the notice text is the clean
+# user-facing line only. Uses the tmux session (inherited $TMUX in the hook), not stdin, so it runs even
 # when tips/update notices are off. Silent no-op if not in tmux or the option is unset
 # (pre-feature session).
 detect_claude_upgrade() {
@@ -3659,7 +3660,7 @@ detect_claude_upgrade() {
     local _id_now
     _id_now=$(claude_binary_id)
     if [[ "$_id_now" != "$_id0" ]]; then
-        echo "<assistant-must-display>[claude-mux — MUST relay to the user verbatim at the start of your reply, in their conversation language; mention once per session, do not repeat if you already told them this session — it clears when they restart]: Claude Code was upgraded since this session started; say \"restart this session\" to load the new binary.</assistant-must-display>"
+        echo "<assistant-must-display>claude-mux: Claude Code was upgraded since this session started. Say \"restart this session\" to load the new binary.</assistant-must-display>"
     fi
 }
 
@@ -3738,7 +3739,7 @@ print(sid, is_handshake, tip_date)
         local _tip
         _tip=$(tip_of_day 2>/dev/null || true)
         if [[ -n "$_tip" ]]; then
-            _out+="<assistant-must-display>[claude-mux tip — MUST relay to the user verbatim at the start of your reply, in their conversation language]: $_tip</assistant-must-display>"$'\n'
+            _out+="<assistant-must-display>claude-mux tip: $_tip</assistant-must-display>"$'\n'
             _new_tip_date="$_today"
         fi
     fi
@@ -3756,9 +3757,9 @@ print(sid, is_handshake, tip_date)
         # cached. The condition self-clears when the user updates (VERSION rises past
         # _latest), so there is no per-session stamp to burn — a missed relay just
         # retries next turn. Claude de-dups within the conversation via the
-        # once-per-session instruction baked into the notice text.
+        # once-per-session instruction in the standing notice rule (build_system_prompt).
         if [[ -n "$_latest" ]] && version_gt "$_latest" "$VERSION"; then
-            _out+="<assistant-must-display>[claude-mux update available — MUST relay to the user verbatim at the start of your reply, in their conversation language; mention once per session, do not repeat if you already told them this session — it clears when they update]: version $_latest is out (current: $VERSION). Suggest they say \"update claude-mux\".</assistant-must-display>"$'\n'
+            _out+="<assistant-must-display>claude-mux: update available — version $_latest is out (current: $VERSION). Say \"update claude-mux\" to update.</assistant-must-display>"$'\n'
         fi
 
         # Refresh the cache in the background if it is stale (>24h). Never block.

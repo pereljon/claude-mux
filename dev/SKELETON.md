@@ -783,7 +783,8 @@ if is_handshake → exit 0
 #   id0  = tmux show-options -v @claude-mux-claude-id   (empty → skip: not in tmux / pre-feature)
 #   id_now = claude_binary_id()  (= realpath(claude):mtime)
 #   if id_now != id0:
-#     echo "<assistant-must-display>[claude-mux — MUST relay … mention once per session]: Claude Code was upgraded … restart this session</assistant-must-display>"
+#     echo "<assistant-must-display>claude-mux: Claude Code was upgraded … restart this session</assistant-must-display>"
+#     # (clean text only; relay/dedup instruction is in the standing notice rule — v2.0.13)
 #     # NO ack-on-emit: re-injects every prompt until a RESTART re-captures the id
 #     # (kill+recreate, or in-place via await_ready_handshake). A missed relay retries.
 bin_notice = detect_claude_upgrade()
@@ -794,9 +795,9 @@ if TIP_OF_DAY != true AND UPDATE_CHECK != true:   # cheap guard
 if session_id == "_" (missing/invalid):           # no tip/update work possible
   print bin_notice (if any); exit 0
 
-# Daily tip (per session) — wrapped in <assistant-must-display>, MUST-relay wording
+# Daily tip (per session) — wrapped in <assistant-must-display>, clean text only
 if TIP_OF_DAY and state.tip_date != today:
-  out += "<assistant-must-display>[claude-mux tip — MUST relay …]: " + tip_of_day() + "</assistant-must-display>"
+  out += "<assistant-must-display>claude-mux tip: " + tip_of_day() + "</assistant-must-display>"
   new tip_date = today
 
 # Update notice (persist-while-relevant; cache-gated). NO stamp/throttle: re-inject
@@ -804,7 +805,7 @@ if TIP_OF_DAY and state.tip_date != today:
 if UPDATE_CHECK:
   read ~/.claude-mux/.update-check → last_check, latest, _
   if latest > VERSION:
-    out += "<assistant-must-display>[claude-mux update available — MUST relay … mention once per session]: ...</assistant-must-display>"
+    out += "<assistant-must-display>claude-mux: update available — version X is out (current: VERSION). Say \"update claude-mux\" to update.</assistant-must-display>"
   if cache stale (>24h):
     lock dir = ~/.claude-mux/.update-checking
     if lock dir mtime >5min: rmdir it (orphaned)

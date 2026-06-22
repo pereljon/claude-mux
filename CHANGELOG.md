@@ -4,6 +4,12 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.0.13] - 2026-06-21
+
+### Fixed
+- **"Change model to sonnet" now actually switches the model.** The in-session `/model` picker silently ignores a bare family name (it reports "Kept model as …" and leaves the model unchanged), and the v2.0.12 rule passed bare family names through untouched — so "switch this session to sonnet" was a no-op. Sessions now resolve a bare family to the latest concrete ID they know (`sonnet` → `claude-sonnet-4-6`, preferring the dateless alias form), using the model-ID list Claude Code injects into each session plus their own knowledge; versioned shorthand (`opus 4.8`) still becomes `claude-opus-4-8`, and full/date-suffixed IDs pass through. If a token can't be confidently resolved (e.g. a model newer than the session knows), the session asks for the exact ID rather than sending a bare family. No model registry, scraper, or daily fetch — resolution stays the session's job, Claude Code stays the authority (per `model-handling-derot`). Design + rejected alternatives (picker scraping, models.txt, `/v1/models`): `dev/features/model-resolution-notice-cleanup.md`.
+- **Notices no longer leak their relay instruction into the visible text.** The daily tip and the update/upgrade notices wrapped the meta-instruction *inside* the `<assistant-must-display>` tags, so the user saw `[claude-mux tip — MUST relay … in their conversation language]:` printed in front of the actual tip. The notices now contain only the clean user-facing line inside the tags (`claude-mux tip: …`); the relay + once-per-session instruction moved to the standing notice rule in the injected system prompt. (Tradeoff: `<assistant-must-display>` is verbatim, so notices display in English rather than being translated — the prior wording conflicted with itself on this.)
+
 ## [2.0.12] - 2026-06-19
 
 ### Changed

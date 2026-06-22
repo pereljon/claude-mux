@@ -21,6 +21,18 @@
 **Status:** Open — upstream ask (not claude-mux's to fix)
 **Description:** claude-mux's notices (tip / update / upgrade) reach the user only if the session's Claude *relays* the injected `UserPromptSubmit` context. There is no claude-mux-owned channel that renders text directly to a Remote-Control user — RC is Claude Code's own `--remote-control` feature and renders only the conversation, so tmux-native channels (status line, `display-popup`, bell) are invisible to the primary user. v2.0.10 made delivery best-effort-strong (persist-while-relevant + `<assistant-must-display>` wrapping + a standing surface rule), but **deterministic** delivery needs an upstream Claude Code feature: a hook (or RC) channel that renders text directly to the remote user, bypassing the model. Tracked here for completeness; resolution is upstream. See `dev/features/notice-delivery-reliability.md` Part D.
 
+### "Change model to <family>" silently no-ops (in-session `/model` ignores a bare family)
+**Severity:** Medium (conversational model switch broken for bare family names)
+**Status:** Resolved in v2.0.13
+**Description:** "change model to sonnet" made the in-session Claude send `/model sonnet`; Claude Code's `/model` picker silently ignores a bare family (reports "Kept model as …", model unchanged). The v2.0.12 rule passed bare family names through unchanged, so the switch was a no-op. Confirmed live 2026-06-20 (a session on `claude-opus-4-8` stayed there after `/model sonnet`). Note: launch-time `--model sonnet` and in-session `/model sonnet` are different surfaces — the `model-handling-derot` launch pass-through is fine; only the in-session picker rejects bare families.
+**Fix:** the model-switch injection rule now resolves MODEL to a concrete ID before sending — bare family → latest known concrete ID (`claude-sonnet-4-6`, dateless alias preferred), versioned shorthand → `claude-<family>-<major>-<minor>`, full/date-suffixed IDs pass through, ask the user if unresolvable. Expand-from-knowledge (no models.txt / `/v1/models` / picker-scraping — all rejected; see `dev/features/model-resolution-notice-cleanup.md` for why). `src/30-helpers.sh` ~L742.
+
+### Notice relay-instruction leaks into the visible tip/update/upgrade text
+**Severity:** Low (cosmetic, but user-visible on every tip)
+**Status:** Resolved in v2.0.13
+**Description:** The tip/update/upgrade notices wrapped the meta-instruction *inside* the `<assistant-must-display>` tags, which forces verbatim output — so the user saw `[claude-mux tip — MUST relay to the user verbatim … in their conversation language]:` printed in front of the actual tip. Introduced by `notice-delivery-reliability` (v2.0.10) when notices were first wrapped.
+**Fix:** the notice strings (`src/75-tip-notices.sh`) now contain only the clean user-facing line inside the tags; the relay + once-per-session instruction moved to the standing notice rule in `build_system_prompt` (`src/30-helpers.sh`). Tradeoff: verbatim display means tips show in English (the old "in their conversation language" wording conflicted with `<assistant-must-display>`). See `dev/features/model-resolution-notice-cleanup.md`.
+
 ### Dependency check blocks tmux-free commands (`--list-templates`, `--tip`, `*-tips`, `--install-hooks`)
 **Severity:** Low (real fix; also the remaining cause of red `build-and-check` CI)
 **Status:** Resolved in v2.0.11

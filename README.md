@@ -75,7 +75,7 @@ Say: "create a new project called mobile-app using the web template"
 Creates the project directory, initializes git, applies the template, launches a session
 
 Say: "switch this session to Haiku"
-Sends /model haiku to itself via tmux
+Resolves the family to the latest concrete ID and sends /model claude-haiku-4-5 to itself
 
 Say: "compact the api-server session"
 Sends /compact to the api-server session
@@ -96,7 +96,7 @@ Say: "what mode is this session"
 Reports the current permission mode (default, acceptEdits, plan, bypassPermissions)
 
 Say: "switch this session to Opus"
-Sends /model opus to itself via tmux
+Resolves the family to the latest concrete ID and sends /model claude-opus-4-8 to itself
 
 Say: "clear this session"
 Sends /clear to itself, resetting the conversation

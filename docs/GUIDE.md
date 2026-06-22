@@ -157,7 +157,7 @@ Rules:
 - When user says: restart all sessions - run claude-mux --restart
 - When user says: start new session in FOLDER - run claude-mux -n FOLDER --no-attach
 - When user says: switch this session to MODE mode / switch session NAME to MODE mode
-- When user says: switch this session to MODEL model / switch session NAME to MODEL model (a versioned shorthand like "opus 4.8" is normalized to the full `claude-opus-4-8` ID before sending `/model`; bare `opus`/`sonnet`/`haiku` pass through as-is)
+- When user says: switch this session to MODEL model / switch session NAME to MODEL model (MODEL is resolved to a concrete ID before sending `/model`: a bare family like `sonnet` expands to the latest known ID `claude-sonnet-4-6`, a versioned shorthand like "opus 4.8" becomes `claude-opus-4-8`, and a full ID passes through; the `/model` picker silently ignores a bare family, so resolution is required)
 - When user says: compact/clear this session / compact/clear session NAME
 - When user says: update claude-mux - warn sessions will restart, get confirmation, run --update then --restart
 - When user says: hide this project / hide PROJECT - run claude-mux --hide
@@ -197,8 +197,10 @@ The home session receives additional context: a description of its role, plus se
 When `TIP_OF_DAY` is `true` (default), the `UserPromptSubmit` hook (`claude-mux --on-prompt`) injects one usage tip per day into each session, gated per session via `~/.claude-mux/tip-state/<session_id>.json`:
 
 ```
-[claude-mux tip — share this with the user]: Say "compact this session" instead of typing /compact ...
+<assistant-must-display>claude-mux tip: Say "compact this session" instead of typing /compact ...</assistant-must-display>
 ```
+
+The notice carries only the clean user-facing line inside `<assistant-must-display>` tags; the instruction to surface it lives in the session's standing notice rule (so the relay wording is not printed to the user).
 
 Each active session shows the tip once per calendar day (the first prompt of the day). Because it goes through UserPromptSubmit, the tip is visible in the conversation and in Remote Control - unlike the pre-v1.15.0 Stop-hook delivery, which was never seen. Say "disable tips" to turn it off (the hook stays registered if `UPDATE_CHECK` is still on, to keep delivering update notices), or "tip" for one on demand (`--tip` always works regardless of `TIP_OF_DAY`). `TIP_MODE` (`daily` or `random`) controls selection.
 
