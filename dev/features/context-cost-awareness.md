@@ -55,6 +55,17 @@ transcript is large, claude-mux could nudge "this thread is ~Xk tokens — 'clea
 to avoid the re-read" (the shrink-before-switch principle from the cost research). The cost feature
 and the model-switch fix are two halves of "switch models intelligently."
 
+## Prior art (reference, not to build)
+**graphify** (`safishamsi/graphify`, reviewed 2026-07-01) is a "memory layer" that attacks the same
+underlying problem from the other side: instead of re-reading whole files each turn, it builds a
+queryable knowledge graph of the project and installs assistant hooks that redirect grep/Read toward
+graph *queries* — cutting the tokens a long conversation pulls in. It ships as a cross-CLI **skill**
+(Claude Code, Codex, Gemini, OpenClaw, etc.), not session infrastructure. Relevant as a reference
+approach for the context-discipline thread and the memory-management idea, and as prior art for the
+cross-CLI skill-distribution pattern (`cross-cli-coders.md`). **Not something to build into
+claude-mux** — it's an external tool that can be used alongside claude-mux (query-first context
+reduction is skill/tooling territory, not session-infra territory). See memory `reference_graphify`.
+
 ## Open questions for brainstorming / architect
 - Transcript location/format: confirm the exact path + how to estimate tokens reliably from jsonl.
 - Where size surfaces: `status` only, or also `-l`/`-L` (adds a column; affects the

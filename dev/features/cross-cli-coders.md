@@ -2,7 +2,7 @@
 kind: feature
 lifecycle: designing
 feature: cross-cli-coders
-status: planned
+status: planned (REVISED 2026-06-27: folded in the Codex mobile / remote-connections landscape - resolves open question #5 and sharpens the value prop; see "Landscape: Codex mobile" and "Why now")
 milestone: v2.x (dovetails with v2.2 agent network)
 ---
 
@@ -19,6 +19,16 @@ Let claude-mux launch and manage non-Claude AI coding CLIs (Gemini CLI, Codex CL
 - `MULTI_CODER_FILES` already symlinks `AGENTS.md`/`GEMINI.md` → `CLAUDE.md`, so the *static* instruction layer is already cross-CLI. Users have confirmed Gemini/Codex launch fine in claude-mux folders (passive: their context-file conventions pick up the symlink).
 - The v2.2 agent network is designed file-based (delete-on-read inbox). A CLI-agnostic launch+inject path means Gemini/Codex sessions can join the network *by pull* for free - same architectural bet. Build the adapter and the inbox on the same "portable = file-based" foundation.
 - codemap (JordanCoin) is prior art: its Agent-Aware Handoff is CLI-agnostic precisely because it never *controls* the CLI - it writes a file the CLI reads on start. Confirms the principle.
+- **Codex now has first-party mobile (2026-05); its weakness is exactly claude-mux's strength.** Native Codex mobile keeps the host reachable only while it is awake and Codex is open ("if the host sleeps, loses connectivity, or closes Codex, remote access terminates"). claude-mux's tmux + LaunchAgent + auto-restore is the persistence layer that gap is begging for: a `codex` CLI kept alive in tmux survives precisely the conditions that kill native Codex mobile. So the cross-CLI value prop is **persistence + fleet management under someone else's mobile transport**, not providing mobile access ourselves - the same shape as Claude Code, where Anthropic's RC is the transport and claude-mux supplies persistence. See "Landscape: Codex mobile" below.
+
+## Landscape: Codex mobile (investigated 2026-06-27)
+
+Two ways to reach Codex from a phone, both relevant to how a claude-mux-managed Codex session would be surfaced on mobile:
+
+- **OpenAI first-party (ChatGPT app, iOS+Android, preview, all plans).** Phone is a remote control for a running **Codex App** instance on macOS/Windows (Windows "coming soon"), or an SSH host. A **secure relay** keeps trusted machines reachable across your authorized ChatGPT devices without exposing them to the public internet, and syncs active session state across devices. Setup: host shows a QR code -> scan -> ChatGPT account auth. No persistent daemon; spawns an app server on demand (for SSH, over `ssh`, auto-discovering `~/.ssh/config` aliases). **Host must stay awake/online.** Also has Computer Use (drive desktop apps/Chrome), device-to-device handoff that preserves git state via worktrees, voice. Key nuance: it targets the **Codex App** (the GUI/app-server), not necessarily a `codex` CLI running in a tmux pane.
+- **codex-relay (gronxb, community OSS).** The CLI-first analog: a Node.js relay on the host (port 8787) bridges the mobile app to the local **Codex CLI**. QR + approval-code pairing; code/git/session stay local; phone reaches it over Wi-Fi/LAN/Tailscale. `npx codex-relay@latest`. This is "claude-mux's local-first philosophy, for Codex."
+
+**Consequence for this feature:** claude-mux manages CLI processes in tmux, so the natural mobile bridge for a claude-mux-launched Codex session is **codex-relay (CLI-based)**, not OpenAI's first-party app (App/GUI-based). The compelling stack is: claude-mux = persistence + fleet, codex-relay = phone transport -> "Codex mobile that survives a sleeping host." Whether OpenAI's first-party app can also attach to a CLI session (vs only the App) is unverified; assume the CLI/relay path. Either way, claude-mux does **not** implement the mobile transport - it supplies the persistent session the transport attaches to.
 
 ## Current state (what's Claude-hardcoded)
 
@@ -114,7 +124,7 @@ Both have direct analogues that make Tier-1 reachable (verify exact flag names a
 - **Permission modes**: Gemini `--approval-mode default|auto_edit|yolo|plan` (+ `-y/--yolo`); Codex sandbox/approval flags. Map to claude-mux mode names via `approval_map`.
 - **Model**: Gemini `-m`; Codex `-c model=`.
 - **MCP / hooks / skills**: both have them (`gemini mcp|hooks|skills`, `codex mcp|plugin`).
-- **Remote-control-ish**: Codex has a `remote-control` subcommand; Gemini has `--acp` (Agent Client Protocol). NOT the same as Claude RC - do not assume mobile-app parity. Investigate separately before promising RC for non-Claude.
+- **Remote-control-ish**: Codex has a `remote-control` subcommand; Gemini has `--acp` (Agent Client Protocol). NOT the same as Claude RC - do not assume mobile-app parity. **Update (2026-06-27):** Codex mobile is now real (OpenAI first-party relay + the community **codex-relay** CLI bridge). For a claude-mux-managed Codex session the realistic transport is **codex-relay** (it bridges the Codex CLI, which is what we run in tmux); OpenAI's first-party app targets the Codex App/GUI and may not attach to a tmux CLI session. Gemini `--acp` mobile reachability is still unconfirmed. See "Landscape: Codex mobile". claude-mux supplies the persistent session; it does not implement the transport.
 
 ## Ties to v2.2 agent network
 
@@ -133,7 +143,7 @@ If the inbox is file-based (it is - `~/.claude-mux/inbox/<name>/`, delete-on-rea
 2. Codex `AGENTS.override.md` - confirm it's additive-on-top vs full-replace, and confirm exact gitignore handling.
 3. Exact Codex approval/sandbox flag names and whether a non-interactive equivalent of "auto mode" exists.
 4. Does either CLI accept a session *name* we control (Gemini `--session-id` is a UUID; Codex naming?) so `-l`/restart can map name→session like Claude `--name`?
-5. RC reality for Codex `remote-control` / Gemini `--acp` - mobile-app reachable or not?
+5. ~~RC reality for Codex `remote-control` / Gemini `--acp` - mobile-app reachable or not?~~ **RESOLVED 2026-06-27 (Codex):** Codex mobile exists; the claude-mux-compatible path is **codex-relay** (CLI bridge), since OpenAI's first-party app targets the Codex App/GUI, not a tmux CLI session. Remaining: (a) verify whether OpenAI's first-party app can attach to a `codex` CLI session at all; (b) Gemini `--acp` mobile reachability still unconfirmed. See "Landscape: Codex mobile".
 
 ## Change checklist (per CLAUDE.md)
 

@@ -2,10 +2,10 @@
 kind: feature
 lifecycle: idea
 feature: terminate-session
-status: IDEA 2026-06-22 (concept captured; not yet designed/architect-reviewed).
+status: IDEA 2026-06-22 (concept + pre-termination behavior + concurrency boundary captured; not yet architect-reviewed). One verification item open (SessionStart on fresh launch).
 target_version: unscheduled
 severity: N/A (enhancement) — gives a "destructive stop" (next start is fresh) distinct from today's "stop = pause-and-resume".
-related: context-cost-awareness, model-switching-cost-research
+related: context-cost-awareness, model-switching-cost-research, restart-in-place
 ---
 
 # Feature (idea): `terminate` a session — stop now, start FRESH next time (EC2 stop vs terminate)
@@ -61,6 +61,105 @@ fresh *later*" — that's the gap `terminate` fills.
   start is fresh. (Can't fresh-restart-in-place and also "stay stopped" — terminate means stay down.)
 - **vs just using `--restart --fresh`:** that restarts immediately. Terminate is for "I'm done now,
   but when I come back I want a clean slate" without keeping it running. Different intent/timing.
+
+## Pre-termination behavior: what to offer before terminating (decided 2026-06-22)
+
+Hard constraint that shapes everything: **only the in-session Claude can produce a
+handoff.** The `--terminate` shell command manages tmux/processes; it cannot read
+conversation content. So anything that captures "what I was doing" must be written *by the
+session itself, before it exits*. This splits by trigger:
+
+- **Conversational** ("terminate this session"): Claude is present — it can write a
+  handoff, then call `--terminate` on itself. Natural path.
+- **CLI / remote** (`--terminate NAME` from home): the target Claude is not running the
+  command. A handoff would require messaging the target, waiting for it to write, then
+  terminating. More moving parts; **handoff is conversational-path-only** unless we later
+  build a request-then-wait flow.
+
+### Recommendations on the three options raised
+
+1. **Warning / confirmation — YES, always.** Terminate breaks continuity (next start
+   won't resume). Confirm like `--delete`: in-chat confirmation for the conversational
+   trigger; protected/home sessions require `--force`. Prevents the footgun of "terminate"
+   meaning "just stop."
+
+2. **Write current context to files (raw dump) — NO.** The transcript already lives on
+   disk at `~/.claude/projects/<encoded>/*.jsonl` and **stays there after terminate**
+   (terminate omits `-c`, it does not delete). Fully recoverable via `claude --resume`. A
+   raw dump duplicates that and defeats the clean-slate purpose.
+
+3. **Handoff for next session — YES, but curated and opt-in.** This is the genuinely
+   useful one, and it reframes terminate as the missing middle between **compact**
+   (continuity, but context keeps growing) and **fresh** (cheap, but amnesia):
+   terminate-with-handoff = clean low-cost context **seeded with intent** (current task,
+   state, next steps, key files). Directly serves the `context-cost-awareness` thread:
+   "reset the meter without losing the plot." Curated note, NOT a raw dump.
+
+### Verification needed before designing the handoff (OPEN)
+
+A fresh launch (no `-c`) still fires Claude Code's **SessionStart hook**, which already
+loads a "Previous session summary" into a session (it did so for the home session this
+very run). So the machinery to seed a fresh session may largely already exist. **Verify
+how the SessionStart summary behaves on a `-c`-less (fresh) launch** before committing to
+a handoff mechanism. Two candidate mechanisms, pick after verifying:
+
+- **(a) Reuse SessionStart summary** — terminate just ensures a fresh summary is written,
+  then leans on the existing summary system to seed the fresh session. Leaner; reuses
+  proven machinery. **Lean toward this if verification shows fresh launches get the
+  summary.**
+- **(b) Bespoke `.claudemux-handoff.md`** — terminate writes a one-shot handoff file that
+  the fresh-launch path explicitly points the new session at (consumed/removed on read).
+  More explicit and self-contained, but duplicates the summary system.
+
+### Decisions to pin (carry into the design doc when it matures)
+
+| # | Decision | Recommendation |
+|---|---|---|
+| 1 | Warning/confirm before terminate | YES — in-chat + `--force` for protected. |
+| 2 | Offer a handoff | YES — opt-in, conversational-path-only, curated not raw. |
+| 3 | Handoff mechanism | Verify SessionStart-on-fresh first; lean (a) reuse summary. |
+| 4 | Raw transcript | Keep on disk; never auto-dump or delete. Purge stays separate + opt-in (see Open design questions). |
+
+## Concurrency / multiple-live-sessions-per-project boundary (raised 2026-06-22)
+
+User's question: does a terminate/handoff mechanism eventually lead to **multiple live
+sessions from a single project**, with the concurrency that implies?
+
+**Answer: it does not have to, and the design should explicitly keep that door shut.**
+Terminate/handoff is **sequential by construction** — terminate *stops* the session, then
+a *later* start (fresh) picks up the baton. The handoff is a baton pass between
+**sequential** sessions of one folder, never a fork primitive. Building it does not
+require, imply, or move us toward concurrent sessions.
+
+The slope only appears if "seed a session from a handoff" were later generalized into
+"spawn a *second, parallel* seeded session on the same folder." That would collide with
+several core invariants and is a much bigger feature — **out of scope here and not a
+prerequisite for terminate.**
+
+### Why multiple-live-per-folder is a can of worms (for the record)
+
+claude-mux is 1:1 session↔folder by design (session name = folder basename; markers and
+history are folder-scoped). Two live `claude` processes on one folder would break:
+
+- **Session name collision** — name is derived from the basename; two sessions need a
+  disambiguating scheme.
+- **Transcript clobber** — Claude Code stores history per encoded project path; two live
+  processes interleave/clobber the same `.jsonl` and make `-c`/`--resume` ambiguous.
+- **Marker races** — `.claudemux-running`, `.claudemux-restarting/`, `.claudemux-prompt`
+  (mode-600, regenerated per launch) are folder-scoped; concurrent sessions race/overwrite
+  them.
+- **Working-tree edit conflicts** — two agents editing the same files concurrently. The
+  deepest problem, and not one claude-mux can paper over.
+- **Hook / build / test races** — per-session hooks acting on shared folder state.
+
+### The escape hatch already exists: worktrees, not multi-live
+
+If parallel work on one project is ever wanted, the right primitive is **git worktrees** —
+each worktree is a **separate folder**, so it gets its **own session naturally**,
+preserving the 1:1 invariant and sidestepping every hazard above. claude-mux already aligns
+with this (the broader tooling uses worktree isolation for parallel agents). So:
+**parallelism = more folders (worktrees), not more sessions per folder.** Terminate/handoff
+stays a sequential baton; multi-live is intentionally not pursued.
 
 ## Files to update (when built — Change Checklist sketch)
 - `src/*.sh`: new `--terminate` flag parse (`src/10-flags.sh`), dispatch (`src/90-dispatch.sh`),
