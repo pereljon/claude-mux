@@ -12,7 +12,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
-| `model-switch-confirm` | ready | 2.1.x or 2.0.x patch (a real bug: in-session model switch... | DESIGNED 2026-06-21 (architect-reviewed). Pre-build. Hit live TWICE on the home session... | MEDIUM — a cached-conversation `/model` switch silently stalls the session on a confirm... | [model-switch-confirm.md](model-switch-confirm.md) |
+| `model-switch-confirm` | ready | 2.0.14 (patch) — a real bug: in-session model switch stal... | TOP-PRIORITY / ACTIVE BUILD TARGET (promoted 2026-07-17). DESIGNED 2026-06-21 (architec... | MEDIUM — a cached-conversation `/model` switch silently stalls the session on a confirm... | [model-switch-confirm.md](model-switch-confirm.md) |
 | `tip-home-daily` | ready | 2.0.14 (patch) — a real bug fix | DESIGNED 2026-06-22 (verified root cause; pre-build). Reported live ("seeing the tip A ... | MEDIUM — the daily tip re-shows on every compact/clear/restart, defeating the once-per-... | [tip-home-daily.md](tip-home-daily.md) |
 
 ## designing
@@ -22,6 +22,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `cross-cli-coders` | designing | — | planned (REVISED 2026-06-27: folded in the Codex mobile / remote-connections landscape ... | — | [cross-cli-coders.md](cross-cli-coders.md) |
 | `inter-agent-messaging` | designing | UNSCHEDULED — parked behind 3 gates (close exfiltration-e... | REOPENED (was SHELVED) — discussion-log #15 narrowed the obstacle: a worker boots in th... | N/A (new capability) — but ships a prompt-injection attack surface; see Threat Model | [inter-agent-messaging.md](inter-agent-messaging.md) |
 | `launched-version-detection` | designing | 2.x (minor; notify-only behavior) | REVISED 2026-06-24 (bare-home incident exposed that a truly stale wrapper does NOT re-b... | LOW for the version nudge; HIGH for the degraded-launch case (a stale | [launched-version-detection.md](launched-version-detection.md) |
+| `session-activity-timestamps` | designing | 2.1.0 (minor) — new capability, new hook, new per-project... | DESIGNING 2026-07-15 (decisions captured from live brainstorm; pre-architect-review). H... | N/A (enhancement) — feeds v2.0 situational-awareness + v2.1 context-discipline | [session-activity-timestamps.md](session-activity-timestamps.md) |
 
 ## idea
 
