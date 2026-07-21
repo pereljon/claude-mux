@@ -30,6 +30,28 @@
 **Relevant precedent:** claude-mux already drives a confirmation dialog at launch — the `bypassPermissions` startup poller detects the "Yes, I accept" prompt, sends `Down`, waits ~1s, sends `Enter` (see CLAUDE.md "Known Issues / Hypotheses"). The model-switch dialog ("Yes, switch to …" already highlighted as option 1) is a simpler version of the same pattern.
 **Fix direction (not yet built):** poll the target pane after sending `/model <id>` and, if the "Switch model?" dialog is present, confirm it (option 1 / `Enter`). Candidates: extend the `-s` send for `/model` specifically, or a dedicated `claude-mux --switch-model SESSION ID` that types the command then polls+confirms the dialog (reusing the `poll_until_ready` / bypass-confirmation machinery). Must handle the dialog being CONDITIONAL (no dialog when not cached → don't send a stray `Enter` that submits an empty prompt) and the timing (wait for the dialog to render). Full design (recognize-then-confirm, detached poller, dialog-survey pre-build task, safety rules): `dev/features/model-switch-confirm.md`.
 
+### Claude Code's "Background work is running" exit-guard stalls the caller-last in-place restart
+**Severity:** Medium (restart-all from `home`, and any "restart this session" from a pane that ran the `--restart` shell, can hang on a confirmation dialog the wrapper doesn't expect; unattended reboot-recovery risk)
+**Status:** Open — observed live 2026-07-21 on `home` after "restart all sessions."
+**Observed:** After `claude-mux --restart` (all) from inside `home`, the home pane came back sitting on Claude Code's exit-guard dialog:
+```
+Background work is running
+The following will stop when you exit:
+shell · /Users/jonathan/bin/claude-mux --restart
+❯ 1. Exit anyway
+  2. Move to background and exit
+  3. Stay
+Enter to confirm · Esc to cancel
+```
+The `/exit` issued by the caller-last in-place restart never completed on its own — it waited for a manual keypress. Choosing option 2 ("Move to background and exit") lets `--restart` finish in the background and home exit rc 0, so the wrapper loop relaunches in-pane; option 1 would kill the still-running `--restart` shell.
+**Root cause:** `restart_caller_in_place` restarts the calling session last by setting `@claude-mux-restart` then issuing `/exit`, expecting a clean, unattended exit → wrapper relaunch. But the `--restart` process is itself still running (it is the shell that issued the exit), and Claude Code's newer "background work is running" guard intercepts `/exit` whenever a backgrounded shell (the `claude-mux --restart` Bash tool call) is still alive, blocking on a 3-option confirmation. The caller-last flow has no step that answers this dialog, so the in-place relaunch stalls until a human presses a key. New upstream behavior (the exit-guard did not exist when this flow was designed).
+**Fix direction (not yet built — the wrapper is explicitly malleable, see CLAUDE.md):** options to weigh —
+1. Have the caller-restart NOT leave the `--restart` shell alive across its own `/exit` — e.g. the caller detaches/backgrounds the relaunch intent and lets the orchestrating process finish *before* the pane exits, so no background work is pending when `/exit` fires.
+2. Detect/answer the exit-guard dialog the way the bypass-permissions poller answers its confirmation (recognize "Background work is running" + the `claude-mux --restart` line → send the keystroke for "Move to background and exit"). Same recognize-then-confirm pattern as `model-switch-confirm`.
+3. Restructure so the in-place caller relaunch is driven entirely by the wrapper loop after a clean exit, with the orchestrator not counted as live background work at `/exit` time.
+Verify against the current Claude Code exit-guard wording before designing (it may key on the exact "Background work is running" string). Relates to the `restart-all` rate-limit issue below and the malleable-wrapper note in CLAUDE.md.
+**Tie-in to `model-switch-confirm`:** fix direction 2 is the *same recognize-then-confirm pattern* being built for the "Switch model?" dialog (`dev/features/model-switch-confirm.md`). Build that first, then this exit-guard confirmer can reuse the same detached-poller + tail-match + keystroke machinery (recognize `Background work is running` + the `claude-mux --restart` line → send the "Move to background and exit" keystroke). Note also that `model-switch-confirm`'s Phase 3.1 self-switch test (`-s SELF '/model …'` as Claude's own Bash tool call) will now actively trigger this exit-guard, which is exactly why that build's `( … & )` subshell-detach (Change B) must be verified — a bare `&` confirmer would itself be counted as blocking background work.
+
 ### Restart-all bursts session boots and the later ones get server rate-limited
 **Severity:** Medium (handshake unreliable under burst; unattended-recovery risk)
 **Status:** Open

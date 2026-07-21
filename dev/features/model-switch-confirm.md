@@ -164,3 +164,13 @@ Verified anchor points (read 2026-07-17):
 ## Out of scope
 - Generic "confirm any dialog" handling (explicitly rejected — recognize specific dialogs only).
 - The `/model` picker / model-ID resolution (already shipped in `model-resolution-notice-cleanup`).
+
+## Future tie-in (NOT this build)
+This confirmer's recognize-then-confirm machinery (detached poller + tail-match + keystroke) is
+reusable for a *separate* logged bug: Claude Code's **"Background work is running" exit-guard** that
+stalls the caller-last in-place restart (`docs/ISSUES.md`, observed 2026-07-21 on `home`). That's a
+distinct dialog (`Background work is running` + the `claude-mux --restart` line → "Move to background
+and exit"), out of scope for 2.0.14, but a natural follow-on once this pattern is proven. Also note:
+this build's Phase 3.1 self-switch test (`-s SELF '/model …'` as Claude's own Bash tool call) will
+now *trigger* that exit-guard, which is exactly why Change B's `( … & )` subshell-detach must be
+verified — a bare `&` confirmer would itself be counted as blocking background work at `/exit` time.
