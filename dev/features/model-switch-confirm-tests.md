@@ -2,7 +2,7 @@
 kind: feature
 lifecycle: ready
 feature: model-switch-confirm-tests
-status: TEST PLAN drafted 2026-07-17 alongside the build plan; pre-build. Pairs with model-switch-confirm.md.
+status: TEST PLAN drafted 2026-07-17; Phase 0 survey run 2026-07-21; Fable (claude-fable-5) review folded in 2026-07-21 (30s window, exit-guard ship-gate in 3.1, transcript-quote test 2.7, deps-exempt reword, dead-session early-exit). Pre-build/code-ready. Pairs with model-switch-confirm.md.
 related: model-switch-confirm, model-switching-cost-research, model-resolution-notice-cleanup
 ---
 
@@ -44,29 +44,32 @@ Deliverable: a short table in the design doc listing exactly which dialogs the m
 | 2.2 | Same-model switch | `-s TARGET '/model <current-id>'` | confirmer no-ops per survey finding; session unharmed |
 | 2.3 | Unknown/other dialog present | simulate a non-matching dialog in the tail (e.g. a permissions prompt) | match guard fails (missing `Switch model?`/`Yes, switch to`) → confirmer does NOTHING, leaves it for the user |
 | 2.4 | Non-`/model` send | `-s TARGET '/compact'`, `/clear`, etc. | confirmer NOT backgrounded at all (hook guard `== /model *` excludes them); zero behavior change |
-| 2.5 | Dialog renders after the window | throttle/delay so dialog appears >6s later | confirmer already exited; falls back to today's manual-Enter; never worse |
-| 2.6 | Option reorder hardening | mock a tail where `❯` is on the "No" line | confirmer does NOT press Enter (requires `❯` on the `Yes, switch to` line) |
+| 2.5 | Dialog renders after the window | throttle/delay so dialog appears >30s later | confirmer already exited; falls back to today's manual-Enter; never worse |
+| 2.6 | Option reorder hardening | mock a tail where `❯` is on the "No" line | confirmer does NOT press Enter (requires `❯` on the `Yes, switch to` line, in the last ~6 lines) |
+| 2.7 | **Transcript-quote false-match [Fable MEDIUM-1]** | put a verbatim quote of the `Switch model?` block (incl. `❯ 1. Yes, switch to …`) in the SCROLLBACK above a normal live prompt (trivial to reproduce in the claude-mux/home sessions, which quote it in docs/replies); no live dialog | confirmer does NOT press Enter — the bottom-anchor guard (`❯…Yes` must be in the last ~6 lines AND `No, go back` present) rejects a scrolled-up quote. Worst variant: quote in scrollback + a DIFFERENT live dialog at the bottom → still must not key the other dialog's default. |
 
 ## Phase 3 — Reentrancy / process-lifetime (the architect's #1 risk)
 | # | Case | Pass criteria |
 |---|------|---------------|
-| 3.1 | **Survives tool-call return (the real risk)** | Force the adversarial condition: a genuine self-switch where `-s SELF '/model …'` is Claude's Bash tool call. The confirmer is detached via `( … & )` (NOT bare `&`, which stays in the caller's process group and can catch SIGHUP when the tool call is reaped). Instrument the confirmer to log a timestamp when it sends Enter; assert that Enter fires AFTER the `send` process has exited. Enter must still land on the dialog. |
+| 3.1 | **SHIP-GATE: survives tool-call return + exit-guard [Fable HIGH-2]** | Force the adversarial condition: a genuine self-switch where `-s SELF '/model …'` is Claude's Bash tool call. The confirmer is detached via `( … & )` + `>/dev/null 2>&1` (clears job-table + fds; note pgid/session are NOT changed — no `setsid` on macOS). (a) Instrument the confirmer to log a timestamp when it sends Enter; assert Enter fires AFTER the `send` process exited AND lands on the dialog (~5-15s+ later, within the ~30s window — run with the FINAL tick count). (b) **Exit-guard probe:** run `/exit` inside the confirmer's live window and observe whether Claude Code's "Background work is running" guard lists the confirmer. If it does NOT → `( … & )` is sufficient, done. If it DOES → apply the pre-decided escalation (accept option-2 "Move to background and exit" as non-destructive, OR true-detach via `perl … setsid`). This gate decides the detach approach; do not ship on reasoning alone. |
 | 3.2 | No race on self-switch | caller flushes `/model`+Enter, stops; Claude Code renders dialog; confirmer's Enter is the only key in flight → no double-submit |
 | 3.3 | Concurrent switches | two sessions switched near-simultaneously → each confirmer watches its own pane by name; no cross-talk |
-| 3.4 | Narrow-pane wrap | resize target pane to ~60 cols so wrapping inflates the dialog line count; confirm the `tail -12` window + per-line `❯…Yes, switch to` match still recognizes it (guards against the clipped-window bug that motivated tail -12) |
+| 3.4 | Narrow-pane wrap | resize target pane to ~60-80 cols so wrapping inflates the dialog line count; confirm the `tail -12` window + bottom-anchored per-line `❯…Yes, switch to` match still recognizes it. Note [Fable LOW-1]: below ~45 cols the top line can fall outside `tail -12` → a safe MISS (manual fallback, never a wrong key); 80-col detached-pane default does not wrap the longest line. Do NOT grow the tail past ~15 (widens the MEDIUM-1 quote window). |
 
 ## Phase 4 — Regression / build gates
 - `make build` clean; `make check` green (artifact, codemap, features-index all fresh).
 - `make codemap` includes the new `confirm_model_switch` function; purpose row added by hand.
-- Smoke: `bash ./claude-mux --confirm-model-switch NONEXISTENT` exits cleanly (no crash on a missing/again-idle pane) AND within the ~6s bounded window (assert it does not hang).
+- Smoke: `bash ./claude-mux --confirm-model-switch NONEXISTENT` exits cleanly (no crash on a missing/again-idle pane) and FAST via the dead-session early-exit [Fable LOW-4] — assert it does NOT spin the full ~30s window (the `has-session` check should exit ~immediately).
 - Flag arg-guard: `bash ./claude-mux --confirm-model-switch` (no session) errors like `--await-ready` does, exit 1.
-- Deps-exempt: `--confirm-model-switch` runs without a full config load (like `--await-ready`).
+- Config-skip (NOT deps-exempt) [Fable LOW-3]: `--confirm-model-switch` is added to the **config-required-skip list at `src/90-dispatch.sh:10`** (runs without a full config load, like `await-ready`). It is deliberately **NOT** in the deps-exempt list at `src/35-validate-deps.sh:93` — the confirmer needs tmux (`capture-pane`/`send-keys`), so the tmux dep check MUST stay. Do not "fix" `35-validate-deps.sh` to add it.
 - Injection unchanged in shape: the model-switch rule still emits `-s '/model <id>'`; only the parenthetical about "may hang" is removed/updated.
 
 ## Verification checklist (post-build, on the repo copy)
 - [ ] Phase 0 survey table recorded in the design doc; matcher recognizes only the surveyed `Switch model?` dialog.
 - [ ] 1.1–1.3 all switch with NO manual keypress.
 - [ ] 2.1 and 2.4 send ZERO keystrokes (grep the pane: no empty-prompt submission).
-- [ ] 2.3 / 2.6 leave a non-matching dialog untouched.
+- [ ] 2.3 / 2.6 / 2.7 leave a non-matching dialog or a scrolled-up transcript quote untouched.
+- [ ] 3.1 SHIP-GATE run: exit-guard probe performed; detach approach decided by observation (not reasoning).
+- [ ] Window is ~30s (75×0.4s), not ~6s; dead-session early-exit verified fast.
 - [ ] `make check` clean; CHANGELOG + ISSUES + VERSION (2.0.14) updated.
 - [ ] Real end-to-end: switch a genuinely cached session across models from home and confirm it lands on the new model unattended.
