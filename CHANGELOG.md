@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-07-23
+
+### Added
+- **`/clear` now produces the ready handshake, at parity with `/compact`.** After a `clear this session` (or an in-pane `/clear`), the session now replies "Session ready! Running [model] in [mode] mode." — the same confirmation + model readout that compact already produced. Previously clear gave no feedback at all. Mechanism: a new always-on `SessionStart` hook, matcher `clear`, running `claude-mux --on-clear`, which spawns a disowned monitor that waits for the prompt to return then sends `Ready?` (the same shared monitor compact uses, extracted as `spawn_ready_handshake_monitor`). Because `SessionStart` also fires on startup/resume/compact — where the launch path already handshakes — the handler fails closed: it reads the hook's stdin `source` and no-ops unless it is exactly `clear`, and the installed hook also carries matcher `clear`. Existing sessions pick up the hook after a restart or `--install-hooks` (same rollout as the PreCompact hook). Design + test plan: `dev/features/clear-ready-handshake.md`.
+
 ## [2.1.0] - 2026-07-23
 
 ### Changed

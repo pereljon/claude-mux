@@ -8,6 +8,12 @@ Projection of each feature doc's `lifecycle:`. This reflects the **declared** st
 verified reality (a doc can claim `ready` before it is). `kind: investigation` docs and
 `*-tests.md` plans are excluded. Grouped by lifecycle (build-priority order), then by name.
 
+## building
+
+| Feature | Lifecycle | Target | Status | Severity | Doc |
+|---|---|---|---|---|---|
+| `clear-ready-handshake` | building | 2.2.0 (minor) — new always-on hook + new capability (clea... | DESIGNING→BUILDING 2026-07-23. Mechanism verified via claude-code-guide agent (SessionS... | N/A (enhancement) — UX parity with compact; clear currently gives no confirmation and n... | [clear-ready-handshake.md](clear-ready-handshake.md) |
+
 ## designing
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |

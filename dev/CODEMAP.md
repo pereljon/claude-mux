@@ -27,7 +27,7 @@ Navigation reference for the `claude-mux` script. Use this to locate functions a
 | `src/55-session-launch.sh` | 2900-3149 | `await_ready_handshake`, `restart_caller_in_place`, `create_claude_session` |
 | `src/60-discovery.sh` | 3150-3250 | migrate stray, discover projects, ensure base dir |
 | `src/70-start-launch.sh` | 3251-3517 | `start_sessions`, `launch_single_session` (both *call* `build_system_prompt`, defined in `30-helpers`) |
-| `src/75-tip-notices.sh` | 3518-4252 | `tip_of_day`, `detect_claude_upgrade`, `on_prompt`, `on_compact`, update machinery |
+| `src/75-tip-notices.sh` | 3518-4252 | `tip_of_day`, `detect_claude_upgrade`, `on_prompt`, `spawn_ready_handshake_monitor`, `on_compact`, `on_clear`, update machinery |
 | `src/80-templates-restore.sh` | 4253-4515 | `list_templates`, `apply_template`, `autorestore_walk`, `autolaunch_dispatch` |
 | `src/90-dispatch.sh` | 4516-4897 | `check_for_update` call (defined in `30-helpers`), first-run guard `case`, dispatch `case` |
 
@@ -144,7 +144,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `delete_command` | `(session_name, force, yes)` | Shut down session, move folder to Trash |
 | `show_command` | `(session_name)` | Remove `.claudemux-ignore` marker |
 | `setup_default_mode` | `(project_dir)` | Write `permissions.defaultMode` to `.claude/settings.local.json` |
-| `setup_claude_mux_permissions` | `(project_dir, [is_home])` | Add claude-mux to allow list; register UserPromptSubmit `--on-prompt` + PreCompact `--on-compact` hooks, remove legacy Stop `--tipotd` hook. Returns 0=already current, 10=patched/would-patch, 1=error |
+| `setup_claude_mux_permissions` | `(project_dir, [is_home])` | Add claude-mux to allow list; register UserPromptSubmit `--on-prompt` + PreCompact `--on-compact` + SessionStart(matcher `clear`) `--on-clear` hooks, remove legacy Stop `--tipotd` hook. Returns 0=already current, 10=patched/would-patch, 1=error |
 | `setup_multi_coder_files` | `(project_dir)` | Create AGENTS.md / GEMINI.md symlinks to CLAUDE.md |
 | `detect_github_ssh_accounts` | `()` | Parse `~/.ssh/config` for GitHub accounts; set `GITHUB_SSH_INFO` |
 | `poll_until_ready` | `(session, [timeout=120])` | Wait until a session is genuinely ready: busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt + quiescent. Handles trust/bypass auto-accept. Returns 0 ready / 1 timeout |
@@ -162,12 +162,14 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `tip_of_day` | `()` | Select and print one tip (no gating; used by `--tip` and `on_prompt`) |
 | `claude_binary_id` | `()` | Identity of the `claude` executable: `realpath:mtime` (cask realpath or in-place mtime changes on upgrade) |
 | `detect_claude_upgrade` | `()` | Compare `@claude-mux-claude-id` vs current; echo upgrade notice (wrapped in `<assistant-must-display>`) while they differ. persist-while-relevant: NO ack-on-emit — re-injects every prompt until a restart re-captures the id (so a missed relay can't lose it) |
-| `on_compact` | `()` | PreCompact hook: spawn disowned monitor that polls for prompt return post-compact, then sends Ready? to reconnect RC (`--on-compact`) |
+| `spawn_ready_handshake_monitor` | `(session, [label])` | Shared: spawn a disowned poller that waits for the prompt to return in `session`, then sends `Ready?`+Enter to trigger the two-line ready handshake. Used by both `on_compact` and `on_clear` so the paths can't drift |
+| `on_compact` | `()` | PreCompact hook: call `spawn_ready_handshake_monitor` to reconnect RC after compact (`--on-compact`) |
+| `on_clear` | `()` | SessionStart hook, gated to `source == "clear"` (reads hook stdin JSON, no-ops on startup/resume/compact where the launch path already handshakes): call `spawn_ready_handshake_monitor` so the session confirms ready + reports its model after `/clear`, at parity with compact (`--on-clear`) |
 | `on_prompt` | `()` | UserPromptSubmit hook: stdin parse for the `is_handshake` flag only → no-op on the synthetic `Ready?` handshake → Claude Code upgrade notice (always-on, persist-while-relevant) + daily tip (**home session only**, once/day via the global `tip-state/tip.json` stamp — no `session_id` key; v2.0.15) + update notice (persist-while-relevant while `latest > VERSION`); all three wrapped in `<assistant-must-display>` carrying only the clean user-facing line (relay/once-per-session instruction lives in the standing notice rule in `build_system_prompt`, not the notice text — v2.0.13); spawn bg update check (`--on-prompt`) |
 | `update_check_bg` | `()` | Disowned background GitHub release check; refresh cache, clear lock (`--update-check-bg`) |
 | `set_tip_config` | `(enabled)` | Write TIP_OF_DAY to config |
 | `update_all_project_hooks` | `()` | Walk all projects, call `setup_claude_mux_permissions`; tally `HOOKS_SCANNED/PATCHED/CURRENT` globals. Callers: `enable_tips`, `disable_tips`, `install_hooks_command`, `do_update` |
-| `install_hooks_command` | `()` | `--install-hooks`: backfill claude-mux hooks (incl. PreCompact `--on-compact`) into all projects; print scanned/patched/current summary |
+| `install_hooks_command` | `()` | `--install-hooks`: backfill claude-mux hooks (incl. PreCompact `--on-compact` + SessionStart `--on-clear`) into all projects; print scanned/patched/current summary |
 | `enable_tips` | `()` | Set TIP_OF_DAY=true, update all hooks |
 | `disable_tips` | `()` | Set TIP_OF_DAY=false, update all hooks |
 | `do_uninstall` | `()` | Remove plist, hooks (Stop + UserPromptSubmit), permissions, optionally config |
@@ -211,6 +213,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `--save-template NAME` | `save-template` | `save_template_command` |
 | `--tip` | `tip` | `tip_of_day` |
 | `--on-compact` | `on-compact` | `on_compact` (PreCompact hook) |
+| `--on-clear` | `on-clear` | `on_clear` (SessionStart hook, gated to source=clear) |
 | `--await-ready SESSION` | `await-ready` | `await_ready_handshake` (internal; called by the looped launch wrapper) |
 | `--confirm-model-switch SESSION` | `confirm-model-switch` | `confirm_model_switch` (internal; backgrounded by the `-s` send handler for `/model ` payloads) |
 | `--print-system-prompt SESSION [MODE]` | `print-system-prompt` | `build_system_prompt` (internal; wrapper regenerates the prompt on in-place restart) |

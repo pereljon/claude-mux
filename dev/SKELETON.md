@@ -47,7 +47,7 @@ Read only the section you need - `grep -n "^## <name>" dev/SKELETON.md` for its 
 | `await_ready_handshake` / `restart_caller_in_place` / `create_claude_session` | `src/55-session-launch.sh` |
 | migrate / discover projects | `src/60-discovery.sh` |
 | `start_sessions` / `launch_single_session` (call `build_system_prompt`, defined in `30-helpers`) | `src/70-start-launch.sh` |
-| `tip_of_day` / `on_prompt` / `on_compact` / update machinery | `src/75-tip-notices.sh` |
+| `tip_of_day` / `on_prompt` / `spawn_ready_handshake_monitor` / `on_compact` / `on_clear` / update machinery | `src/75-tip-notices.sh` |
 | templates / `autorestore_walk` / `autolaunch_dispatch` | `src/80-templates-restore.sh` |
 | Main dispatch `case` | `src/90-dispatch.sh` |
 
@@ -188,7 +188,7 @@ case COMMAND:
   update-check-bg → update_check_bg()   # disowned background curl
   enable-tips  → enable_tips()
   disable-tips → disable_tips()
-  install-hooks → install_hooks_command()   # backfill hooks (incl. PreCompact) into all projects
+  install-hooks → install_hooks_command()   # backfill hooks (incl. PreCompact + SessionStart clear) into all projects
   list-templates → list_templates()
   save-template  → save_template_command(name, dir)
   rename    → rename_move_command(src, dst, "rename")
@@ -205,6 +205,7 @@ case COMMAND:
     tmux send-keys session command + Enter
     # RC reconnect after /compact is handled universally by the PreCompact hook (on_compact),
     # not by a special case here. The hook fires for all /compact triggers (manual, auto, -s).
+    # /clear likewise handshakes via the SessionStart(clear) hook (on_clear); no special case here.
     if command == "/model *":                      # trailing space: real id, not bare picker
       ( claude-mux --confirm-model-switch session & )  # detached: survives caller turn-end reaping
       # confirm_model_switch: mkdir-lock (one per session) → poll pane ~30s →
@@ -670,7 +671,7 @@ echo "claude-mux updated: OLD → NEW"
 clear ~/.claude-mux/.update-check cache
 
 if config exists:
-  update_all_project_hooks()   # backfill PreCompact + on-prompt hooks into all projects (version changed → real upgrade)
+  update_all_project_hooks()   # backfill PreCompact + SessionStart(clear) + on-prompt hooks into all projects (version changed → real upgrade)
 
 if TTY:
   prompt "Restart running sessions? [y/N]"
@@ -832,6 +833,34 @@ if UPDATE_CHECK:
 out = bin_notice + out   # prepend the always-on upgrade notice
 print out   # may be empty
 exit 0
+```
+
+---
+
+## spawn_ready_handshake_monitor(session, label) / on_compact() / on_clear()
+
+```
+spawn_ready_handshake_monitor(sess, label):
+  # Shared by both hooks so the compact and clear paths cannot drift.
+  spawn disowned:
+    sleep 5                                  # lead-in: let the command clear the prompt
+    poll ≤120s (0.5s): capture-pane, break when prompt (^❯|^> ) returns
+    if not found: log timeout; exit
+    has-session guard (don't ping a killed session); sleep 2
+    tmux send-keys sess "Ready?" + Enter      # triggers the two-line ready reply
+
+on_compact():                                 # PreCompact hook (--on-compact)
+  sess = tmux display-message -p '#S' (needs $TMUX); exit if empty
+  spawn_ready_handshake_monitor(sess, "Compact")
+
+on_clear():                                   # SessionStart hook (--on-clear)
+  src = parse stdin JSON .source
+  if src != "clear": return                   # FAIL CLOSED — SessionStart also fires on
+                                              # startup/resume/compact, where the launch
+                                              # path already handshakes; a duplicate Ready?
+                                              # would race it. matcher "clear" also scopes it.
+  sess = tmux display-message -p '#S'; exit if empty
+  spawn_ready_handshake_monitor(sess, "Clear")
 ```
 
 ---

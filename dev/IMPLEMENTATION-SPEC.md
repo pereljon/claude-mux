@@ -558,12 +558,18 @@ The injected text *instructs* Claude to surface it (the notice is seen, not forc
     "PreCompact": [{
       "hooks": [{"type": "command", "command": "/path/to/claude-mux --on-compact", "timeout": 10}]
     }],
+    "SessionStart": [{
+      "matcher": "clear",
+      "hooks": [{"type": "command", "command": "/path/to/claude-mux --on-clear", "timeout": 10}]
+    }],
     "UserPromptSubmit": [{
       "hooks": [{"type": "command", "command": "/path/to/claude-mux --on-prompt", "timeout": 5}]
     }]
   }
 }
 ```
+
+The `SessionStart` hook (matcher `clear`) fires the ready handshake after `/clear`, at parity with the `PreCompact` hook for `/compact`. `SessionStart` also fires on `startup`/`resume`/`compact`; the `--on-clear` handler reads the hook's stdin `source` and no-ops unless it is `clear`, so it never double-fires against the launch-path handshake. The `PreCompact` and `SessionStart` `--on-clear` hooks are always-on; `--on-prompt` is registered only when the daily tip or update check is enabled.
 
 The hooks live in `.claude/settings.local.json` (highest precedence, safe from array-replace merge behavior in Claude Code's settings hierarchy).
 

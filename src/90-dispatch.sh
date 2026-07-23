@@ -7,7 +7,7 @@ check_for_update
 # Commands that don't need config: install, update, list-templates, send,
 # shutdown, autolaunch (LaunchAgent context — handled in autolaunch_dispatch).
 case "$COMMAND" in
-    install|update|list-templates|send|shutdown|autolaunch|uninstall|on-compact|on-prompt|update-check-bg|await-ready|confirm-model-switch|print-system-prompt)
+    install|update|list-templates|send|shutdown|autolaunch|uninstall|on-compact|on-clear|on-prompt|update-check-bg|await-ready|confirm-model-switch|print-system-prompt)
         # Skip config-required check; these can run without config.
         # Hook commands (on-prompt, update-check-bg) must never prompt or error
         # when config is missing — they exit silently in their handlers.
@@ -51,6 +51,7 @@ case "$COMMAND" in
     list-templates) list_templates; exit 0 ;;
     tip)           tip_of_day; exit 0 ;;
     on-compact)    on_compact; exit 0 ;;
+    on-clear)      on_clear; exit 0 ;;
     await-ready)   await_ready_handshake "$AWAIT_SESSION"; exit 0 ;;
     confirm-model-switch) confirm_model_switch "$CONFIRM_MODEL_SESSION"; exit 0 ;;
     print-system-prompt) build_system_prompt "$PRINT_PROMPT_SESSION" "$PRINT_PROMPT_MODE"; exit 0 ;;

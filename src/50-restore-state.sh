@@ -600,6 +600,13 @@ has_compact_hook = any(
 )
 if not has_compact_hook:
     sys.exit(1)
+# SessionStart --on-clear hook must always be present
+has_clear_hook = any(
+    any(h.get('command', '').endswith('--on-clear') for h in entry.get('hooks', []))
+    for entry in hooks.get('SessionStart', [])
+)
+if not has_clear_hook:
+    sys.exit(1)
 sys.exit(0)
 PYEOF
         then
@@ -696,8 +703,23 @@ if not has_compact_hook:
         'hooks': [{'type': 'command', 'command': compact_cmd, 'timeout': 10}]
     })
 
+# SessionStart(clear) --on-clear hook (ready handshake after /clear). Always-on.
+# matcher 'clear' scopes it to the /clear source; the handler also re-checks the
+# stdin source and no-ops otherwise, so a dropped matcher can't misfire on startup.
+ss_hooks = hooks.setdefault('SessionStart', [])
+clear_cmd = f'{b} --on-clear'
+has_clear_hook = any(
+    any(h.get('command', '').endswith('--on-clear') for h in entry.get('hooks', []))
+    for entry in ss_hooks
+)
+if not has_clear_hook:
+    ss_hooks.append({
+        'matcher': 'clear',
+        'hooks': [{'type': 'command', 'command': clear_cmd, 'timeout': 10}]
+    })
+
 # Drop emptied hook lists / hooks key.
-for key in ('Stop', 'UserPromptSubmit', 'PreCompact'):
+for key in ('Stop', 'UserPromptSubmit', 'PreCompact', 'SessionStart'):
     if key in hooks and not hooks[key]:
         del hooks[key]
 if not hooks:

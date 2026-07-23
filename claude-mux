@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.1.0"
+VERSION="2.2.0"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -239,11 +239,12 @@ Self-targeting (works inside sessions):
                            Both: --force overrides protection; --dry-run previews steps
   --tip                    Print a tip (standalone; no daily gate)
   --on-compact             Internal: PreCompact hook (reconnects RC after compact)
+  --on-clear               Internal: SessionStart(clear) hook (ready handshake after /clear)
   --on-prompt              Internal: UserPromptSubmit hook (daily tip + update notice)
   --update-check-bg        Internal: background GitHub release check (refreshes cache)
   --enable-tips            Enable daily tips (registers the on-prompt hook)
   --disable-tips           Disable daily tips
-  --install-hooks          Backfill claude-mux hooks (incl. PreCompact RC-reconnect) into all projects
+  --install-hooks          Backfill claude-mux hooks (PreCompact RC-reconnect, SessionStart clear handshake) into all projects
   --config-help            List all valid config options
   --commands               Print this reference
   --guide                  Print conversational commands list
@@ -413,7 +414,7 @@ Commands:
   --autolaunch             Invoked by LaunchAgent; dispatches based on LAUNCHAGENT_MODE
   --enable-tips            Enable daily tips (registers the on-prompt hook)
   --disable-tips           Disable daily tips
-  --install-hooks          Backfill claude-mux hooks (incl. PreCompact RC-reconnect) into all projects
+  --install-hooks          Backfill claude-mux hooks (PreCompact RC-reconnect, SessionStart clear handshake) into all projects
   --update                 Update claude-mux to the latest version
   --install [OPTS...]      Run interactive setup (config + LaunchAgent)
                            Options: --non-interactive, --base-dir DIR,
@@ -604,6 +605,7 @@ while [[ $# -gt 0 ]]; do
         --tip)            set_command "--tip" "tip"; shift ;;
         --tipotd)         set_command "--tipotd" "tipotd"; shift ;;
         --on-compact)     set_command "--on-compact" "on-compact"; shift ;;
+        --on-clear)       set_command "--on-clear" "on-clear"; shift ;;
         --await-ready)
             [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: --await-ready requires a session name" >&2; exit 1; }
             set_command "--await-ready" "await-ready"
@@ -2684,6 +2686,13 @@ has_compact_hook = any(
 )
 if not has_compact_hook:
     sys.exit(1)
+# SessionStart --on-clear hook must always be present
+has_clear_hook = any(
+    any(h.get('command', '').endswith('--on-clear') for h in entry.get('hooks', []))
+    for entry in hooks.get('SessionStart', [])
+)
+if not has_clear_hook:
+    sys.exit(1)
 sys.exit(0)
 PYEOF
         then
@@ -2780,8 +2789,23 @@ if not has_compact_hook:
         'hooks': [{'type': 'command', 'command': compact_cmd, 'timeout': 10}]
     })
 
+# SessionStart(clear) --on-clear hook (ready handshake after /clear). Always-on.
+# matcher 'clear' scopes it to the /clear source; the handler also re-checks the
+# stdin source and no-ops otherwise, so a dropped matcher can't misfire on startup.
+ss_hooks = hooks.setdefault('SessionStart', [])
+clear_cmd = f'{b} --on-clear'
+has_clear_hook = any(
+    any(h.get('command', '').endswith('--on-clear') for h in entry.get('hooks', []))
+    for entry in ss_hooks
+)
+if not has_clear_hook:
+    ss_hooks.append({
+        'matcher': 'clear',
+        'hooks': [{'type': 'command', 'command': clear_cmd, 'timeout': 10}]
+    })
+
 # Drop emptied hook lists / hooks key.
-for key in ('Stop', 'UserPromptSubmit', 'PreCompact'):
+for key in ('Stop', 'UserPromptSubmit', 'PreCompact', 'SessionStart'):
     if key in hooks and not hooks[key]:
         del hooks[key]
 if not hooks:
@@ -3859,38 +3883,71 @@ json.dump({"tip_date": sys.argv[2]}, open(sys.argv[1],"w"))' \
     exit 0
 }
 
-# PreCompact hook handler. Spawns a disowned background monitor that polls for
-# the prompt to return after compact completes, then sends "Ready?" to reconnect
-# Remote Control. Fires for every /compact regardless of how it was triggered
-# (manual, auto, or via -s). Returns immediately — Claude Code waits for the
-# hook to exit before starting the compact.
-on_compact() {
-    local _sess
-    _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null) || return 0
+# Shared ready-handshake monitor. Spawns a disowned background poller that waits
+# for the shell prompt to return in session $1, then sends "Ready?" + Enter to
+# trigger the two-line ready handshake (reconnects Remote Control and makes the
+# session confirm ready + report its model/mode). $2 is a short label for log
+# lines ("Compact" / "Clear"). Used by both on_compact and on_clear so the two
+# paths cannot drift. Returns immediately.
+spawn_ready_handshake_monitor() {
+    local _sess="$1" _label="${2:-Handshake}"
     [[ -z "$_sess" ]] && return 0
     (
-        # Lead-in: wait for /compact to clear the prompt before polling.
+        # Lead-in: wait for the triggering command to clear the prompt before polling.
         sleep 5
         # Poll every 0.5s, up to 120s (240 iterations) for prompt to return.
-        _cpoll=0; _found=false; _cpane=""
-        while [[ $_cpoll -lt 240 ]]; do
+        _hpoll=0; _found=false; _hpane=""
+        while [[ $_hpoll -lt 240 ]]; do
             sleep 0.5
-            _cpane=$("$TMUX_BIN" capture-pane -t "$_sess" -p 2>/dev/null) || break
-            echo "$_cpane" | grep -qE '^❯|^> ' && { _found=true; break; }
-            (( _cpoll++ ))
+            _hpane=$("$TMUX_BIN" capture-pane -t "$_sess" -p 2>/dev/null) || break
+            echo "$_hpane" | grep -qE '^❯|^> ' && { _found=true; break; }
+            (( _hpoll++ ))
         done
         if [[ "$_found" != "true" ]]; then
-            log "Compact monitor timed out for '$_sess'; skipping RC reconnect"
+            log "$_label monitor timed out for '$_sess'; skipping ready handshake"
             exit 0
         fi
         # Guard: don't ping a session that was intentionally killed.
         "$TMUX_BIN" has-session -t "$_sess" 2>/dev/null || exit 0
         sleep 2
-        log "Compact complete in '$_sess'; sending Ready? to reconnect RC"
+        log "$_label complete in '$_sess'; sending Ready? to trigger handshake"
         "$TMUX_BIN" send-keys -t "$_sess" -l "Ready?" 2>/dev/null \
             && "$TMUX_BIN" send-keys -t "$_sess" Enter 2>/dev/null
     ) &
     disown
+}
+
+# PreCompact hook handler. Fires for every /compact regardless of how it was
+# triggered (manual, auto, or via -s). Spawns the shared monitor to reconnect
+# Remote Control once compact completes. Returns immediately — Claude Code waits
+# for the hook to exit before starting the compact.
+on_compact() {
+    local _sess
+    _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null) || return 0
+    [[ -z "$_sess" ]] && return 0
+    spawn_ready_handshake_monitor "$_sess" "Compact"
+}
+
+# SessionStart hook handler, gated to source == "clear". After /clear (in-pane or
+# via -s), makes the session confirm ready and report its model, at parity with
+# compact. SessionStart also fires on startup/resume/compact, where the launch
+# path already handshakes — a duplicate Ready? there would race the launch
+# handshake at the most fragile moment — so we fail closed: read the hook stdin
+# JSON and no-op unless source is exactly "clear". The installed hook also carries
+# matcher "clear" (Claude Code invokes it only on clear); this stdin check is the
+# belt-and-suspenders guard against a hand-edited settings file that drops it.
+on_clear() {
+    local _src
+    _src=$(/usr/bin/python3 -c '
+import json, sys
+try: obj = json.load(sys.stdin)
+except Exception: obj = {}
+print((obj.get("source", "") or "").strip())' 2>/dev/null)
+    [[ "$_src" == "clear" ]] || return 0
+    local _sess
+    _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null) || return 0
+    [[ -z "$_sess" ]] && return 0
+    spawn_ready_handshake_monitor "$_sess" "Clear"
 }
 
 # Background update check spawned (disowned) by on_prompt. Performs the GitHub
@@ -4030,9 +4087,10 @@ except Exception: sys.exit(1)
 
 changed = False
 
-# Remove claude-mux hooks: legacy Stop --tipotd, UserPromptSubmit --on-prompt, PreCompact --on-compact
+# Remove claude-mux hooks: legacy Stop --tipotd, UserPromptSubmit --on-prompt,
+# PreCompact --on-compact, SessionStart --on-clear
 hooks = d.get('hooks', {})
-for key, suffix in (('Stop', '--tipotd'), ('UserPromptSubmit', '--on-prompt'), ('PreCompact', '--on-compact')):
+for key, suffix in (('Stop', '--tipotd'), ('UserPromptSubmit', '--on-prompt'), ('PreCompact', '--on-compact'), ('SessionStart', '--on-clear')):
     entries = hooks.get(key, [])
     kept = [
         entry for entry in entries
@@ -4633,7 +4691,7 @@ check_for_update
 # Commands that don't need config: install, update, list-templates, send,
 # shutdown, autolaunch (LaunchAgent context — handled in autolaunch_dispatch).
 case "$COMMAND" in
-    install|update|list-templates|send|shutdown|autolaunch|uninstall|on-compact|on-prompt|update-check-bg|await-ready|confirm-model-switch|print-system-prompt)
+    install|update|list-templates|send|shutdown|autolaunch|uninstall|on-compact|on-clear|on-prompt|update-check-bg|await-ready|confirm-model-switch|print-system-prompt)
         # Skip config-required check; these can run without config.
         # Hook commands (on-prompt, update-check-bg) must never prompt or error
         # when config is missing — they exit silently in their handlers.
@@ -4677,6 +4735,7 @@ case "$COMMAND" in
     list-templates) list_templates; exit 0 ;;
     tip)           tip_of_day; exit 0 ;;
     on-compact)    on_compact; exit 0 ;;
+    on-clear)      on_clear; exit 0 ;;
     await-ready)   await_ready_handshake "$AWAIT_SESSION"; exit 0 ;;
     confirm-model-switch) confirm_model_switch "$CONFIRM_MODEL_SESSION"; exit 0 ;;
     print-system-prompt) build_system_prompt "$PRINT_PROMPT_SESSION" "$PRINT_PROMPT_MODE"; exit 0 ;;

@@ -127,11 +127,12 @@ Self-targeting (works inside sessions):
                            Both: --force overrides protection; --dry-run previews steps
   --tip                    Print a tip (standalone; no daily gate)
   --on-compact             Internal: PreCompact hook (reconnects RC after compact)
+  --on-clear               Internal: SessionStart(clear) hook (ready handshake after /clear)
   --on-prompt              Internal: UserPromptSubmit hook (daily tip + update notice)
   --update-check-bg        Internal: background GitHub release check (refreshes cache)
   --enable-tips            Enable daily tips (registers the on-prompt hook)
   --disable-tips           Disable daily tips
-  --install-hooks          Backfill claude-mux hooks (incl. PreCompact RC-reconnect) into all projects
+  --install-hooks          Backfill claude-mux hooks (PreCompact RC-reconnect, SessionStart clear handshake) into all projects
   --config-help            List all valid config options
   --commands               Print this reference
   --guide                  Print conversational commands list
@@ -301,7 +302,7 @@ Commands:
   --autolaunch             Invoked by LaunchAgent; dispatches based on LAUNCHAGENT_MODE
   --enable-tips            Enable daily tips (registers the on-prompt hook)
   --disable-tips           Disable daily tips
-  --install-hooks          Backfill claude-mux hooks (incl. PreCompact RC-reconnect) into all projects
+  --install-hooks          Backfill claude-mux hooks (PreCompact RC-reconnect, SessionStart clear handshake) into all projects
   --update                 Update claude-mux to the latest version
   --install [OPTS...]      Run interactive setup (config + LaunchAgent)
                            Options: --non-interactive, --base-dir DIR,
@@ -492,6 +493,7 @@ while [[ $# -gt 0 ]]; do
         --tip)            set_command "--tip" "tip"; shift ;;
         --tipotd)         set_command "--tipotd" "tipotd"; shift ;;
         --on-compact)     set_command "--on-compact" "on-compact"; shift ;;
+        --on-clear)       set_command "--on-clear" "on-clear"; shift ;;
         --await-ready)
             [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: --await-ready requires a session name" >&2; exit 1; }
             set_command "--await-ready" "await-ready"

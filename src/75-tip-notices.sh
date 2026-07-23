@@ -224,38 +224,71 @@ json.dump({"tip_date": sys.argv[2]}, open(sys.argv[1],"w"))' \
     exit 0
 }
 
-# PreCompact hook handler. Spawns a disowned background monitor that polls for
-# the prompt to return after compact completes, then sends "Ready?" to reconnect
-# Remote Control. Fires for every /compact regardless of how it was triggered
-# (manual, auto, or via -s). Returns immediately — Claude Code waits for the
-# hook to exit before starting the compact.
-on_compact() {
-    local _sess
-    _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null) || return 0
+# Shared ready-handshake monitor. Spawns a disowned background poller that waits
+# for the shell prompt to return in session $1, then sends "Ready?" + Enter to
+# trigger the two-line ready handshake (reconnects Remote Control and makes the
+# session confirm ready + report its model/mode). $2 is a short label for log
+# lines ("Compact" / "Clear"). Used by both on_compact and on_clear so the two
+# paths cannot drift. Returns immediately.
+spawn_ready_handshake_monitor() {
+    local _sess="$1" _label="${2:-Handshake}"
     [[ -z "$_sess" ]] && return 0
     (
-        # Lead-in: wait for /compact to clear the prompt before polling.
+        # Lead-in: wait for the triggering command to clear the prompt before polling.
         sleep 5
         # Poll every 0.5s, up to 120s (240 iterations) for prompt to return.
-        _cpoll=0; _found=false; _cpane=""
-        while [[ $_cpoll -lt 240 ]]; do
+        _hpoll=0; _found=false; _hpane=""
+        while [[ $_hpoll -lt 240 ]]; do
             sleep 0.5
-            _cpane=$("$TMUX_BIN" capture-pane -t "$_sess" -p 2>/dev/null) || break
-            echo "$_cpane" | grep -qE '^❯|^> ' && { _found=true; break; }
-            (( _cpoll++ ))
+            _hpane=$("$TMUX_BIN" capture-pane -t "$_sess" -p 2>/dev/null) || break
+            echo "$_hpane" | grep -qE '^❯|^> ' && { _found=true; break; }
+            (( _hpoll++ ))
         done
         if [[ "$_found" != "true" ]]; then
-            log "Compact monitor timed out for '$_sess'; skipping RC reconnect"
+            log "$_label monitor timed out for '$_sess'; skipping ready handshake"
             exit 0
         fi
         # Guard: don't ping a session that was intentionally killed.
         "$TMUX_BIN" has-session -t "$_sess" 2>/dev/null || exit 0
         sleep 2
-        log "Compact complete in '$_sess'; sending Ready? to reconnect RC"
+        log "$_label complete in '$_sess'; sending Ready? to trigger handshake"
         "$TMUX_BIN" send-keys -t "$_sess" -l "Ready?" 2>/dev/null \
             && "$TMUX_BIN" send-keys -t "$_sess" Enter 2>/dev/null
     ) &
     disown
+}
+
+# PreCompact hook handler. Fires for every /compact regardless of how it was
+# triggered (manual, auto, or via -s). Spawns the shared monitor to reconnect
+# Remote Control once compact completes. Returns immediately — Claude Code waits
+# for the hook to exit before starting the compact.
+on_compact() {
+    local _sess
+    _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null) || return 0
+    [[ -z "$_sess" ]] && return 0
+    spawn_ready_handshake_monitor "$_sess" "Compact"
+}
+
+# SessionStart hook handler, gated to source == "clear". After /clear (in-pane or
+# via -s), makes the session confirm ready and report its model, at parity with
+# compact. SessionStart also fires on startup/resume/compact, where the launch
+# path already handshakes — a duplicate Ready? there would race the launch
+# handshake at the most fragile moment — so we fail closed: read the hook stdin
+# JSON and no-op unless source is exactly "clear". The installed hook also carries
+# matcher "clear" (Claude Code invokes it only on clear); this stdin check is the
+# belt-and-suspenders guard against a hand-edited settings file that drops it.
+on_clear() {
+    local _src
+    _src=$(/usr/bin/python3 -c '
+import json, sys
+try: obj = json.load(sys.stdin)
+except Exception: obj = {}
+print((obj.get("source", "") or "").strip())' 2>/dev/null)
+    [[ "$_src" == "clear" ]] || return 0
+    local _sess
+    _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null) || return 0
+    [[ -z "$_sess" ]] && return 0
+    spawn_ready_handshake_monitor "$_sess" "Clear"
 }
 
 # Background update check spawned (disowned) by on_prompt. Performs the GitHub
@@ -395,9 +428,10 @@ except Exception: sys.exit(1)
 
 changed = False
 
-# Remove claude-mux hooks: legacy Stop --tipotd, UserPromptSubmit --on-prompt, PreCompact --on-compact
+# Remove claude-mux hooks: legacy Stop --tipotd, UserPromptSubmit --on-prompt,
+# PreCompact --on-compact, SessionStart --on-clear
 hooks = d.get('hooks', {})
-for key, suffix in (('Stop', '--tipotd'), ('UserPromptSubmit', '--on-prompt'), ('PreCompact', '--on-compact')):
+for key, suffix in (('Stop', '--tipotd'), ('UserPromptSubmit', '--on-prompt'), ('PreCompact', '--on-compact'), ('SessionStart', '--on-clear')):
     entries = hooks.get(key, [])
     kept = [
         entry for entry in entries
