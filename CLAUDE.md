@@ -158,7 +158,7 @@ The canonical order of a change, start to finish. This list is the *sequence*; t
 10. **Deploy** — `make build` then `cp claude-mux ~/bin/` so local sessions use the new code (after commit).
 11. **Push** — [approval gate].
 12. **Release** — [approval gate]; only if `claude-mux`/`install.sh` changed; **`make check` must pass clean immediately before `git tag`** (never tag a stale artifact); `git tag` → `git push origin TAG` → `gh release create`, ascending version order (see Git Approvals → Release).
-13. **Post-release compact** — `claude-mux -s SESSION '/compact'`.
+13. **Post-release clear** — `claude-mux -s SESSION '/clear'`. The next cycle starts a fresh feature; no context from this cycle needs to carry over (the handoff lives in the feature docs + memory, not the transcript).
 
 Plan docs (steps 1-3) come before code; reference/changelog docs (step 7) come after code+review so they describe the final result. Commit, push, and release are independent approval gates — one does not imply the next.
 
@@ -184,7 +184,7 @@ Each step requires explicit user approval. Approval for one step does not imply 
 
 After completing work, proactively ask which steps the user wants: "Want to commit, push, or release?"
 
-After a release completes, compact the session: `claude-mux -s SESSION_NAME '/compact'` where SESSION_NAME is the current tmux session name.
+After a release completes, clear the session: `claude-mux -s SESSION_NAME '/clear'` where SESSION_NAME is the current tmux session name. The next build cycle needs no context from this one (the cross-cycle handoff lives in the feature docs and memory, not the transcript), so clear rather than compact.
 
 ## Testing Plan
 
