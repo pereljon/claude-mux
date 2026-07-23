@@ -742,6 +742,8 @@ Trigger to re-evaluate: when any single bash function exceeds ~150 lines of bran
 
 Resolved issues are recorded in `CHANGELOG.md` and git history; this section is intentionally kept short.
 
+- **Daily tip re-showed on every `/clear`/restart/compact** (v2.0.15, 2026-07-22). The once-per-day gate was keyed on the per-conversation `session_id`, which rotates on every `/clear` and restart, so each rotation re-emitted the tip (seven stamps in one day, four inside 18 minutes). Fixed: tip is now home-session-only, gated by a single global stamp `tip-state/tip.json`; `session_id` dropped from the tip path; orphaned per-session stamps swept once. Design: `dev/features/tip-home-daily.md`.
+
 - **`src/` module split with build-time concatenation** (2026-06-17). `claude-mux` is now generated from 13 ordered `src/*.sh` fragments by `make build`; the built file is byte-identical to the pre-split script. Drift guarded by `make check` + mandatory pre-commit hook + `.gitattributes` + CI. Behavior-preserving; no GitHub release. Design: `dev/features/src-module-split.md`.
 
 ---

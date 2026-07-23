@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.14"
+VERSION="2.0.15"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config

@@ -4,6 +4,12 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.0.15] - 2026-07-22
+
+### Fixed
+- **The daily tip no longer re-shows on every `/clear`, restart, or compact.** The once-per-day gate was keyed on Claude Code's per-conversation `session_id`, which mints a fresh UUID on every `/clear` and restart/resume — so each rotation found no stamp and re-emitted the tip (observed: seven `tip-state` files stamped in one day, four inside an 18-minute window). The tip is now gated **once per day globally**, in the **`home` session only**, via a single stamp `~/.claude-mux/tip-state/tip.json`; `session_id` drops out of the tip path entirely. Project sessions no longer show the tip at all (tips are orchestration-themed and home is the always-on session). Orphaned legacy per-session `<uuid>.json` stamps are swept once on the first home tip fire. The two actionable notices (update-available, Claude-Code-upgraded) are unchanged and still fire in every session.
+  - **Behavior change:** if you run no `home` session (LaunchAgent not installed), tips no longer appear. Use `--tip` on demand, or the always-on `home` session, to see them. Design + test plan: `dev/features/tip-home-daily.md`.
+
 ## [2.0.14] - 2026-07-22
 
 ### Fixed

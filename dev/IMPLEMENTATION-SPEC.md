@@ -121,7 +121,7 @@ The split is behavior-preserving by construction; it changes no feature, flag, c
 | `TMUX_ESCAPE_TIME` | `10` | Escape key delay in milliseconds |
 | `TMUX_TITLE_FORMAT` | `#S` | Terminal/tab title format |
 | `TMUX_MONITOR_ACTIVITY` | `true` | Activity notifications from other sessions |
-| `TIP_OF_DAY` | `true` | Inject a tip once per day per session via the `UserPromptSubmit` hook (`--on-prompt`). The hook is registered when `TIP_OF_DAY` or `UPDATE_CHECK` is `true`, and removed only when both are `false`. `--tip` on demand always works regardless. |
+| `TIP_OF_DAY` | `true` | Inject a tip once per day, in the `home` session only, via the `UserPromptSubmit` hook (`--on-prompt`), gated by the global `tip-state/tip.json` stamp (v2.0.15; was per-session before). The hook is registered when `TIP_OF_DAY` or `UPDATE_CHECK` is `true`, and removed only when both are `false`. `--tip` on demand always works regardless. |
 | `TIP_MODE` | `daily` | `daily` picks the same tip all day via day-of-year hash. `random` picks a non-deterministic tip. |
 | `UPDATE_CHECK` | `true` | Check GitHub releases for newer versions (cached daily). When `true`, a running session is notified in-conversation via the `--on-prompt` hook (persist-while-relevant since v2.0.10: re-injected every prompt while a newer version is cached, self-clearing when the user updates — no per-session throttle to burn) and the terminal prints a notice on interactive runs. Also keeps the on-prompt hook registered even when `TIP_OF_DAY` is `false`. |
 
@@ -525,7 +525,7 @@ Encodes an absolute path to the format Claude Code uses for `~/.claude/projects/
 
 ### tip_of_day()
 
-Prints one tip from the embedded ~39-tip array, unconditionally. No gating: `--tip` always works regardless of `TIP_OF_DAY`, and `on_prompt` applies its own per-session gate. (Prior to v1.15.0 this function carried a `--session` daily-gate mode and a `TIP_OF_DAY` early-return; both were removed.)
+Prints one tip from the embedded ~39-tip array, unconditionally. No gating: `--tip` always works regardless of `TIP_OF_DAY`, and `on_prompt` applies its own gate (home-only, once/day global as of v2.0.15). (Prior to v1.15.0 this function carried a `--session` daily-gate mode and a `TIP_OF_DAY` early-return; both were removed.)
 
 Tip selection: `daily` mode → `(day_of_year - 1) % num_tips`; `random` mode → `RANDOM % num_tips`.
 
@@ -535,14 +535,14 @@ Tip selection: `daily` mode → `(day_of_year - 1) % num_tips`; `random` mode �
 
 v1.15.0 replaces both with a single Claude Code `UserPromptSubmit` hook calling `claude-mux --on-prompt`. UserPromptSubmit stdout **is** injected into the conversation context (proven to surface in Remote Control), making it the correct delivery path for both notices.
 
-**`on_prompt()` flow:** (as of v2.0.8 the single stdin parse runs first so the handshake check can precede everything)
-1. Read the hook's stdin JSON once (via `python3`): extract `session_id` (validated `[A-Za-z0-9_-]{1,128}`, sentinel `_` if missing/invalid), an `is_handshake` flag (`prompt.strip() == "Ready?"`), and the per-session state from `~/.claude-mux/tip-state/<session_id>.json` (`{tip_date, update_notify, notify_version}`). The parse always prints exactly 5 fields so `read` stays aligned even when `session_id` is absent.
-2. **Handshake no-op (v2.0.8):** if `is_handshake`, `exit 0` immediately — inject nothing and stamp no state. The `Ready?` handshake is a synthetic prompt claude-mux sends itself after a restart / compact-reconnect; the session's two-line ready reply swallows any injected text, so a tip / update / upgrade notice here is lost **and** would burn its once-per-day / 7-day-throttle / once-per-change budget. The no-op precedes `detect_claude_upgrade`, so the upgrade notice is also deferred to the first real prompt.
-3. `detect_claude_upgrade` (always-on; needs no `session_id`). Then the cheap guard: if both `TIP_OF_DAY` and `UPDATE_CHECK` are false, flush any upgrade notice and `exit 0`. Then: if `session_id` is the `_` sentinel (missing/invalid), flush the upgrade notice and `exit 0`.
-4. **Tip:** if `TIP_OF_DAY` and `state.tip_date != today`, emit `[claude-mux tip — share this with the user]: <tip>` and set `tip_date = today`.
-5. **Update notice:** if `UPDATE_CHECK`, read the cache (`~/.claude-mux/.update-check`); if `latest > VERSION` and either this session has not been notified within 7 days **or** `latest` differs from the session's `notify_version` (so a brand-new release is not suppressed by the window), emit `[claude-mux update available — tell the user]: ...` and set `update_notify = now`, `notify_version = latest`.
+**`on_prompt()` flow:** (as of v2.0.8 the stdin parse runs first so the handshake check can precede everything; the tip gate went home-only + global-stamp in v2.0.15)
+1. Read the hook's stdin JSON (via `python3`) for the `is_handshake` flag only (`prompt.strip() == "Ready?"`). `session_id` is no longer read: the tip is gated home-only + a global stamp (below), and the two actionable notices are persist-while-relevant and keep no per-session state (v2.0.10).
+2. **Handshake no-op (v2.0.8):** if `is_handshake`, `exit 0` immediately — inject nothing. The `Ready?` handshake is a synthetic prompt claude-mux sends itself after a restart / compact-reconnect; the session's two-line ready reply swallows any injected text, so a tip / update / upgrade notice here is lost **and** (for the tip) would burn its once-per-day budget. The no-op precedes `detect_claude_upgrade`, so the upgrade notice is also deferred to the first real prompt.
+3. `detect_claude_upgrade` (always-on; needs no `session_id`). Then the cheap guard: if both `TIP_OF_DAY` and `UPDATE_CHECK` are false, flush any upgrade notice and `exit 0`.
+4. **Tip (home-only, once/day global — v2.0.15):** if `TIP_OF_DAY`, read the tmux session name (`display-message -p '#S'`); only if it is `home` read the **single global** stamp `~/.claude-mux/tip-state/tip.json` (`{tip_date}`). If `tip_date != today`, emit the tip, write today's date to `tip.json`, and one-time-sweep any orphaned legacy `<uuid>.json` stamps (excluding `tip.json`). Non-home sessions never show the tip. This replaced the per-session `<session_id>.json` gate, whose UUID rotated on every `/clear`/restart and re-showed the tip.
+5. **Update notice (persist-while-relevant — v2.0.10):** if `UPDATE_CHECK`, read the cache (`~/.claude-mux/.update-check`); if `latest > VERSION`, emit the update notice every prompt (no per-session throttle to burn — the condition self-clears when the user updates and `VERSION` rises past `latest`). Claude de-dups within a conversation via the once-per-session instruction in the standing notice rule (`build_system_prompt`).
 6. **Background refresh:** if the cache is stale (>24h since `last_check`), spawn a disowned `claude-mux --update-check-bg`. The in-flight lock is a **directory** (`~/.claude-mux/.update-checking`): `mkdir` is atomic on POSIX, so only the process that creates it spawns the check and concurrent prompts that lose the race skip. A lock older than 5 minutes is treated as orphaned (`rmdir`, then re-acquire). The hook never blocks on the network.
-7. Persist per-session state only if it changed; print accumulated notices.
+7. Prepend the always-on upgrade notice; print accumulated notices (may be empty).
 
 The injected text *instructs* Claude to surface it (the notice is seen, not force-displayed) — the one tradeoff of this delivery path, accepted because it is the only one that reaches RC.
 

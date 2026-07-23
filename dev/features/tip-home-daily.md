@@ -2,11 +2,21 @@
 kind: feature
 lifecycle: ready
 feature: tip-home-daily
-status: DESIGNED 2026-06-22 (verified root cause; pre-build). Reported live ("seeing the tip A LOT today").
-target_version: 2.0.14 (patch) — a real bug fix
+status: READY 2026-07-22 (Fable design-reviewed; build from the sketch below, NOT the parked WIP patch). Verified root cause 2026-06-22; reported live ("seeing the tip A LOT today").
+target_version: 2.0.15 (patch) — a real bug fix (2.0.14 shipped model-switch-confirm)
 severity: MEDIUM — the daily tip re-shows on every compact/clear/restart, defeating the once-per-day intent
 related: tip-ready-handshake.md, notice-delivery-reliability.md
 ---
+
+> **Build note (Fable review, 2026-07-22):** A parked WIP patch exists at
+> `scratchpad/75-tip-notices-wip.patch` — it implements the global stamp but **drops the
+> home-only gate** and is **truncated** (leaves the old per-session persist block as dead
+> code with a swallowed-error `json.dump` on an empty path). **Do not apply it.** Build
+> from the sketch in this doc: home gate (`#S == "home"`) + single global daily stamp, and
+> **delete the trailing per-session persist block** (`src/75-tip-notices.sh` ~lines
+> 217-225). Keep `_now`/`_today` (the update-notice block still uses them). Do **not**
+> refactor `detect_claude_upgrade` to share the `#S` read — two cheap `display-message`
+> calls per prompt is fine and keeps the diff patch-sized.
 
 # Feature: the daily tip re-shows on every conversation rotation (make it home-only, once per day globally)
 
@@ -141,6 +151,11 @@ home run** — when writing `tip.json`, also `rm -f` the `<uuid>.json` siblings 
 matching the 8-4-4-4-12 UUID shape, i.e. not `tip.json`). One-time cleanup, no separate
 command. Alternative: leave them (harmless clutter). Decide at build; default to sweep.
 
+**Sweep glob hardening (Fable review):** `*-*-*-*-*.json` cannot match `tip.json` (zero
+dashes), so it is safe today, but it would silently delete any future dash-named state
+file in `tip-state/`. Add an explicit `tip.json` exclusion to document intent, e.g.
+`find "$_state_dir" -maxdepth 1 -name '*-*-*-*-*.json' ! -name tip.json -delete`.
+
 ## Edge cases
 
 | Case | Behavior |
@@ -176,19 +191,30 @@ Proposed **2.0.14 (patch)** — self-contained bug fix. `claude-mux` changes (th
 - `src/75-tip-notices.sh`: rewrite the tip branch of `on_prompt` (home gate + global
   stamp); drop `session_id` parse + per-session `<sid>.json` I/O; optional one-time sweep
   of orphaned `<uuid>.json` files. `make build`.
-- `src/00-defaults.sh`: `VERSION=2.0.14`.
+  Also delete the trailing per-session persist block (~lines 217-225) and update the
+  `on_prompt` + `tip_of_day` header comments (they describe per-session gating). Update
+  the `enable_tips` echo string (`src/75-tip-notices.sh:364` — "appear in each session
+  once per day" is now false → home session, once per day). `make build`.
+- `src/00-defaults.sh`: `VERSION=2.0.15`.
 - `dev/CODEMAP.md`: update the `on_prompt` purpose row (home-gated, global daily stamp,
   no `session_id`).
 - `dev/SKELETON.md`: `on_prompt` logic-flow — handshake no-op → home gate → global stamp.
 - `dev/IMPLEMENTATION-SPEC.md`: tip-delivery section — once/day global, home-only;
-  `tip.json` replaces `<session_id>.json` for the tip gate.
+  `tip.json` replaces `<session_id>.json` for the tip gate. Also fix the stale
+  `on_prompt` walkthrough (`~:539-542`, still says "prints exactly 5 fields" /
+  per-session read) and the `TIP_OF_DAY` settings row (`~:124`).
+- `config.example`: fix the `TIP_OF_DAY` comment (`~:51`, "once per day per session" →
+  home session, once per day). Setting itself unchanged.
+- `docs/FAQ.md`: update the per-session-gate description (`~:56`) and the
+  `<session_id>.json` state-table row (`~:90`).
 - `CHANGELOG.md`: Fixed — daily tip re-showed on every compact/clear/restart; now fires
-  once per day in the home session only.
+  once per day in the home session only. Note the behavior change: sessions with no home
+  session (LaunchAgent not installed) no longer see tips.
 - `docs/ISSUES.md`: add + resolve the "tip re-shows per conversation" entry.
-- `docs/GUIDE.md`: if it documents tip-of-day gating, update "per session" → "once/day,
-  home session".
-- No README / translations / config.example / injection / tips-array changes (delivery
-  gating, not tip content or a user-facing command).
+- `docs/GUIDE.md`: update the tip-of-day gating description (`~:197-205`) — "per session"
+  → "once/day, home session" (unconditional; it does document this).
+- No README / translations / injection / tips-array changes (delivery gating, not tip
+  content or a user-facing command).
 
 ## Out of scope
 

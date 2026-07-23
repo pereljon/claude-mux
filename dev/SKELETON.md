@@ -21,7 +21,7 @@ Read only the section you need - `grep -n "^## <name>" dev/SKELETON.md` for its 
 - **shutdown_single_session / shutdown_claude_sessions** - teardown paths
 - **rename_move_command** - rename/move with history migration
 - **tip_of_day** - tip selection (no gating)
-- **on_prompt** - UserPromptSubmit hook: per-session daily tip + persist-while-relevant update/upgrade notices (wrapped in `<assistant-must-display>`) + bg check spawn
+- **on_prompt** - UserPromptSubmit hook: home-only daily tip (global stamp) + persist-while-relevant update/upgrade notices (wrapped in `<assistant-must-display>`) + bg check spawn
 - **update_check_bg** - disowned background GitHub release check
 - **Key Invariants** - rules that must hold across changes
 
@@ -755,7 +755,7 @@ if TIP_MODE == "daily":
 else:
   index = random % len(tips)
 
-print tips[index]   # no gating; --tip always works, on_prompt gates per-session
+print tips[index]   # no gating; --tip always works, on_prompt gates home-only/global
 ```
 
 ---
@@ -766,13 +766,11 @@ print tips[index]   # no gating; --tip always works, on_prompt gates per-session
 # Injected stdout is seen by Claude (and reaches Remote Control), unlike the
 # old Stop hook whose stdout was transcript-only.
 
-# Read stdin JSON ONCE (python3) → session_id, is_handshake, tip_date.
-#   session_id: validated [A-Za-z0-9_-]{1,128}, sentinel "_" if missing/invalid
+# Read stdin JSON (python3) → is_handshake ONLY.
 #   is_handshake: prompt.strip() == "Ready?"
-#   state = ~/.claude-mux/tip-state/<session_id>.json  # {tip_date} ONLY — the two
-#     actionable notices keep no per-session state (persist-while-relevant, v2.0.10).
-#   Always prints exactly 3 fields so `read` stays aligned even when session_id absent.
-read stdin JSON → session_id, is_handshake, tip_date
+#   session_id is no longer read (v2.0.15): the tip gate is home-only + a global
+#   tip.json stamp, and the actionable notices keep no per-session state.
+read stdin JSON → is_handshake
 
 # Handshake no-op (v2.0.8): the synthetic "Ready?" claude-mux sends itself after a
 # restart / compact-reconnect is NOT a real user turn. Its two-line ready reply
@@ -797,13 +795,18 @@ bin_notice = detect_claude_upgrade()
 if TIP_OF_DAY != true AND UPDATE_CHECK != true:   # cheap guard
   print bin_notice (if any); exit 0               # still flush the always-on notice
 
-if session_id == "_" (missing/invalid):           # no tip/update work possible
-  print bin_notice (if any); exit 0
-
-# Daily tip (per session) — wrapped in <assistant-must-display>, clean text only
-if TIP_OF_DAY and state.tip_date != today:
-  out += "<assistant-must-display>claude-mux tip: " + tip_of_day() + "</assistant-must-display>"
-  new tip_date = today
+# Daily tip: HOME session only, once/day GLOBALLY (v2.0.15) — wrapped in
+# <assistant-must-display>, clean text only. No session_id key: the old per-session
+# gate rotated its UUID on every /clear/restart and re-showed the tip constantly.
+if TIP_OF_DAY:
+  sess = tmux display-message -p '#S'
+  if sess == "home":
+    tip_date = read ~/.claude-mux/tip-state/tip.json (.tip_date, "_" if missing)
+    if tip_date != today:
+      out += "<assistant-must-display>claude-mux tip: " + tip_of_day() + "</assistant-must-display>"
+      write tip.json {tip_date: today}
+      # one-time sweep of orphaned legacy <uuid>.json stamps (exclude tip.json)
+      find tip-state -maxdepth 1 -name '*-*-*-*-*.json' ! -name tip.json -delete
 
 # Update notice (persist-while-relevant; cache-gated). NO stamp/throttle: re-inject
 # every prompt while latest > VERSION; self-clears when the user updates (VERSION rises).
@@ -818,7 +821,6 @@ if UPDATE_CHECK:
       spawn disowned: claude-mux --update-check-bg   # never blocks
     # else: in-flight check, skip
 
-if state changed: write state file
 out = bin_notice + out   # prepend the always-on upgrade notice
 print out   # may be empty
 exit 0

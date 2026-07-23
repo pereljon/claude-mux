@@ -12,7 +12,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
-| `tip-home-daily` | ready | 2.0.14 (patch) — a real bug fix | DESIGNED 2026-06-22 (verified root cause; pre-build). Reported live ("seeing the tip A ... | MEDIUM — the daily tip re-shows on every compact/clear/restart, defeating the once-per-... | [tip-home-daily.md](tip-home-daily.md) |
+| `tip-home-daily` | ready | 2.0.15 (patch) — a real bug fix (2.0.14 shipped model-swi... | READY 2026-07-22 (Fable design-reviewed; build from the sketch below, NOT the parked WI... | MEDIUM — the daily tip re-shows on every compact/clear/restart, defeating the once-per-... | [tip-home-daily.md](tip-home-daily.md) |
 
 ## designing
 

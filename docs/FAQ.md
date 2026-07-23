@@ -53,7 +53,7 @@ List templates: "list templates" or `claude-mux --list-templates`.
 
 ## How does the tip-of-the-day work?
 
-A Claude Code `UserPromptSubmit` hook in each project's `.claude/settings.local.json` calls `claude-mux --on-prompt` on each prompt. The first prompt of the day injects one tip into the conversation; later prompts that day inject nothing. State is per session, stored in `~/.claude-mux/tip-state/<session_id>.json`, so each active session shows the tip once per day. Because the hook injects into context (not a Stop hook, whose output is transcript-only), the tip is visible in the conversation and in Remote Control.
+A Claude Code `UserPromptSubmit` hook in each project's `.claude/settings.local.json` calls `claude-mux --on-prompt` on each prompt. As of v2.0.15 the tip shows **once per day, in the `home` session only**: the first `home` prompt of the day injects one tip and stamps a single global date file (`~/.claude-mux/tip-state/tip.json`); every later prompt that day, in any session or after any `/clear`/restart, injects nothing. Project sessions never show the tip. (Before v2.0.15 the gate was keyed on the per-conversation `session_id`, which rotated on every `/clear`/restart and re-showed the tip many times a day.) Because the hook injects into context (not a Stop hook, whose output is transcript-only), the tip is visible in the conversation and in Remote Control.
 
 Tips are enabled by default (`TIP_OF_DAY=true`). Toggle with "enable tips" or "disable tips" inside any session. `TIP_MODE=daily` shows the same tip all day; `TIP_MODE=random` picks a random tip.
 
@@ -87,7 +87,7 @@ Claude will then know to use `git@github.com-work:org/repo.git` for work repos a
 |----------|-----------------|
 | `~/.claude-mux/config` | User configuration (sourced as bash) |
 | `~/.claude-mux/templates/` | CLAUDE.md template files |
-| `~/.claude-mux/tip-state/<session_id>.json` | Per-session tip date + update-notify throttle |
+| `~/.claude-mux/tip-state/tip.json` | Global daily tip date (home session), v2.0.15+ |
 | `~/.claude-mux/.update-check` | Cached version check result |
 | `~/.claude-mux/.update-checking` | In-flight lock for the background update check |
 | `~/Library/Logs/claude-mux.log` | Log file (configurable via `LOG_DIR`) |

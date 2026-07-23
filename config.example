@@ -48,7 +48,7 @@
 
 # ── Tips ─────────────────────────────────────────────────────────────────────
 
-# Inject a tip once per day per session (via the UserPromptSubmit hook).
+# Inject a tip once per day, in the home session only (via the UserPromptSubmit hook).
 # When true (or when UPDATE_CHECK is true), an on-prompt hook is registered in
 # each project's settings.local.json. Say "enable tips" or "disable tips" to
 # toggle. --tip on demand always works regardless.

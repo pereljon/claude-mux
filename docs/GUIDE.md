@@ -194,7 +194,7 @@ The home session receives additional context: a description of its role, plus se
 
 ## Tips
 
-When `TIP_OF_DAY` is `true` (default), the `UserPromptSubmit` hook (`claude-mux --on-prompt`) injects one usage tip per day into each session, gated per session via `~/.claude-mux/tip-state/<session_id>.json`:
+When `TIP_OF_DAY` is `true` (default), the `UserPromptSubmit` hook (`claude-mux --on-prompt`) injects one usage tip per day into the `home` session, gated by a single global date file `~/.claude-mux/tip-state/tip.json` (v2.0.15; before that it was keyed per conversation, which re-showed the tip on every `/clear`/restart):
 
 ```
 <assistant-must-display>claude-mux tip: Say "compact this session" instead of typing /compact ...</assistant-must-display>
@@ -202,7 +202,7 @@ When `TIP_OF_DAY` is `true` (default), the `UserPromptSubmit` hook (`claude-mux 
 
 The notice carries only the clean user-facing line inside `<assistant-must-display>` tags; the instruction to surface it lives in the session's standing notice rule (so the relay wording is not printed to the user).
 
-Each active session shows the tip once per calendar day (the first prompt of the day). Because it goes through UserPromptSubmit, the tip is visible in the conversation and in Remote Control - unlike the pre-v1.15.0 Stop-hook delivery, which was never seen. Say "disable tips" to turn it off (the hook stays registered if `UPDATE_CHECK` is still on, to keep delivering update notices), or "tip" for one on demand (`--tip` always works regardless of `TIP_OF_DAY`). `TIP_MODE` (`daily` or `random`) controls selection.
+The tip shows once per calendar day, in the home session only (the first home prompt of the day); project sessions never show it. Because it goes through UserPromptSubmit, the tip is visible in the conversation and in Remote Control - unlike the pre-v1.15.0 Stop-hook delivery, which was never seen. Say "disable tips" to turn it off (the hook stays registered if `UPDATE_CHECK` is still on, to keep delivering update notices), or "tip" for one on demand (`--tip` always works regardless of `TIP_OF_DAY`). `TIP_MODE` (`daily` or `random`) controls selection.
 
 ## Updating and upgrading
 

@@ -135,16 +135,16 @@ _(no function definitions)_
 | `claude_binary_id` | 67 |
 | `detect_claude_upgrade` | 86 |
 | `on_prompt` | 107 |
-| `on_compact` | 240 |
-| `update_check_bg` | 272 |
-| `set_tip_config` | 302 |
-| `update_all_project_hooks` | 325 |
-| `install_hooks_command` | 351 |
-| `enable_tips` | 360 |
-| `disable_tips` | 367 |
-| `do_uninstall` | 379 |
-| `save_template_command` | 496 |
-| `rename_move_command` | 556 |
+| `on_compact` | 232 |
+| `update_check_bg` | 264 |
+| `set_tip_config` | 294 |
+| `update_all_project_hooks` | 317 |
+| `install_hooks_command` | 343 |
+| `enable_tips` | 352 |
+| `disable_tips` | 359 |
+| `do_uninstall` | 371 |
+| `save_template_command` | 488 |
+| `rename_move_command` | 548 |
 
 ### `src/80-templates-restore.sh`
 
@@ -184,14 +184,14 @@ _(no function definitions)_
 | `delete_command` | `src/50-restore-state.sh:390` |
 | `detect_claude_upgrade` | `src/75-tip-notices.sh:86` |
 | `detect_github_ssh_accounts` | `src/50-restore-state.sh:770` |
-| `disable_tips` | `src/75-tip-notices.sh:367` |
+| `disable_tips` | `src/75-tip-notices.sh:359` |
 | `discover_projects` | `src/60-discovery.sh:62` |
 | `do_install` | `src/30-helpers.sh:304` |
-| `do_uninstall` | `src/75-tip-notices.sh:379` |
+| `do_uninstall` | `src/75-tip-notices.sh:371` |
 | `do_update` | `src/30-helpers.sh:92` |
 | `echo_hint_end` | `src/10-flags.sh:80` |
 | `echo_hint` | `src/10-flags.sh:74` |
-| `enable_tips` | `src/75-tip-notices.sh:360` |
+| `enable_tips` | `src/75-tip-notices.sh:352` |
 | `encode_claude_path` | `src/70-start-launch.sh:271` |
 | `ensure_base_dir` | `src/60-discovery.sh:92` |
 | `ensure_git_repo` | `src/50-restore-state.sh:3` |
@@ -202,7 +202,7 @@ _(no function definitions)_
 | `get_version_prompt_lines` | `src/30-helpers.sh:602` |
 | `guide` | `src/10-flags.sh:41` |
 | `hide_command` | `src/50-restore-state.sh:232` |
-| `install_hooks_command` | `src/75-tip-notices.sh:351` |
+| `install_hooks_command` | `src/75-tip-notices.sh:343` |
 | `is_claude_mux_session` | `src/40-shutdown.sh:14` |
 | `is_managed_session` | `src/35-validate-deps.sh:124` |
 | `is_protected_session` | `src/40-shutdown.sh:4` |
@@ -214,12 +214,12 @@ _(no function definitions)_
 | `migrate_stray_sessions` | `src/60-discovery.sh:6` |
 | `move_to_trash` | `src/50-restore-state.sh:365` |
 | `notify_home` | `src/80-templates-restore.sh:137` |
-| `on_compact` | `src/75-tip-notices.sh:240` |
+| `on_compact` | `src/75-tip-notices.sh:232` |
 | `on_prompt` | `src/75-tip-notices.sh:107` |
 | `poll_until_ready` | `src/50-restore-state.sh:808` |
 | `protect_command` | `src/50-restore-state.sh:286` |
 | `remove_running_marker` | `src/50-restore-state.sh:97` |
-| `rename_move_command` | `src/75-tip-notices.sh:556` |
+| `rename_move_command` | `src/75-tip-notices.sh:548` |
 | `resolve_session_dir` | `src/50-restore-state.sh:195` |
 | `restart_caller_in_place` | `src/55-session-launch.sh:91` |
 | `restore_state_clear` | `src/50-restore-state.sh:144` |
@@ -228,11 +228,11 @@ _(no function definitions)_
 | `restore_state_tripped` | `src/50-restore-state.sh:126` |
 | `restore_state_write` | `src/50-restore-state.sh:132` |
 | `sanitize_session_name` | `src/30-helpers.sh:573` |
-| `save_template_command` | `src/75-tip-notices.sh:496` |
+| `save_template_command` | `src/75-tip-notices.sh:488` |
 | `session_marker_dir` | `src/50-restore-state.sh:154` |
 | `session_name_for_dir` | `src/50-restore-state.sh:272` |
 | `set_command` | `src/10-flags.sh:335` |
-| `set_tip_config` | `src/75-tip-notices.sh:302` |
+| `set_tip_config` | `src/75-tip-notices.sh:294` |
 | `setup_claude_mux_permissions` | `src/50-restore-state.sh:549` |
 | `setup_default_mode` | `src/50-restore-state.sh:498` |
 | `setup_gitignore` | `src/50-restore-state.sh:13` |
@@ -245,8 +245,8 @@ _(no function definitions)_
 | `status_claude_sessions` | `src/40-shutdown.sh:152` |
 | `tip_of_day` | `src/75-tip-notices.sh:4` |
 | `unprotect_command` | `src/50-restore-state.sh:326` |
-| `update_all_project_hooks` | `src/75-tip-notices.sh:325` |
-| `update_check_bg` | `src/75-tip-notices.sh:272` |
+| `update_all_project_hooks` | `src/75-tip-notices.sh:317` |
+| `update_check_bg` | `src/75-tip-notices.sh:264` |
 | `usage` | `src/10-flags.sh:266` |
 | `version_gt` | `src/30-helpers.sh:31` |
 | `write_install_config` | `src/30-helpers.sh:237` |

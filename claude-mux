@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.0.14"
+VERSION="2.0.15"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -3635,7 +3635,7 @@ encode_claude_path() {
 
 # Print one tip from the embedded tips array. No gating — selects a tip and
 # prints it. Used by --tip (on demand) and by on_prompt (which applies its own
-# per-session daily gate). --tip always works regardless of TIP_OF_DAY.
+# home-only, once-per-day-global gate). --tip always works regardless of TIP_OF_DAY.
 tip_of_day() {
     # Tips array — sourced from internal/tips.md. Keep in sync.
     local tips=(
@@ -3734,38 +3734,23 @@ detect_claude_upgrade() {
 
 # UserPromptSubmit hook handler. Injects (via stdout) a daily tip and the two
 # actionable notices (update available, Claude Code upgraded) into the conversation
-# context — the only delivery path proven to surface in Remote Control. The tip is
-# gated once-per-day per session (keyed on the session_id from the hook's stdin JSON);
-# the actionable notices are persist-while-relevant (re-injected every prompt while
-# their condition holds, no burn-on-emit gate). Must return fast and never block on
-# the network: the GitHub API call is delegated to a disowned --update-check-bg process.
+# context, the only delivery path proven to surface in Remote Control. The tip fires
+# once per day GLOBALLY (a single stamp tip-state/tip.json) and only in the "home"
+# session; the actionable notices are persist-while-relevant (re-injected every prompt
+# while their condition holds, no burn-on-emit gate). Must return fast and never block
+# on the network: the GitHub API call is delegated to a disowned --update-check-bg process.
 on_prompt() {
     local _state_dir="$CLAUDE_MUX_DIR/tip-state"
 
-    # One python3 call parses the hook's stdin JSON: session_id (validated as a safe
-    # filename token), whether this is the synthetic "Ready?" handshake, and the
-    # per-session tip_date ("_" marks empty; sid is "_" when missing/invalid). The
-    # actionable notices keep no per-session state (persist-while-relevant), so only
-    # tip_date is read. Always prints exactly 3 fields so the is_handshake flag
-    # survives even when session_id is absent.
-    local _sid _is_handshake _tip_date
-    read -r _sid _is_handshake _tip_date < <(/usr/bin/python3 -c '
-import json, sys, os, re
+    # Parse the hook's stdin JSON for just the synthetic "Ready?" handshake flag. The
+    # tip is now gated on the home session + a global daily stamp (no session_id key),
+    # and the actionable notices keep no per-session state, so session_id is not read.
+    local _is_handshake
+    _is_handshake=$(/usr/bin/python3 -c '
+import json, sys
 try: obj = json.load(sys.stdin)
 except Exception: obj = {}
-sid = obj.get("session_id", "") or ""
-is_handshake = "1" if (obj.get("prompt", "") or "").strip() == "Ready?" else "0"
-if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", sid):
-    sid = "_"
-tip_date = "_"
-if sid != "_":
-    try:
-        d = json.load(open(os.path.join(sys.argv[1], sid + ".json")))
-        tip_date = d.get("tip_date", "") or "_"
-    except Exception:
-        pass
-print(sid, is_handshake, tip_date)
-' "$_state_dir" 2>/dev/null)
+print("1" if (obj.get("prompt", "") or "").strip() == "Ready?" else "0")' 2>/dev/null)
 
     # The "Ready?" handshake is a synthetic prompt claude-mux sends itself after a
     # restart / compact-reconnect, not a real user turn. The session's two-line ready
@@ -3786,29 +3771,46 @@ print(sid, is_handshake, tip_date)
         exit 0
     fi
 
-    # No valid session_id → no tip/update work possible, but still flush the
-    # always-on upgrade notice (it does not depend on session_id).
-    [[ "$_sid" == "_" ]] && _sid=""
-    if [[ -z "$_sid" ]]; then
-        [[ -n "$_bin_notice" ]] && printf '%s\n' "$_bin_notice"
-        exit 0
-    fi
-
     local _today _now
     _today=$(date +%Y-%m-%d)
     _now=$(date +%s)
-    local _state_file="$_state_dir/$_sid.json"
-    [[ "$_tip_date" == "_" ]] && _tip_date=""
 
-    local _out="" _new_tip_date="$_tip_date"
+    local _out=""
 
-    # ── Daily tip (per session) ──────────────────────────────────────────────
-    if [[ "${TIP_OF_DAY:-true}" == "true" && "$_tip_date" != "$_today" ]]; then
-        local _tip
-        _tip=$(tip_of_day 2>/dev/null || true)
-        if [[ -n "$_tip" ]]; then
-            _out+="<assistant-must-display>claude-mux tip: $_tip</assistant-must-display>"$'\n'
-            _new_tip_date="$_today"
+    # ── Daily tip: HOME session only, once per day GLOBALLY ──────────────────
+    # No longer keyed on session_id (that UUID rotates on every /clear and restart,
+    # which re-showed the tip constantly). Only the always-on "home" session emits
+    # tips (they are orchestration-themed), gated by a single global stamp tip.json:
+    # the first home prompt of a new day shows the tip and writes today's date; every
+    # later prompt that day — any conversation, any restart — finds it and stays silent.
+    # The read-modify-write on tip.json is intentionally unlocked: only one "home"
+    # session exists and its prompts serialize, so the sole race (a queued -s message
+    # vs a typed prompt in the same instant) can at worst print the tip twice — cosmetic,
+    # accepted, not worth a lock.
+    if [[ "${TIP_OF_DAY:-true}" == "true" ]]; then
+        local _sess
+        _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null)
+        if [[ "$_sess" == "home" ]]; then
+            local _tip_file="$_state_dir/tip.json" _tip_date
+            _tip_date=$(/usr/bin/python3 -c '
+import json, sys
+try: print(json.load(open(sys.argv[1])).get("tip_date", "") or "_")
+except Exception: print("_")' "$_tip_file" 2>/dev/null)
+            [[ -z "$_tip_date" ]] && _tip_date="_"
+            if [[ "$_tip_date" != "$_today" ]]; then
+                local _tip
+                _tip=$(tip_of_day 2>/dev/null || true)
+                if [[ -n "$_tip" ]]; then
+                    _out+="<assistant-must-display>claude-mux tip: $_tip</assistant-must-display>"$'\n'
+                    mkdir -p "$_state_dir" 2>/dev/null
+                    /usr/bin/python3 -c 'import json,sys
+json.dump({"tip_date": sys.argv[2]}, open(sys.argv[1],"w"))' \
+                        "$_tip_file" "$_today" 2>/dev/null || true
+                    # One-time sweep of orphaned per-session <uuid>.json stamps left by
+                    # the old gate (8-4-4-4-12 UUID shape). Explicitly exclude tip.json.
+                    find "$_state_dir" -maxdepth 1 -name '*-*-*-*-*.json' ! -name tip.json -delete 2>/dev/null || true
+                fi
+            fi
         fi
     fi
 
@@ -3847,16 +3849,6 @@ print(sid, is_handshake, tip_date)
                 ( "$CLAUDE_MUX_BIN" --update-check-bg >/dev/null 2>&1 & )
             fi
         fi
-    fi
-
-    # Persist per-session state (just tip_date) only if it changed. The actionable
-    # notices keep no per-session state — they are persist-while-relevant, gated on a
-    # live condition rather than a stamp.
-    if [[ "$_new_tip_date" != "$_tip_date" ]]; then
-        mkdir -p "$_state_dir" 2>/dev/null
-        /usr/bin/python3 -c 'import json,sys
-json.dump({"tip_date": sys.argv[2]}, open(sys.argv[1],"w"))' \
-            "$_state_file" "$_new_tip_date" 2>/dev/null || true
     fi
 
     # Prepend the always-on upgrade notice (computed before the cheap-guard).
@@ -3996,7 +3988,7 @@ enable_tips() {
     TIP_OF_DAY=true
     set_tip_config "true"
     update_all_project_hooks
-    echo "Tips enabled. Daily tips will appear in each session once per day."
+    echo "Tips enabled. A daily tip will appear once per day in the home session."
 }
 
 disable_tips() {
