@@ -8,12 +8,6 @@ Projection of each feature doc's `lifecycle:`. This reflects the **declared** st
 verified reality (a doc can claim `ready` before it is). `kind: investigation` docs and
 `*-tests.md` plans are excluded. Grouped by lifecycle (build-priority order), then by name.
 
-## ready
-
-| Feature | Lifecycle | Target | Status | Severity | Doc |
-|---|---|---|---|---|---|
-| `tip-home-daily` | ready | 2.0.15 (patch) — a real bug fix (2.0.14 shipped model-swi... | READY 2026-07-22 (Fable design-reviewed; build from the sketch below, NOT the parked WI... | MEDIUM — the daily tip re-shows on every compact/clear/restart, defeating the once-per-... | [tip-home-daily.md](tip-home-daily.md) |
-
 ## designing
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
@@ -62,4 +56,5 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `src-module-split` | shipped | 2.0.x (patch; no release - shipped artifact byte-identical) | IMPLEMENTED (2026-06-17) | N/A (developer-ergonomics refactor, zero runtime behavior change) | [src-module-split.md](src-module-split.md) |
 | `start-by-name` | shipped | 2.0.7 (patch) - user decision 2026-06-17 | IMPLEMENTED in v2.0.7 (2026-06-17); both open questions resolved 2026-06-17 | MEDIUM (UX gap + injection inconsistency) | [start-by-name.md](start-by-name.md) |
 | `status-filter` | shipped | — | shipped | — | [status-filter.md](status-filter.md) |
+| `tip-home-daily` | shipped | 2.0.15 (patch) — a real bug fix (2.0.14 shipped model-swi... | SHIPPED in v2.0.15 (committed d20f2c7 2026-07-22, deployed to ~/bin). Fable design-revi... | MEDIUM — the daily tip re-shows on every compact/clear/restart, defeating the once-per-... | [tip-home-daily.md](tip-home-daily.md) |
 | `tip-ready-handshake` | shipped | 2.0.8 (patch) | IMPLEMENTED in v2.0.8 (complete version - handshake check precedes detect_claude_upgrade) | Medium (daily tip almost never reaches the user) | [tip-ready-handshake.md](tip-ready-handshake.md) |

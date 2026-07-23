@@ -1,8 +1,8 @@
 ---
 kind: feature
-lifecycle: ready
+lifecycle: shipped
 feature: tip-home-daily
-status: READY 2026-07-22 (Fable design-reviewed; build from the sketch below, NOT the parked WIP patch). Verified root cause 2026-06-22; reported live ("seeing the tip A LOT today").
+status: SHIPPED in v2.0.15 (committed d20f2c7 2026-07-22, deployed to ~/bin). Fable design-reviewed + code-reviewed (0 CRITICAL/HIGH); verified across 9 scenarios. Verified root cause 2026-06-22; reported live ("seeing the tip A LOT today").
 target_version: 2.0.15 (patch) — a real bug fix (2.0.14 shipped model-switch-confirm)
 severity: MEDIUM — the daily tip re-shows on every compact/clear/restart, defeating the once-per-day intent
 related: tip-ready-handshake.md, notice-delivery-reliability.md
