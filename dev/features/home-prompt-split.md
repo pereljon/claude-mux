@@ -1,8 +1,8 @@
 ---
 kind: feature
-lifecycle: building
+lifecycle: shipped
 feature: home-prompt-split
-status: BUILDING 2026-07-23 (v2.1.0). Design ready (architect APPROVE-WITH-NOTES, notes applied). Code complete in src/30-helpers.sh; code review APPROVE (0 findings); docs updated. Remaining: commit/release gates, then the hard ordering: ship -> restart home -> strip ~/Claude/CLAUDE.md -> restart home.
+status: SHIPPED in v2.1.0 (committed aa6627c, RELEASED 2026-07-23, deployed to ~/bin). Architect APPROVE-WITH-NOTES (notes applied); code review APPROVE (0 findings). Full rollout ordering executed 2026-07-23: release -> restart home -> strip ~/Claude/CLAUDE.md (comms + template pointer; migration procedure relocated to ~/.claude-mux/analytical-project-migration.md) -> restart home. Other sessions pick up the injection on their next restart.
 target_version: 2.1.0 (minor — changes session-visible injection behavior across all sessions; decided at build 2026-07-23)
 related: model-switch-confirm, orchestrator-hub
 ---

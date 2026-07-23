@@ -8,12 +8,6 @@ Projection of each feature doc's `lifecycle:`. This reflects the **declared** st
 verified reality (a doc can claim `ready` before it is). `kind: investigation` docs and
 `*-tests.md` plans are excluded. Grouped by lifecycle (build-priority order), then by name.
 
-## building
-
-| Feature | Lifecycle | Target | Status | Severity | Doc |
-|---|---|---|---|---|---|
-| `home-prompt-split` | building | 2.1.0 (minor — changes session-visible injection behavior... | BUILDING 2026-07-23 (v2.1.0). Design ready (architect APPROVE-WITH-NOTES, notes applied... | — | [home-prompt-split.md](home-prompt-split.md) |
-
 ## designing
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
@@ -48,6 +42,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 |---|---|---|---|---|---|
 | `auto-restore` | shipped | — | — | — | [auto-restore.md](auto-restore.md) |
 | `claude-code-upgrade-detection` | shipped | — | — | — | [claude-code-upgrade-detection.md](claude-code-upgrade-detection.md) |
+| `home-prompt-split` | shipped | 2.1.0 (minor — changes session-visible injection behavior... | SHIPPED in v2.1.0 (committed aa6627c, RELEASED 2026-07-23, deployed to ~/bin). Architec... | — | [home-prompt-split.md](home-prompt-split.md) |
 | `make-codemap` | shipped | 2.0.x (patch; dev-tooling, no runtime change) | IMPLEMENTED 2026-06-19 (dev-tooling; claude-mux artifact byte-identical, no release) | N/A (developer-tooling) — but it closes the structural-doc-drift class that produced a ... | [make-codemap.md](make-codemap.md) |
 | `model-handling-derot` | shipped | 2.0.9 (patch; one real bug + drift removal) | IMPLEMENTED 2026-06-19 (v2.0.9; membership→format pass-through + de-versioned injection) | MEDIUM — claude-mux's closed model allowlist now REJECTS valid models (e.g. `fable`); p... | [model-handling-derot.md](model-handling-derot.md) |
 | `model-resolution-notice-cleanup` | shipped | 2.0.13 (patch; one real bug fix + one display regression ... | IMPLEMENTED 2026-06-21 (v2.0.13; expand-from-knowledge model resolution + notice-displa... | MEDIUM — "change model to <family>" silently no-ops (in-session model switch broken for... | [model-resolution-notice-cleanup.md](model-resolution-notice-cleanup.md) |
