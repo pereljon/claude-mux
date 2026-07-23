@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.0.14] - 2026-07-22
+
+### Fixed
+- **A conversational model switch no longer stalls the session on Claude Code's "Switch model?" dialog.** When you switch a session's model and that model is already cached, Claude Code pops a blocking confirmation dialog ("Switch model? … ❯ Yes, switch to … / No, go back") that nothing answered, so the session sat stuck until someone hit Enter in the pane (observed live three times). The `-s SESSION '/model <id>'` send now backgrounds a detached confirmer that watches the pane (~30s), positively recognizes that specific dialog (bottom-anchored so a scrolled-up transcript quote of the dialog text can't false-fire), and confirms the pre-highlighted "Yes" with a single Enter. When there is no dialog (uncached or same-model switch) it matches nothing and exits silently, never sending a stray Enter. A per-session `mkdir` lock ensures two overlapping `/model` sends can't both key the dialog (which would submit an empty prompt). Recognize-then-confirm, same pattern as the `bypassPermissions` startup poller. Design + test plan: `dev/features/model-switch-confirm.md`.
+
 ## [2.0.13] - 2026-06-21
 
 ### Fixed

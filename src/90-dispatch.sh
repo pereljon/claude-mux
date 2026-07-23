@@ -7,7 +7,7 @@ check_for_update
 # Commands that don't need config: install, update, list-templates, send,
 # shutdown, autolaunch (LaunchAgent context — handled in autolaunch_dispatch).
 case "$COMMAND" in
-    install|update|list-templates|send|shutdown|autolaunch|uninstall|on-compact|on-prompt|update-check-bg|await-ready|print-system-prompt)
+    install|update|list-templates|send|shutdown|autolaunch|uninstall|on-compact|on-prompt|update-check-bg|await-ready|confirm-model-switch|print-system-prompt)
         # Skip config-required check; these can run without config.
         # Hook commands (on-prompt, update-check-bg) must never prompt or error
         # when config is missing — they exit silently in their handlers.
@@ -52,6 +52,7 @@ case "$COMMAND" in
     tip)           tip_of_day; exit 0 ;;
     on-compact)    on_compact; exit 0 ;;
     await-ready)   await_ready_handshake "$AWAIT_SESSION"; exit 0 ;;
+    confirm-model-switch) confirm_model_switch "$CONFIRM_MODEL_SESSION"; exit 0 ;;
     print-system-prompt) build_system_prompt "$PRINT_PROMPT_SESSION" "$PRINT_PROMPT_MODE"; exit 0 ;;
     on-prompt)     on_prompt; exit 0 ;;
     update-check-bg) update_check_bg; exit 0 ;;
@@ -88,6 +89,15 @@ case "$COMMAND" in
             exit 1
         fi
         "$TMUX_BIN" send-keys -t "$SEND_SESSION" -l "$SEND_COMMAND" && "$TMUX_BIN" send-keys -t "$SEND_SESSION" Enter
+        # A cached `/model <id>` switch pops a blocking "Switch model?" confirmation
+        # dialog that nothing answers (fire-and-forget send), stalling the session.
+        # Background a detached confirmer that auto-confirms it. `( … & )` (not a bare
+        # `&`) + >/dev/null 2>&1 clears this shell's job table + fds so it survives the
+        # caller's turn-end reaping on a self-switch. Guarded to `/model ` payloads only
+        # (trailing space excludes the bare `/model` picker).
+        if [[ "$SEND_COMMAND" == /model\ * ]]; then
+            ( "$CLAUDE_MUX_BIN" --confirm-model-switch "$SEND_SESSION" >/dev/null 2>&1 & )
+        fi
         exit 0
         ;;
     shutdown) shutdown_claude_sessions; exit $? ;;

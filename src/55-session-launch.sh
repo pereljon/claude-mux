@@ -18,6 +18,69 @@ await_ready_handshake() {
     "$TMUX_BIN" send-keys -t "$session" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session" Enter 2>/dev/null
 }
 
+# Auto-confirm Claude Code's cached "Switch model?" dialog after an in-session
+# `/model <id>` send. Backgrounded (detached) from the `send` handler for /model
+# payloads only. Recognize-then-confirm: keys Enter ONLY when the specific dialog
+# is positively matched (bottom-anchored), never a blind Enter. The dialog appears
+# only on a cached CROSS-model switch, and on a self-switch only AFTER the caller's
+# turn ends (the /model input is queued until the turn completes, 5-15s+), so the
+# poll window is ~30s, not a few seconds. No dialog (uncached / same-model / bad id)
+# → no match → exits silently having sent nothing. See dev/features/model-switch-confirm.md.
+confirm_model_switch() {
+    local session="$1"
+    [[ -z "$session" ]] && return 0
+    # Dead-session early-exit so a missing pane doesn't spin the full window.
+    "$TMUX_BIN" has-session -t "$session" 2>/dev/null || return 0
+    # Single-confirmer lock: only ONE confirmer per session may run at a time.
+    # Two overlapping `/model <id>` sends to the same session would otherwise
+    # spawn two confirmers that both match the dialog before either keys Enter;
+    # the second, orphaned Enter would submit an empty prompt into Claude (the
+    # exact thing the never-re-key design forbids). mkdir is atomic, so it doubles
+    # as the mutex (per marker-file convention). A confirmer killed without cleanup
+    # leaves a stale dir; it self-clears once older than the ~30s window.
+    local lock
+    lock="${TMPDIR:-/tmp}/claude-mux-confirm-$(printf '%s' "$session" | tr -c 'A-Za-z0-9_.-' '_').lock"
+    if ! mkdir "$lock" 2>/dev/null; then
+        # Reclaim a stale lock (older than the poll window); else another
+        # confirmer owns it → exit without keying.
+        find "$lock" -maxdepth 0 -mmin +1 -exec rmdir {} \; 2>/dev/null
+        mkdir "$lock" 2>/dev/null || return 0
+    fi
+    trap 'rmdir "$lock" 2>/dev/null' EXIT
+    local start pane tail12 vstart
+    start=$(date +%s)
+    while (( $(date +%s) - start < 30 )); do
+        sleep 0.4
+        pane=$("$TMUX_BIN" capture-pane -t "$session" -p 2>/dev/null) || {
+            "$TMUX_BIN" has-session -t "$session" 2>/dev/null || return 0
+            continue
+        }
+        tail12=$(printf '%s\n' "$pane" | tail -12)
+        # Recognize the SPECIFIC dialog, bottom-anchored so a scrolled-up transcript
+        # quote of the dialog text (this very repo quotes it in docs/replies) can't
+        # trigger a keypress: require "Switch model?" + option 2 "No, go back" + the
+        # affirmative "Yes, switch to" with the ❯ cursor on the SAME line within the
+        # last 6 lines (the live dialog is pinned to the pane bottom).
+        [[ "$tail12" == *"Switch model?"* ]] || continue
+        [[ "$tail12" == *"No, go back"* ]] || continue
+        printf '%s\n' "$tail12" | tail -6 | grep -q '❯.*Yes, switch to' || continue
+        # Positive match: option 1 ("Yes, switch to …") is pre-highlighted, so a single
+        # Enter confirms it. Send exactly ONCE.
+        "$TMUX_BIN" send-keys -t "$session" Enter
+        # Best-effort verify it cleared (~2s). Never re-key regardless of the result:
+        # on a slow redraw (or a lingering transcript quote) we still exit, never a
+        # second Enter (which would submit an empty prompt).
+        vstart=$(date +%s)
+        while (( $(date +%s) - vstart < 2 )); do
+            sleep 0.4
+            pane=$("$TMUX_BIN" capture-pane -t "$session" -p 2>/dev/null) || break
+            printf '%s\n' "$pane" | tail -12 | grep -q "Switch model?" || break
+        done
+        return 0
+    done
+    return 0
+}
+
 # Restart the session this script is running INSIDE (the caller), in place.
 # We can't kill-session the caller — the SIGHUP would kill this very script before
 # it could recreate, which strands the caller (the home-restart-from-home bug).

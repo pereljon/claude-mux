@@ -205,6 +205,11 @@ case COMMAND:
     tmux send-keys session command + Enter
     # RC reconnect after /compact is handled universally by the PreCompact hook (on_compact),
     # not by a special case here. The hook fires for all /compact triggers (manual, auto, -s).
+    if command == "/model *":                      # trailing space: real id, not bare picker
+      ( claude-mux --confirm-model-switch session & )  # detached: survives caller turn-end reaping
+      # confirm_model_switch: mkdir-lock (one per session) → poll pane ~30s →
+      # bottom-anchored match of the cached "Switch model?" dialog → single Enter → verify cleared.
+      # No dialog (uncached/same-model) → no match → exits silently. Never re-keys.
 
   shutdown:
     shutdown_claude_sessions()   # skips protected unless FORCE=true

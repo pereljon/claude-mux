@@ -5,6 +5,7 @@ COMMAND="launch"
 COMMAND_SET=false
 TARGET_SESSION=""
 AWAIT_SESSION=""
+CONFIRM_MODEL_SESSION=""
 PRINT_PROMPT_SESSION=""
 PRINT_PROMPT_MODE=""
 SEND_SESSION=""
@@ -495,6 +496,10 @@ while [[ $# -gt 0 ]]; do
             [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: --await-ready requires a session name" >&2; exit 1; }
             set_command "--await-ready" "await-ready"
             AWAIT_SESSION="$2"; shift 2 ;;
+        --confirm-model-switch)
+            [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: --confirm-model-switch requires a session name" >&2; exit 1; }
+            set_command "--confirm-model-switch" "confirm-model-switch"
+            CONFIRM_MODEL_SESSION="$2"; shift 2 ;;
         --print-system-prompt)
             [[ $# -lt 2 || "$2" == -* ]] && { echo "ERROR: --print-system-prompt requires a session name" >&2; exit 1; }
             set_command "--print-system-prompt" "print-system-prompt"
