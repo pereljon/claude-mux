@@ -1,8 +1,8 @@
 ---
 kind: feature
-lifecycle: building
+lifecycle: shipped
 feature: clear-ready-handshake
-status: DESIGNING→BUILDING 2026-07-23. Mechanism verified via claude-code-guide agent (SessionStart source=clear confirmed against Claude Code docs). User approved ("full go", 2026-07-23). Fable-designed. Pre-code-review.
+status: SHIPPED in v2.2.0 (committed 3542d98, RELEASED 2026-07-23, deployed to ~/bin). Code review APPROVE (0 findings). Live end-to-end verified: real in-pane /clear → SessionStart(clear) hook → --on-clear → handshake reply with model, on a throwaway session. Mechanism verified via claude-code-guide agent (SessionStart source=clear confirmed against Claude Code docs).
 target_version: 2.2.0 (minor) — new always-on hook + new capability (clear now produces the ready handshake, at parity with compact)
 severity: N/A (enhancement) — UX parity with compact; clear currently gives no confirmation and no model readout
 related: tip-ready-handshake.md, notice-delivery-reliability.md, ready-handshake.md
