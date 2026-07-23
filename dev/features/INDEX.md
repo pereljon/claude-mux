@@ -12,7 +12,6 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
-| `model-switch-confirm` | ready | 2.0.14 (patch) — a real bug: in-session model switch stal... | TOP-PRIORITY / ACTIVE BUILD TARGET (promoted 2026-07-17). DESIGNED 2026-06-21 (architec... | MEDIUM — a cached-conversation `/model` switch silently stalls the session on a confirm... | [model-switch-confirm.md](model-switch-confirm.md) |
 | `tip-home-daily` | ready | 2.0.14 (patch) — a real bug fix | DESIGNED 2026-06-22 (verified root cause; pre-build). Reported live ("seeing the tip A ... | MEDIUM — the daily tip re-shows on every compact/clear/restart, defeating the once-per-... | [tip-home-daily.md](tip-home-daily.md) |
 
 ## designing
@@ -53,6 +52,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `make-codemap` | shipped | 2.0.x (patch; dev-tooling, no runtime change) | IMPLEMENTED 2026-06-19 (dev-tooling; claude-mux artifact byte-identical, no release) | N/A (developer-tooling) — but it closes the structural-doc-drift class that produced a ... | [make-codemap.md](make-codemap.md) |
 | `model-handling-derot` | shipped | 2.0.9 (patch; one real bug + drift removal) | IMPLEMENTED 2026-06-19 (v2.0.9; membership→format pass-through + de-versioned injection) | MEDIUM — claude-mux's closed model allowlist now REJECTS valid models (e.g. `fable`); p... | [model-handling-derot.md](model-handling-derot.md) |
 | `model-resolution-notice-cleanup` | shipped | 2.0.13 (patch; one real bug fix + one display regression ... | IMPLEMENTED 2026-06-21 (v2.0.13; expand-from-knowledge model resolution + notice-displa... | MEDIUM — "change model to <family>" silently no-ops (in-session model switch broken for... | [model-resolution-notice-cleanup.md](model-resolution-notice-cleanup.md) |
+| `model-switch-confirm` | shipped | 2.0.14 (patch) — a real bug: in-session model switch stal... | SHIPPED in v2.0.14 (committed 618128f 2026-07-22, deployed to ~/bin). Code-reviewed (0 ... | MEDIUM — a cached-conversation `/model` switch silently stalls the session on a confirm... | [model-switch-confirm.md](model-switch-confirm.md) |
 | `notice-delivery-reliability` | shipped | 2.0.10 (patch; the actionable-notice fix is a real bug fi... | IMPLEMENTED 2026-06-19 (v2.0.10; persist-while-relevant for update+upgrade notices, <as... | HIGH for the actionable notices (claude-mux update available, Claude binary upgraded) —... | [notice-delivery-reliability.md](notice-delivery-reliability.md) |
 | `precompact-hook-backfill` | shipped | — | shipped | — | [precompact-hook-backfill.md](precompact-hook-backfill.md) |
 | `ready-handshake` | shipped | — | — | — | [ready-handshake.md](ready-handshake.md) |
