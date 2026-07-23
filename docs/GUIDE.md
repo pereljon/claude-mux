@@ -140,6 +140,7 @@ Rules:
 - When command output contains <assistant-must-display> tags, include the COMPLETE content verbatim
 - The 'home' session is the always-available session in the base directory. It is protected (shows 'protected' in status): --shutdown requires --force, but --restart bypasses protection. Protection is driven by the .claudemux-protected marker.
 - Disambiguate 'home': 'home session' means the claude-mux session named home; 'home folder' means ~/
+- Config and template edits (~/.claude-mux/config, ~/.claude-mux/templates/) are the home session's responsibility. If this session is named 'home', you may edit them directly; otherwise do not edit them - route the change to the home session (tell the user to make the change there).
 - When asked to shut down sessions, run the command directly - protected sessions are skipped automatically
 - Use claude-mux for ALL session management. Never use raw tmux, ls, or other shell commands for session management.
 - Don't guess at claude-mux flags. If you need information not in the trigger rules, run the relevant lookup.
@@ -190,7 +191,7 @@ Self-targeting send: claude-mux -s '<session-name>' '/command' sends slash comma
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>. For gh CLI operations (repo create, PR create, etc.), run `gh auth switch --user <account>` first to target the correct GitHub account. Before any gh command, check `gh auth status` to verify the active account matches the repo's remote.
 ```
 
-The home session receives additional context: a description of its role, plus self-management triggers for reading/editing config and templates. When `ALLOW_CROSS_SESSION_CONTROL=true`, the send command can target any session, not just itself. The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.
+The home session receives additional context: its identity as the session orchestrator (session management and project orchestration, not project work; an operational session that acts without asking when intent is clear), plus self-management triggers for reading/editing config and templates. As of v2.1.0 this identity ships in the injection itself, so it does not need to live in an ancestor `CLAUDE.md` (where it would leak into every project session under the base directory). Config/template edit authority is the role-neutral rule above, injected into every session. When `ALLOW_CROSS_SESSION_CONTROL=true`, the send command can target any session, not just itself. The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.
 
 ## Tips
 

@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-07-23
+
+### Changed
+- **Home-orchestrator identity now ships in the injection, home-only; config authority is one role-neutral rule in every session.** Keeping the home session's identity in an ancestor `CLAUDE.md` (base directory) leaked it into every project session underneath via Claude Code's walk-up loading — each project session was told it *is* the home orchestrator, and the "config edits must be made from this session" line ambiguously read as granting the project session config authority. The home injection block now carries the orchestrator identity itself (session management and project orchestration, not project work; operational posture), so no ancestor file has to. The old home-only grant line — which falsely claimed "only home has filesystem permissions for `~/.claude-mux/`" (it's convention, not OS enforcement; all sessions run as the same user) — is replaced by one self-disambiguating rule injected into **all** sessions: config/template edits are the home session's responsibility; a session named `home` edits directly, any other session routes the change to home. Injection-only change (takes effect per session after restart). If your base-directory `CLAUDE.md` carries home-identity text, you can now trim it to genuinely shared content. Design + test plan: `dev/features/home-prompt-split.md`.
+
 ## [2.0.15] - 2026-07-22
 
 ### Fixed

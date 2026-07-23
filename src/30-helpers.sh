@@ -675,13 +675,12 @@ build_system_prompt() {
     local home_management=""
     if [[ "$session_name" == "home" ]]; then
         home_line="
-This is the home session: the always-on tmux session in your base directory. It launches at login, is protected by default (via the .claudemux-protected marker in BASE_DIR), and is the default Remote Control entry point when no project sessions are running."
+This is the home session: the always-on tmux session in your base directory, and the session orchestrator. Its purpose is session management and project orchestration via claude-mux, not project work - project work happens in dedicated sessions. It launches at login, is protected by default (via the .claudemux-protected marker in BASE_DIR), and is the default Remote Control entry point when no project sessions are running. This is an operational session: act without asking when the intent is clear."
         home_management="
 Home self-management:
 - Config lives at ~/.claude-mux/config. Run claude-mux --config-help to list valid options.
 - Templates live at ~/.claude-mux/templates/ (e.g. web.md). Used with -n DIR --template NAME.
 - Per-project state uses .claudemux-* markers (.claudemux-ignore, .claudemux-protected) at project root. Auto-gitignored.
-- Config and template edits must be done from the home session — only home has filesystem permissions for ~/.claude-mux/.
 - When user says: show config — read ~/.claude-mux/config and display the active settings (skip comments and empty lines).
 - When user says: explain CONFIG_VAR — run claude-mux --config-help, find CONFIG_VAR in the output, present its default, type, and description.
 - When user says: set CONFIG_VAR to VALUE / change CONFIG_VAR — write a backup to ~/.claude-mux/config.bak first, then edit ~/.claude-mux/config preserving comments and ordering. Warn that changes apply at next session launch.
@@ -713,6 +712,7 @@ Rules:
 - claude-mux may inject notices (a daily tip, an \"update available\" notice, or a \"Claude Code was upgraded\" notice) into your turn context via a hook. The user-facing text is wrapped in <assistant-must-display> tags; surface exactly that text to the user verbatim at the START of your reply, before answering their request — do not paraphrase it, drop it, or print anything outside the tags. Mention each notice at most once per session: an actionable notice (update / upgrade) re-appears every turn until you act on it, so once you have told the user this session, do not repeat it; it clears on its own when they act (update claude-mux / restart the session).
 - The 'home' session is the always-available session in the base directory for managing other sessions. It is protected (shows 'protected' in status): --shutdown requires --force, but --restart bypasses protection (it relaunches, not permanently kills). Protection is driven by the .claudemux-protected marker in the session's working directory.
 - Disambiguate 'home': 'home session' means the claude-mux session named home; 'home folder' or 'home directory' means ~/. If context is ambiguous, ask which the user means.
+- Config and template edits (~/.claude-mux/config, ~/.claude-mux/templates/) are the home session's responsibility. If this session is named 'home', you may edit them directly; otherwise do not edit them - route the change to the home session (tell the user to make the change there).
 - When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
 - Use claude-mux for ALL session management. Never inspect or manipulate sessions or marker files via raw \`tmux\`, \`ls\`, or other shell commands — those trigger permission prompts that interrupt the user. claude-mux -l shows session status (running/protected/stopped). For checking marker-file existence (e.g. .claudemux-protected, .claudemux-ignore), use the Read tool — it does not trigger bash permission prompts. The trigger rules below cover every session management action.
 - Don't guess at claude-mux flags or behavior. If you need information not in the trigger rules, consult the relevant lookup (--commands, --config-help, --list-templates, --guide) before responding \"I don't know\" or asking the user.

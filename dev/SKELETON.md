@@ -499,8 +499,14 @@ check is ever defeated.
 
 ```
 if session_name == "home":
-  home_line = "This is the home session: always-on, protected by default..."
-  home_management = rules for editing config, templates, markers
+  home_line = "This is the home session: always-on, protected, the session ORCHESTRATOR
+               (session management, not project work; operational - act without asking)..."
+  home_management = home self-management triggers for config, templates, markers
+  # NOTE (v2.1.0 home-prompt-split): home IDENTITY lives here, injected home-only, so the
+  # ancestor ~/Claude/CLAUDE.md no longer has to carry it (it leaked into every child session).
+  # Config-edit AUTHORITY is NOT here: it is one role-neutral line in the shared Rules block
+  # ("home's responsibility; if this session is named 'home' edit directly, else route to home"),
+  # emitted for ALL sessions - the guardrail is convention, not OS permissions.
 
 version_lines = get_version_prompt_lines()
   → "claude-mux version: X.Y.Z"
@@ -519,6 +525,8 @@ assemble and return prompt:
    Rules:
    - always use absolute claude-mux path
    - always use --no-attach with -d and -n
+   - config/template edits are the home session's responsibility (role-neutral, ALL sessions:
+     named 'home' → edit directly; otherwise route to home)
    - when user says: ready → 'Session ready!\nRunning [model] in {permission_mode} mode.'
    - when user says: help → run --guide, print verbatim
    - when user says: status → report session, model, mode, context, run -l

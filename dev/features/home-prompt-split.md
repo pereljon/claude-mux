@@ -1,9 +1,9 @@
 ---
 kind: feature
-lifecycle: designing
+lifecycle: building
 feature: home-prompt-split
-status: DESIGNING 2026-07-22. Architecture VERIFIED against src this session (build_system_prompt already gates home content). Pre-architect-review. Sequence AFTER model-switch-confirm (v2.0.14) ships — both touch the injection.
-target_version: TBD (leaning minor, e.g. 2.1.0 — it changes session-visible injection behavior across all sessions); decide at build
+status: BUILDING 2026-07-23 (v2.1.0). Design ready (architect APPROVE-WITH-NOTES, notes applied). Code complete in src/30-helpers.sh; code review APPROVE (0 findings); docs updated. Remaining: commit/release gates, then the hard ordering: ship -> restart home -> strip ~/Claude/CLAUDE.md -> restart home.
+target_version: 2.1.0 (minor — changes session-visible injection behavior across all sessions; decided at build 2026-07-23)
 related: model-switch-confirm, orchestrator-hub
 ---
 
@@ -96,10 +96,10 @@ their sessions, no isolation required.
 - Config authority → one role-neutral injected line (ships generically; not dependent on CLAUDE.md).
 
 ## Build steps (ordered — pending architect review; anchors verified 2026-07-22)
-0. **If a new fragment is used** for a `home_orchestrator_prompt()` helper (to keep large text out of
-   `30-helpers.sh`), it MUST be added to the Makefile explicit `MODULES` list (same landmine as
-   model-switch-confirm — a stray fragment compiles to nothing, `make check` stays green). If instead
-   we extend the existing `home_management` string in place, no Makefile change. **Decide first.**
+0. **DECIDED (Q1): extend `home_management` in place** — no new fragment, no Makefile `MODULES`
+   change. (If the text unexpectedly grows large enough to warrant a `home_orchestrator_prompt()`
+   fragment, remember the landmine: a stray fragment not in `MODULES` compiles to nothing and
+   `make check` stays green.)
 1. **Consolidate the home gate** in `build_system_prompt` (`src/30-helpers.sh:676-691`): fold the
    home-orchestrator identity/role into the existing `home_line` / `home_management`, de-duplicating
    against shared Rule `:714`. No home-only-file pointer (dropped). Personal shared conventions stay
@@ -112,38 +112,64 @@ their sessions, no isolation required.
    whether non-home sessions are actually OS-blocked from `~/.claude-mux/` — all sessions run as the
    same unix user, so the `:684` "only home has filesystem permissions" claim is likely convention,
    not enforcement, which is exactly why this rule is warranted regardless.
-3. **Strip `~/Claude/CLAUDE.md`** to the Communication Style block. NOTE: this is a home-orchestration
-   change to a file OUTSIDE this repo — coordinate/confirm the final content with the user; do not
-   bundle it into a claude-mux commit.
+3. **Strip `~/Claude/CLAUDE.md`** per the Q4 resolution (keep comms style + analytical-project
+   pointer; drop directory map; migration procedure moves to an on-demand doc with at most a
+   one-line pointer). NOTE: this is a change to a file OUTSIDE this repo — coordinate final wording
+   with the user; do not bundle it into a claude-mux commit.
+   **HARD ORDERING (architect-required):** ship code → **restart home** (so its baked prompt carries
+   the orchestrator identity) → strip CLAUDE.md → restart home again for the clean single-source
+   state. NEVER strip before the post-ship home restart, or home is identity-bare in the gap.
+   (Running sessions bake the prompt at launch; until the strip, CLAUDE.md still supplies identity,
+   so home is covered on both sides of the sequence. Non-home sessions in the window just get
+   today's known leak plus one harmless extra line — no regression.)
 4. **Docs/version:** `make build` + `make check`; README "Session System Prompt" section MUST match
    the new injection; IMPLEMENTATION-SPEC injection docs; CHANGELOG; VERSION; SKELETON if the
    home/non-home branch changes flow; CODEMAP if a new fragment/function is added.
 
 ## Files to update (Change Checklist)
-- `src/30-helpers.sh` — `build_system_prompt` home gate (consolidate + personal-notes pointer) + the
-  non-home config-prohibition line. (Optionally `src/XX-orchestrator-prompt.sh` + Makefile `MODULES`
-  if a helper fragment is used.)
-- `~/Claude/CLAUDE.md` — strip to comms-only (OUTSIDE repo; confirm with user).
-- Personal home-only notes file (option a) — path TBD (`~/.claude-mux/home.md` or
-  `~/Claude/.home-orchestrator.md`); OUTSIDE repo.
+- `src/30-helpers.sh` — `build_system_prompt` home gate (consolidate home identity/role; NO
+  personal-notes pointer, that branch is dropped) + the shared role-neutral config line. No new
+  fragment (Q1: extend in place).
+- `~/Claude/CLAUDE.md` — strip per Q4 resolution: keep comms style + analytical-project pointer;
+  drop directory map; migration procedure moves to an on-demand doc (OUTSIDE repo; content approved
+  2026-07-23, final wording at build step 3).
 - README "Session System Prompt" section, `dev/IMPLEMENTATION-SPEC.md`, CHANGELOG, VERSION,
   `dev/SKELETON.md`, `dev/CODEMAP.md` (if a fragment/function is added).
 
-## Open questions (resolve before finalizing)
-1. **New fragment vs extend `home_management` in place** (build step 0). Lean: extend in place unless
-   the text gets large enough to warrant a `home_orchestrator_prompt()` helper fragment.
-2. **Config authority: single role-neutral line vs grant+prohibition gating** (build step 2). Lean
-   the single neutral line (simpler, self-disambiguating, ships generically).
-3. **Is the config rule needed, or are non-home sessions actually blocked?** Verify the real
-   permission behavior for `~/.claude-mux/` writes from a non-home session (likely convention, not OS).
-4. **What shared conventions (if any) the user keeps in `~/Claude/CLAUDE.md`** beyond comms style —
-   directory map, analytical-project conventions, migration procedure are all fine to keep there
-   (loading into the user's own projects) or to drop in favor of on-demand `claude-mux -L` / template
-   lookups. User's call; not a claude-mux code concern.
-5. **Generality check (ship-scope):** the shipped claude-mux change is just (a) the home
+## Open questions — ALL RESOLVED 2026-07-23 (user approved leans)
+1. **New fragment vs extend `home_management` in place** — RESOLVED: extend in place. No new
+   fragment, no Makefile `MODULES` change (avoids the stray-fragment landmine of build step 0).
+   Revisit only if the text grows unexpectedly large during build.
+2. **Config authority form** — RESOLVED: single role-neutral line in the shared Rules block,
+   replacing the home-gated grant at `:684`. Self-disambiguating; ships generically.
+3. **Is the config rule needed?** — RESOLVED: YES; verified 2026-07-23 against
+   `setup_claude_mux_permissions()` (`src/50-restore-state.sh:549`). Home alone gets
+   `Read/Edit/Write(~/.claude-mux/**)` allow rules + `additionalDirectories`; non-home sessions get
+   NO deny rule, and all sessions run as the same unix user — a non-home session in bypass/auto mode
+   (or via Bash) can physically write `~/.claude-mux/`. The `:684` "only home has filesystem
+   permissions" claim is convention + prompt-friction, NOT enforcement. The injected rule is the
+   guardrail; also reword away the false "filesystem permissions" claim.
+4. **What stays in `~/Claude/CLAUDE.md`** — RESOLVED (user's call, 2026-07-23): KEEP Communication
+   Style (minus the "auto mode" line, which moves to home-inj) and the analytical-project template
+   pointer (project sessions are the ones that need it). DROP the Project Directory Map (redundant
+   with `claude-mux -L`). MOVE the 5-step migration procedure OUT of the shared file to an on-demand
+   doc home consults (path TBD at edit time, e.g. alongside the template in `~/.claude-mux/`), with
+   at most a one-line pointer. Not a claude-mux code concern; coordinate at build step 3.
+5. **Generality check (ship-scope)** — RESOLVED: the shipped claude-mux change is just (a) the home
    identity/role in the injection's existing home gate and (b) the role-neutral config line. All
    user-specific content stays in the user's own `~/Claude/CLAUDE.md` (shared) — nothing personal
    enters shipped code. That is the clean line.
+
+## Recorded assumption: name-only home gate (architect note, 2026-07-23)
+The injection gate keys on `session_name == "home"` (`src/30-helpers.sh:676`) while the permission
+grant keys on `PROJECT_DIR == BASE_DIR` (`src/70-start-launch.sh:44,78`). A project folder whose
+basename sanitizes to `home` OUTSIDE BASE_DIR would get the orchestrator *identity* injection but
+not the `~/.claude-mux/**` grant. In practice tmux `has-session` dedup (`src/55-session-launch.sh:158`)
+plus the always-on protected home session block a second live `home`, so this cannot easily manifest.
+Accepted as-is; this feature escalates what rides on the name gate, so the assumption is recorded
+here deliberately rather than left implicit. The wording of the config line should anchor to the
+concrete signal the session actually has ("if this session is named `home`…" — the tmux-name header
+at `:696` — not an abstract "if you ARE the home session").
 
 ## Out of scope
 - The orchestrator-hub / dashboard work (separate parked investigation).

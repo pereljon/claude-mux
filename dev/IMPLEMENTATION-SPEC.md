@@ -260,6 +260,7 @@ claude-mux --tip            → print a tip (standalone; no daily gate)
 - Always use `--no-attach` with `-d` and `-n`
 - `--shutdown` and `--restart` are safe from inside a session; do NOT add `--no-attach`
 - Home session is protected; `--shutdown home` requires `--force`
+- **Config/template authority (role-neutral, all sessions — v2.1.0):** config and template edits (`~/.claude-mux/`) are the home session's responsibility; a session named `home` edits directly, any other session routes the change to home. One shared line, self-disambiguating; replaces the old home-only grant that falsely claimed "only home has filesystem permissions" (convention, not OS enforcement)
 - Use claude-mux for ALL session management — never raw tmux/ls commands
 - When user says "help", run `claude-mux --guide` and print the output verbatim
 - When user says "status", report session name, current model, current permission mode, context estimate, then run `-l`
@@ -291,6 +292,8 @@ claude-mux --tip            → print a tip (standalone; no daily gate)
 If GitHub SSH accounts are found in `~/.ssh/config`, an additional line is appended listing the accounts and how to use their host aliases as git remotes.
 
 When `ALLOW_CROSS_SESSION_CONTROL=false` (default), the send command note says "to yourself". When `true`, it says "to yourself or any other Claude session".
+
+**Home-only block (v2.1.0 home-prompt-split):** when `session_name == "home"`, the prompt additionally carries the home-orchestrator identity (always-on, protected, the session orchestrator: session management and project orchestration, not project work; operational posture — act without asking when intent is clear) and the home self-management triggers (show/set config, add/edit/delete templates, marker conventions). The identity ships in the injection precisely so an ancestor `CLAUDE.md` in the base directory does not have to carry it — ancestor loading would leak it into every project session underneath. Gate is the session *name* only (`home`); the recorded name-vs-directory boundary lives in `dev/features/home-prompt-split.md`.
 
 Writes the launch command to a temp script (`${TMPDIR:-/tmp}/claude-launch-XXXXXX`) and the system prompt to `<working_dir>/.claudemux-prompt` (`chmod 600`). The prompt lives in the project folder (not `$TMPDIR`) so it survives `$TMPDIR` reaping and can be regenerated across in-place relaunches; it is covered by the `.claudemux-*` gitignore pattern. The temp script uses `trap EXIT` to clean up the launch script (the wrapper owns the prompt's lifetime). Sends the temp script path to the tmux pane via `send-keys`. The prompt file is NOT deleted after the ready handshake (the wrapper re-reads and regenerates it on each in-place restart). Sleeps `SLEEP_BETWEEN` seconds after launching during `-a`.
 
