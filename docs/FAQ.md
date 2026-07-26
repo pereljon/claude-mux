@@ -202,6 +202,10 @@ Not natively. Claude Code does not support slash commands (`/model`, `/clear`, e
 
 Hold **Option** (macOS) or **Shift** (Linux/Windows terminals) while clicking and dragging. This bypasses tmux's mouse capture and copies the selection to your system clipboard. No config changes needed.
 
+## Cmd+V doesn't paste images into Claude Code in my session
+
+Use **Ctrl+V** instead. Inside a tmux session, iTerm2 (or your terminal) intercepts Cmd+V as its own text paste, so a copied image never reaches Claude Code. Ctrl+V passes through to Claude Code, which reads the image from the system clipboard. Ctrl+V is Claude Code's image-paste key on every platform; the tmux layer is just why Cmd+V stops working inside a session. No config changes needed.
+
 ## What languages are supported for conversational commands?
 
 All of them. The trigger phrases ("help", "status", "list sessions", etc.) work in any language. Claude infers the intent from the user's natural language and runs the matching command. The README is also translated into 12 languages.
