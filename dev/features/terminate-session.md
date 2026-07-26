@@ -1,8 +1,8 @@
 ---
 kind: feature
-lifecycle: idea
+lifecycle: designing
 feature: terminate-session
-status: IDEA 2026-06-22 (concept + pre-termination behavior + concurrency boundary captured; not yet architect-reviewed). One verification item open (SessionStart on fresh launch).
+status: DESIGNING 2026-07-24 (promoted from idea; concept + pre-termination behavior + concurrency boundary captured, not yet architect-reviewed). Session-naming mechanics empirically VERIFIED 2026-07-24 (see "Session naming" section) but the naming direction is ON HOLD pending a utility decision. One verification item open (SessionStart on fresh launch).
 target_version: unscheduled
 severity: N/A (enhancement) — gives a "destructive stop" (next start is fresh) distinct from today's "stop = pause-and-resume".
 related: context-cost-awareness, model-switching-cost-research, restart-in-place
@@ -160,6 +160,63 @@ preserving the 1:1 invariant and sidestepping every hazard above. claude-mux alr
 with this (the broader tooling uses worktree isolation for parallel agents). So:
 **parallelism = more folders (worktrees), not more sessions per folder.** Terminate/handoff
 stays a sequential baton; multi-live is intentionally not pursued.
+
+## Session naming (explored + VERIFIED 2026-07-24 — ON HOLD pending utility)
+
+Explored whether terminate should **name the transcript** it closes (e.g. after the feature
+just finished), so a project folder's accumulated transcripts are individually identifiable in
+Claude Code's `--resume` picker. This surfaced a general "set a session's display title"
+capability that terminate and a sibling "retitle a running session" feature would share.
+**Decision: record the findings, do not build yet** — hold until the utility is confirmed.
+
+### The right home for the name is Claude Code's NATIVE per-transcript title, not a claude-mux file
+
+A folder accumulates many transcripts over its life (`~/.claude/projects/<encoded>/<uuid>.jsonl`,
+one per finished-and-terminated conversation). The name belongs to the **individual transcript**,
+and Claude Code already indexes transcripts per-session with a per-transcript `custom-title`
+record and a `--resume` picker. An external claude-mux index would duplicate that, have to map to
+session UUIDs, and drift on purge — violating "don't duplicate what Claude Code already handles /
+eliminate complexity, don't relocate it." So: **use the native title, no external tracking file.**
+
+### Verified mechanics (empirical tests, isolated throwaway project, 2026-07-24)
+
+| Mechanism | Result |
+|---|---|
+| `--name '<x>'` at launch (claude-mux already passes this = folder basename) | sets `custom-title` |
+| Resume with a **changed** `--name` | re-stamps `custom-title`; **conversation continuity preserved** (codeword-recall test passed) |
+| Headless `claude -p --resume <id> --name '<x>'` | re-stamps `custom-title` (adds a throwaway turn; cost ∝ transcript size, since it resumes) |
+| **`/rename <name>` slash command** — headless AND via live send-keys on a running claude-mux session AND in Remote Control | **renames in place, no relaunch, no RC flap, full continuity.** User-confirmed in RC. |
+
+`/rename` is a **native Claude Code slash command**. claude-mux can send it the same way it sends
+`/model` / `/compact` / `/clear` (send-keys / `-s`). This **collapses the earlier
+close→reopen-with-name→[close] design** — no relaunch is needed to set a title. The transcript's
+title is set on the LIVE session in place; restart/stop becomes genuinely orthogonal.
+
+### Unified model this enables (if/when built)
+
+One primitive — set the title via `/rename` — with the lifecycle action as an orthogonal switch:
+- **retitle a running session** = `/rename <name>` → stays running. (`claude-mux -s <s> '/rename <name>'`.)
+- **terminate + name** = live session generates the feature name → self-sends `/rename <name>`
+  (stamps the transcript in place) → claude-mux shuts it down + writes the fresh-next marker.
+  **Ends stopped, transcript natively named, zero reopen.**
+
+The name is a transient arg (session → command → native `custom-title`), never persisted state.
+
+### Durability wrinkle (only matters for retitle-that-should-survive-restart)
+
+`/rename` sets the *live* title, but claude-mux's launch path hardcodes `--name '<folder-basename>'`,
+so a later `--restart` re-stamps back to the folder name. If a custom title must survive restarts,
+store it (a `.claudemux-name` marker or a field in `.claudemux-activity.json`) and have the launch
+path read `--name "${custom:-<folder>}"`. Moot for terminate (ends stopped); relevant only for a
+persistent retitle. Also note the collision with the existing `--rename SESSION NAME` (which renames
+the *project folder + identity*) — a display-title feature needs a distinct verb/trigger.
+
+### Why HOLD
+
+The mechanics are proven and cheap, but the **utility is unconfirmed**: is per-transcript naming
+worth the surface area, given the `--resume` picker already shows a first-message snippet? Revisit
+when the value case is clear (likely alongside `session-activity-timestamps` / context-discipline,
+which shares the per-folder-metadata shape).
 
 ## Files to update (when built — Change Checklist sketch)
 - `src/*.sh`: new `--terminate` flag parse (`src/10-flags.sh`), dispatch (`src/90-dispatch.sh`),
