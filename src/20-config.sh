@@ -136,6 +136,12 @@ CLAUDE_MUX_BIN="$(command -v "$0" 2>/dev/null)"
 if [[ -z "$CLAUDE_MUX_BIN" ]]; then
     CLAUDE_MUX_BIN="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 fi
+# Absolutize: `command -v` returns a relative path when invoked relatively (e.g.
+# ./claude-mux), and this value is embedded in the injection ("claude-mux path:")
+# and used for self-invocation, so it must be absolute regardless of how we were called.
+if [[ "$CLAUDE_MUX_BIN" != /* ]]; then
+    CLAUDE_MUX_BIN="$(cd "$(dirname "$CLAUDE_MUX_BIN")" && pwd)/$(basename "$CLAUDE_MUX_BIN")"
+fi
 GITHUB_SSH_INFO=""
 
 # Warn when cross-session control is enabled — elevated privilege surface

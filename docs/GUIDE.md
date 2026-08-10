@@ -153,9 +153,9 @@ Rules:
 - When user says: list all sessions - run claude-mux -L
 - When user says: list hidden projects - run claude-mux -L --hidden
 - When user says: start session SESSION - run claude-mux --start SESSION (by name; starts if stopped, no-op if already running)
-- When user says: stop this session / stop session NAME - run claude-mux --shutdown
+- When user says: stop this session / stop session NAME - run claude-mux --shutdown SESSION (always pass the session name; bare --shutdown targets ALL sessions)
 - When user says: stop all sessions - run claude-mux --shutdown
-- When user says: restart this session / restart session NAME - run claude-mux --restart (also starts the session if it is stopped)
+- When user says: restart this session / restart session NAME - run claude-mux --restart SESSION (also starts the session if it is stopped; bare --restart targets ALL sessions)
 - When user says: restart all sessions - run claude-mux --restart
 - When user says: start new session in FOLDER - run claude-mux -n FOLDER --no-attach
 - When user says: switch this session to MODE mode / switch session NAME to MODE mode
