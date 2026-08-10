@@ -58,7 +58,7 @@ Options:
   -h, --help                Show this help message
 
 All other options (--base-dir, --launchagent-mode, --home-model, --no-launchagent,
---non-interactive, --permission-mode, --cross-session-control) are forwarded to
+--non-interactive, --permission-mode) are forwarded to
 'claude-mux --install', which handles config and LaunchAgent setup.
 
 Examples:

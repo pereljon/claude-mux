@@ -18,11 +18,6 @@ LOG_DIR="$HOME/Library/Logs"
 # Valid values: "" (disabled), "default", "acceptEdits", "plan", "auto", "dontAsk", "bypassPermissions"
 DEFAULT_PERMISSION_MODE="auto"
 
-# When true, each Claude session is told it can send slash commands to OTHER
-# sessions via tmux send-keys. When false (default), sessions can only send
-# commands to themselves — safer, prevents one session affecting others.
-ALLOW_CROSS_SESSION_CONTROL=false
-
 # ── tmux session options ──────────────────────────────────────────────────────
 
 # Enable tmux extended-keys for Shift+Enter and other modified keys.

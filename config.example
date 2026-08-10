@@ -20,11 +20,6 @@
 # Default: "auto"
 #DEFAULT_PERMISSION_MODE="auto"
 
-# When true, Claude sessions can send slash commands to OTHER sessions via tmux.
-# When false, sessions can only send commands to themselves.
-# Default: false
-#ALLOW_CROSS_SESSION_CONTROL=false
-
 # ── tmux session options ──────────────────────────────────────────────────────
 
 #TMUX_EXTENDED_KEYS=true           # Shift+Enter support (requires tmux 3.2+)

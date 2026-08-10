@@ -17,7 +17,6 @@ The home session is **protected** by default - `--shutdown home` refuses to stop
 | `BASE_DIR` | `$HOME/Claude` | Root directory to scan for Claude projects (directories containing `.claude/`) |
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set Claude's `permissions.defaultMode` in each project. Valid: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Set to `""` to disable. |
-| `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions can send slash commands to other sessions - useful for multi-agent orchestration |
 | `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing CLAUDE.md template files |
 | `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches when `-a` is used. Increase if RC registration fails. |
@@ -133,7 +132,7 @@ Reference lookups (run on demand if you need information not covered by trigger 
 
 Rules:
 - Always run claude-mux using the absolute path shown above (claude-mux path:). The bare command may not be in PATH.
-- You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command.
+- You CAN send slash commands (/model, /compact, /clear, etc.) into any managed session via -s: claude-mux -s SESSION '/command' (your own name for this session, another managed session's name to operate it).
 - Peer sessions: your other claude-mux sessions are peer agents, addressable by their managed session names (as in claude-mux -l), which are their native cross-session-messaging agent names. Two channels, don't conflate: -s SESSION '/command' pushes a slash command (/model, /compact, /clear, etc.; slash commands only) into a session to operate it; native SendMessage (peers via ListAgents) delivers a natural-language message the peer processes on its next turn, to converse with or delegate to it.
 - Always use --no-attach with -d and -n - attach is interactive only
 - --shutdown and --restart never attach - safe to run from inside a session; do NOT add --no-attach to these commands
@@ -188,11 +187,10 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Remove all hooks and permissions (--uninstall)
   - Update claude-mux (--update)
 
-Self-targeting send: claude-mux -s '<session-name>' '/command' sends slash commands to yourself.
 GitHub SSH accounts configured in ~/.ssh/config: <accounts>. For gh CLI operations (repo create, PR create, etc.), run `gh auth switch --user <account>` first to target the correct GitHub account. Before any gh command, check `gh auth status` to verify the active account matches the repo's remote.
 ```
 
-The home session receives additional context: its identity as the session orchestrator (session management and project orchestration, not project work; an operational session that acts without asking when intent is clear), plus self-management triggers for reading/editing config and templates. As of v2.1.0 this identity ships in the injection itself, so it does not need to live in an ancestor `CLAUDE.md` (where it would leak into every project session under the base directory). Config/template edit authority is the role-neutral rule above, injected into every session. When `ALLOW_CROSS_SESSION_CONTROL=true`, the send command can target any session, not just itself. The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.
+The home session receives additional context: its identity as the session orchestrator (session management and project orchestration, not project work; an operational session that acts without asking when intent is clear), plus self-management triggers for reading/editing config and templates. As of v2.1.0 this identity ships in the injection itself, so it does not need to live in an ancestor `CLAUDE.md` (where it would leak into every project session under the base directory). Config/template edit authority is the role-neutral rule above, injected into every session. The `-s` send command can target any managed session (used by the "compact/clear/switch the X session" triggers and home orchestration). The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.
 
 ## Tips
 

@@ -113,7 +113,6 @@ The split is behavior-preserving by construction; it changes no feature, flag, c
 | `BASE_DIR` | `$HOME/Claude` | Root directory to scan for Claude projects (directories containing `.claude/`) |
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set `permissions.defaultMode` in `.claude/settings.local.json` per project. Valid: `""` (disabled), `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
-| `ALLOW_CROSS_SESSION_CONTROL` | `false` | When `true`, Claude sessions are told they can send slash commands to other sessions via tmux. When `false`, sessions can only send commands to themselves. |
 | `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing CLAUDE.md template files |
 | `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
 | `MULTI_CODER_FILES` | `"AGENTS.md GEMINI.md"` | Space-separated list of files to create as symlinks to CLAUDE.md for other AI CLI tools. Set to `""` to disable. |
@@ -156,7 +155,7 @@ The script sources `~/.claude-mux/config` after setting defaults, so any variabl
 ### Startup Sequence
 
 ```
-1. Set defaults (BASE_DIR, LOG_DIR, DEFAULT_PERMISSION_MODE, ALLOW_CROSS_SESSION_CONTROL)
+1. Set defaults (BASE_DIR, LOG_DIR, DEFAULT_PERMISSION_MODE)
 2. Parse flags (-d, -n, -p, -s, -t, -l, -L, --shutdown, --restart, --permission-mode, --install, --update, --guide, --dry-run, -v, -h, positional DIRECTORY)
 3. Validate mutual exclusion of commands; validate -p only with -n
 4. Source ~/.claude-mux/config if present (user overrides apply from here on)
@@ -300,8 +299,6 @@ claude-mux --tip            → print a tip (standalone; no daily gate)
 ```
 
 If GitHub SSH accounts are found in `~/.ssh/config`, an additional line is appended listing the accounts and how to use their host aliases as git remotes.
-
-When `ALLOW_CROSS_SESSION_CONTROL=false` (default), the send command note says "to yourself". When `true`, it says "to yourself or any other Claude session".
 
 **Injection rule checklist (standard for adding or editing an injection rule).** The injection is the primary interface, so a rule must be first-read executable by a model that has never seen claude-mux. Apply these when touching `build_system_prompt`:
 

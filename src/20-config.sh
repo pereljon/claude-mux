@@ -144,8 +144,3 @@ if [[ "$CLAUDE_MUX_BIN" != /* ]]; then
 fi
 GITHUB_SSH_INFO=""
 
-# Warn when cross-session control is enabled — elevated privilege surface
-if [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]]; then
-    echo "WARN: ALLOW_CROSS_SESSION_CONTROL=true — any session can send keystrokes to any other managed session" >&2
-fi
-

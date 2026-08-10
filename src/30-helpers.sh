@@ -233,13 +233,12 @@ PLIST_EOF
 }
 
 # Write ~/.claude-mux/config from current install settings.
-# Args: base_dir launchagent_mode home_model permission_mode cross_session_control
+# Args: base_dir launchagent_mode home_model permission_mode
 write_install_config() {
     local base_dir="$1"
     local launchagent_mode="$2"
     local home_model="$3"
     local permission_mode="$4"
-    local cross_session="$5"
 
     # Format settings: commented out when at default, active when customized
     local base_dir_line="BASE_DIR=\"${base_dir}\""
@@ -247,9 +246,6 @@ write_install_config() {
 
     local permission_line="DEFAULT_PERMISSION_MODE=\"${permission_mode}\""
     [[ "$permission_mode" == "auto" ]] && permission_line="#DEFAULT_PERMISSION_MODE=\"auto\""
-
-    local cross_line="ALLOW_CROSS_SESSION_CONTROL=${cross_session}"
-    [[ "$cross_session" == "false" ]] && cross_line="#ALLOW_CROSS_SESSION_CONTROL=false"
 
     local launchagent_line="LAUNCHAGENT_MODE=${launchagent_mode}"
     [[ "$launchagent_mode" == "home" ]] && launchagent_line="#LAUNCHAGENT_MODE=home"
@@ -277,10 +273,6 @@ write_install_config() {
         "# Default: \"auto\"" \
         "$permission_line" \
         "" \
-        "# Allow sessions to send slash commands to other sessions via tmux." \
-        "# Default: false" \
-        "$cross_line" \
-        "" \
         "# ── Templates ─────────────────────────────────────────────────────────────────" \
         '#TEMPLATES_DIR="$HOME/.claude-mux/templates"' \
         '#DEFAULT_TEMPLATE="default.md"' \
@@ -307,7 +299,6 @@ do_install() {
     local launchagent_mode=""
     local home_model=""
     local permission_mode="auto"
-    local cross_session="false"
     local launchagent_set=false
     local home_model_set=false
 
@@ -367,7 +358,6 @@ do_install() {
                 esac
                 ((i++))
                 ;;
-            --cross-session-control) cross_session="true"; ((i++)) ;;
             -*) echo "ERROR: Unknown --install option: $arg" >&2; exit 1 ;;
             *) echo "ERROR: --install does not accept positional arguments (got: $arg)" >&2; exit 1 ;;
         esac
@@ -504,7 +494,7 @@ do_install() {
 
     # Write config
     echo "Writing config to $CLAUDE_MUX_CONFIG..."
-    write_install_config "$base_dir" "$launchagent_mode" "$home_model" "$permission_mode" "$cross_session"
+    write_install_config "$base_dir" "$launchagent_mode" "$home_model" "$permission_mode"
 
     # LaunchAgent handling
     local plist_path="$HOME/Library/LaunchAgents/com.user.claude-mux.plist"
@@ -668,8 +658,6 @@ build_system_prompt() {
     local session_name="$1"
     local permission_mode="${2:-}"   # optional: permission mode to include in ready response
     local mux_bin="${CLAUDE_MUX_BIN}"
-    local send_scope="to yourself"
-    [[ "$ALLOW_CROSS_SESSION_CONTROL" == "true" ]] && send_scope="to yourself or any other Claude session"
 
     local home_line=""
     local home_management=""
@@ -712,7 +700,7 @@ Reference lookups (run on demand if you need information not covered by trigger 
 
 Rules:
 - Always run claude-mux using the absolute path shown above (claude-mux path:). The bare command may not be in PATH.
-- You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command. Never tell the user you cannot change models or run slash commands.
+- You CAN send slash commands (/model, /compact, /clear, etc.) into any managed session via -s: \`claude-mux -s SESSION '/command'\` (use your own name for this session, another managed session's name to operate that one). Never tell the user you cannot change models or run slash commands.
 - Peer sessions: your other claude-mux sessions are addressable peer agents; each session's managed name (as shown by \`claude-mux -l\`) is its agent name for native cross-session messaging. Two distinct channels, don't conflate them: \`claude-mux -s SESSION '/command'\` pushes a slash command (/model, /compact, /clear, etc.; slash commands only) into a session to operate it; native SendMessage (discover peers with ListAgents) delivers a natural-language message the peer processes on its next turn, to converse with or delegate to it.
 - Always use --no-attach with -d and -n — attach is interactive only
 - --shutdown and --restart never attach — safe to run from inside a session; do NOT add --no-attach to these commands
@@ -746,11 +734,11 @@ ${config_rule}- When asked to shut down sessions, run the command directly — p
 - When user says: switch this session to MODEL model — resolve MODEL to a concrete model ID (below), then send /model <id> via -s to CURRENT_SESSION. When user says: switch session NAME to MODEL model — resolve NAME per the rule above and send to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session. Resolving MODEL (the /model picker silently ignores a bare family name, so you MUST resolve to a concrete ID first): (a) a BARE family (\`opus\`/\`sonnet\`/\`haiku\` or any family) → expand to the latest concrete ID you know for that family, from your own model knowledge plus the model-ID list Claude Code provides in your context, preferring the dateless alias form (e.g. \`sonnet\` → \`claude-sonnet-4-6\`); (b) a family-plus-version shorthand (\"opus 4.8\", \"opus-4-8\", \"opus 4 8\") → the dash-joined, \`claude-\`-prefixed ID \`claude-<family>-<major>-<minor>\` (e.g. \`claude-opus-4-8\`); (c) an already-full ID or a date-suffixed ID (\`claude-opus-4-8\`, \`claude-haiku-4-5-20251001\`) → use as-is. If you cannot confidently map MODEL to a concrete ID (e.g. a model newer than you know), ASK the user for the exact model ID rather than sending a bare family (which the picker silently ignores, leaving the model unchanged). Claude Code validates the final ID.
 - When user says: compact this session — send /compact via -s to CURRENT_SESSION. When user says: compact session NAME — resolve NAME per the rule above and send it to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session. Inform the user that RC will reconnect automatically after compact completes (~30-60s)
 - When user says: clear this session — send /clear via -s to CURRENT_SESSION. When user says: clear session NAME — resolve NAME per the rule above and send it to NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
-- When user says: update claude-mux — check the installed version and latest available; warn the user that all sessions will be restarted and ask for confirmation before proceeding; if confirmed, run claude-mux --update then claude-mux --restart
+- When user says: update claude-mux — the installed version is in this prompt's header; the latest version, when newer, arrives via the \"update available\" notice (do not try to fetch it yourself). Warn the user that all sessions will be restarted, ask for confirmation, then run claude-mux --update then claude-mux --restart.
 - When user says: hide this project — run claude-mux --hide CURRENT_SESSION. When user says: hide PROJECT — resolve PROJECT per the rule above and run claude-mux --hide PROJECT; if it does not resolve to exactly one project, ask which — do not default to the current session. Confirm with the project name.
 - When user says: show this project — run claude-mux --show CURRENT_SESSION. When user says: show PROJECT / unhide PROJECT — resolve PROJECT per the rule above (hidden projects appear under claude-mux -L --hidden) and run claude-mux --show PROJECT; if it does not resolve to exactly one project, ask which — do not default to the current session.
-- When user says: protect this session — run claude-mux --protect CURRENT_SESSION. When user says: protect SESSION — resolve SESSION per the rule above and run claude-mux --protect SESSION; if it does not resolve to exactly one session, ask which — do not default to the current session.
-- When user says: unprotect this session — run claude-mux --unprotect CURRENT_SESSION. When user says: unprotect SESSION — resolve SESSION per the rule above and run claude-mux --unprotect SESSION; if it does not resolve to exactly one session, ask which — do not default to the current session.
+- When user says: protect this project — run claude-mux --protect CURRENT_SESSION. When user says: protect PROJECT — resolve PROJECT per the rule above (project-level; may target a stopped project) and run claude-mux --protect PROJECT; if it does not resolve to exactly one project, ask which — do not default to the current project.
+- When user says: unprotect this project — run claude-mux --unprotect CURRENT_SESSION. When user says: unprotect PROJECT — resolve PROJECT per the rule above (project-level; may target a stopped project) and run claude-mux --unprotect PROJECT; if it does not resolve to exactly one project, ask which — do not default to the current project.
 - When user says: is this hidden / is this protected — check for .claudemux-ignore or .claudemux-protected in the project folder and report state.
 - When user says: delete this project — target the current project. When user says: delete PROJECT — resolve PROJECT per the rule above; if it does not resolve to exactly one project, ask which one (never default to the current project). Then, in both cases, confirm in chat first (\"Move project '<name>' to trash? Yes/No\"). If user confirms, run claude-mux --delete NAME --yes (the chat exchange replaces the TTY prompt). If the project is protected, warn and ask if --force should be used. The folder is moved to the system trash, recoverable via Finder.
 - When user says: list templates — run claude-mux --list-templates
@@ -783,7 +771,6 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Update claude-mux (--update)
   - Uninstall claude-mux (--uninstall — removes hooks, permissions, LaunchAgent)
 
-Self-targeting send: claude-mux -s '${session_name}' '/command' sends slash commands ${send_scope}.
 ${GITHUB_SSH_INFO}"
 
     echo "$prompt"

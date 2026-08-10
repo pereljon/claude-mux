@@ -2,6 +2,12 @@
 
 ## Open
 
+### Investigation: best mechanism for a session to inspect and unstick a broken/stuck peer
+**Severity:** N/A (investigation, not a bug)
+**Status:** Open — raised 2026-08-10 while removing the vestigial `ALLOW_CROSS_SESSION_CONTROL` flag.
+**Context:** Cross-session control today is `-s NAME '/slash'` (slash-only) plus `--restart` / `--shutdown` / `--start NAME` (lifecycle). Those recover a peer via `/clear`, `/compact`, or a restart, but they cannot send a **raw keystroke or interrupt** (Escape, Ctrl-C, Enter) to a genuinely hung session, which is often what "unstick it" actually requires. Jonathan's current practice is to ask the **home** session to look at the peer's tmux pane and fix it by hand.
+**Question:** what is the best mechanism for a session (usually home) to (a) **inspect** a peer's live state and (b) **act** to unstick it? Options to weigh: (a) a claude-mux command that captures a peer's pane (`tmux capture-pane`) and surfaces it to the caller (the injection currently discourages raw `tmux` from sessions, so pane inspection should be a claude-mux affordance, not ad-hoc); (b) an interrupt / raw-key command (`--send-keys NAME <keys>` or `--interrupt NAME` sending Escape/Ctrl-C); (c) expose the existing internal keystroke machinery (`poll_until_ready`, the confirm-dialog helpers already send keys) as a peer-facing command; (d) native primitives (does `SendMessage`/RC offer an interrupt or a state read?). Decide whether any of this is warranted before designing. Relates to the `-s` cross-session control (now unrestricted) and the phantom-replay risk already tracked below.
+
 ### `Ready?` handshake reports "ready" before required session-startup context is loaded
 **Severity:** Medium (the user's first real question can run before the project's required context files are loaded, so the first turn answers context-blind)
 **Status:** Open - observed live 2026-06-27 in an analytical-project-template session (estate/financial project) after a clear/fresh start.

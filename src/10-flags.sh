@@ -169,11 +169,6 @@ DEFAULT_PERMISSION_MODE          default: "auto"
   Description: Claude Code permission mode written to .claude/settings.local.json
                in each project on session launch. Empty disables.
 
-ALLOW_CROSS_SESSION_CONTROL      default: false
-  Type: true | false
-  Description: When true, claude-mux -s can target any session, not just the
-               caller. Default false (sessions only message themselves).
-
 LAUNCHAGENT_MODE                 default: "home"
   Type: none | home
   Description: LaunchAgent behavior at login. "none" disables. "home" launches

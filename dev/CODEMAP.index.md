@@ -25,8 +25,8 @@ _(no function definitions)_
 | `echo_hint_end` | 80 |
 | `commands_help` | 88 |
 | `config_help` | 152 |
-| `usage` | 267 |
-| `set_command` | 336 |
+| `usage` | 262 |
+| `set_command` | 331 |
 
 ### `src/20-config.sh`
 
@@ -44,13 +44,13 @@ _(no function definitions)_
 | `do_update` | 92 |
 | `generate_plist` | 195 |
 | `write_install_config` | 237 |
-| `do_install` | 304 |
-| `claude_running_in_session` | 552 |
-| `sanitize_session_name` | 573 |
-| `apply_tmux_options` | 578 |
-| `get_version_prompt_lines` | 602 |
-| `get_session_mode` | 632 |
-| `build_system_prompt` | 667 |
+| `do_install` | 296 |
+| `claude_running_in_session` | 542 |
+| `sanitize_session_name` | 563 |
+| `apply_tmux_options` | 568 |
+| `get_version_prompt_lines` | 592 |
+| `get_session_mode` | 622 |
+| `build_system_prompt` | 657 |
 
 ### `src/35-validate-deps.sh`
 
@@ -168,16 +168,16 @@ _(no function definitions)_
 | Function | Location |
 |---|---|
 | `apply_template` | `src/80-templates-restore.sh:26` |
-| `apply_tmux_options` | `src/30-helpers.sh:578` |
+| `apply_tmux_options` | `src/30-helpers.sh:568` |
 | `attach_to_session` | `src/35-validate-deps.sh:3` |
 | `autolaunch_dispatch` | `src/80-templates-restore.sh:242` |
 | `autorestore_status` | `src/50-restore-state.sh:180` |
 | `autorestore_walk` | `src/80-templates-restore.sh:153` |
 | `await_ready_handshake` | `src/55-session-launch.sh:13` |
-| `build_system_prompt` | `src/30-helpers.sh:667` |
+| `build_system_prompt` | `src/30-helpers.sh:657` |
 | `check_for_update` | `src/30-helpers.sh:44` |
 | `claude_binary_id` | `src/75-tip-notices.sh:67` |
-| `claude_running_in_session` | `src/30-helpers.sh:552` |
+| `claude_running_in_session` | `src/30-helpers.sh:542` |
 | `commands_help` | `src/10-flags.sh:88` |
 | `config_help` | `src/10-flags.sh:152` |
 | `confirm_model_switch` | `src/55-session-launch.sh:29` |
@@ -188,7 +188,7 @@ _(no function definitions)_
 | `detect_github_ssh_accounts` | `src/50-restore-state.sh:792` |
 | `disable_tips` | `src/75-tip-notices.sh:392` |
 | `discover_projects` | `src/60-discovery.sh:62` |
-| `do_install` | `src/30-helpers.sh:304` |
+| `do_install` | `src/30-helpers.sh:296` |
 | `do_uninstall` | `src/75-tip-notices.sh:404` |
 | `do_update` | `src/30-helpers.sh:92` |
 | `echo_hint_end` | `src/10-flags.sh:80` |
@@ -200,8 +200,8 @@ _(no function definitions)_
 | `ensure_gitignore_entry` | `src/50-restore-state.sh:69` |
 | `generate_plist` | `src/30-helpers.sh:195` |
 | `get_managed_session_names` | `src/35-validate-deps.sh:112` |
-| `get_session_mode` | `src/30-helpers.sh:632` |
-| `get_version_prompt_lines` | `src/30-helpers.sh:602` |
+| `get_session_mode` | `src/30-helpers.sh:622` |
+| `get_version_prompt_lines` | `src/30-helpers.sh:592` |
 | `guide` | `src/10-flags.sh:41` |
 | `hide_command` | `src/50-restore-state.sh:232` |
 | `install_hooks_command` | `src/75-tip-notices.sh:376` |
@@ -230,11 +230,11 @@ _(no function definitions)_
 | `restore_state_last_attempt` | `src/50-restore-state.sh:111` |
 | `restore_state_tripped` | `src/50-restore-state.sh:126` |
 | `restore_state_write` | `src/50-restore-state.sh:132` |
-| `sanitize_session_name` | `src/30-helpers.sh:573` |
+| `sanitize_session_name` | `src/30-helpers.sh:563` |
 | `save_template_command` | `src/75-tip-notices.sh:522` |
 | `session_marker_dir` | `src/50-restore-state.sh:154` |
 | `session_name_for_dir` | `src/50-restore-state.sh:272` |
-| `set_command` | `src/10-flags.sh:336` |
+| `set_command` | `src/10-flags.sh:331` |
 | `set_tip_config` | `src/75-tip-notices.sh:327` |
 | `setup_claude_mux_permissions` | `src/50-restore-state.sh:549` |
 | `setup_default_mode` | `src/50-restore-state.sh:498` |
@@ -251,7 +251,7 @@ _(no function definitions)_
 | `unprotect_command` | `src/50-restore-state.sh:326` |
 | `update_all_project_hooks` | `src/75-tip-notices.sh:350` |
 | `update_check_bg` | `src/75-tip-notices.sh:297` |
-| `usage` | `src/10-flags.sh:267` |
+| `usage` | `src/10-flags.sh:262` |
 | `version_gt` | `src/30-helpers.sh:31` |
 | `write_install_config` | `src/30-helpers.sh:237` |
 | `write_running_marker` | `src/50-restore-state.sh:87` |
