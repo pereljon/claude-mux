@@ -364,6 +364,10 @@ In-place sanity checks: tmux/claude versions and paths, hooks installed across p
 
 **SHIPPED in v2.0.1.** `PreCompact` hook (`--on-compact`) fires before every compact regardless of trigger; disowned monitor polls for prompt return and sends `Ready?`. Replaces the `-s`-only v1.14.2 special case, which was removed.
 
+### "Compacting…" notice at compact start (idea, not yet built)
+
+`on_compact()` (`src/75-tip-notices.sh:265`) only spawns the RC-reconnect monitor and returns — nothing tells the user compact has started. Claude Code hooks can return `{"systemMessage": "..."}` on stdout to show text immediately; PreCompact must exit before compaction proceeds, so this can only announce the *start*, not narrate progress during it (no hook fires mid-compact). Proposed: `echo '{"systemMessage": "🔄 Compacting…"}'` as the first line of `on_compact()`. Needs a worktree per the Worktree Policy (session-behavior change) and testing on a throwaway session, since triggering a real `/compact` ends the current session's context.
+
 ## v2.0 Milestone
 
 Architectural changes significant enough to warrant a major version bump. Sequenced into three minors (v2.0, v2.1, v2.2). Not scheduled.
