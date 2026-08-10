@@ -303,6 +303,18 @@ If GitHub SSH accounts are found in `~/.ssh/config`, an additional line is appen
 
 When `ALLOW_CROSS_SESSION_CONTROL=false` (default), the send command note says "to yourself". When `true`, it says "to yourself or any other Claude session".
 
+**Injection rule checklist (standard for adding or editing an injection rule).** The injection is the primary interface, so a rule must be first-read executable by a model that has never seen claude-mux. Apply these when touching `build_system_prompt`:
+
+1. **First-read executable.** The rule works from itself alone: no forward references, no implied knowledge of other rules.
+2. **Maps, never re-teaches.** Describe how a native Claude Code or platform capability applies to claude-mux; never restate the capability's own docs (they self-document).
+3. **Every example is runnable as written.** No illustrative command that would fail or mis-route if executed literally (e.g. `-s SESSION '/restart'` is a trap: there is no `/restart` slash command, restart is `claude-mux --restart`).
+4. **Conflict pass.** Check the new rule against existing rules (especially the `-s`, model-resolution, and self-targeting rules) before adding; extend an existing bullet rather than shadowing it.
+5. **One rule, one decision.** Each bullet answers a single which/how question; a disambiguation bullet names both sides explicitly ("use X for..., Y for...").
+6. **Trigger rules vs. capability rules stay distinct.** "When user says: X" bullets prescribe action; capability bullets only inform. Never give a capability bullet trigger force (prevents spontaneous action).
+7. **Minimal words for the decision carried.** Cut any sentence whose deletion would not change what the model does.
+8. **House voice.** Imperative; caps only for hard imperatives (NEVER, ASK); no em-dashes in new text; commands formatted consistently with neighboring bullets.
+9. **Mirror the two doc copies.** The injection is a single source (`build_system_prompt` in `src/30-helpers.sh`; both launch paths and `--print-system-prompt` consume it), so there is no second launch-function copy to sync. Still mirror the change in the README/`docs/GUIDE.md` "Session System Prompt" section (Change Checklist item), the closing gate.
+
 **Home-only block (v2.1.0 home-prompt-split):** when `session_name == "home"`, the prompt additionally carries the home-orchestrator identity (always-on, protected, the session orchestrator: session management and project orchestration, not project work; operational posture — act without asking when intent is clear) and the home self-management triggers (show/set config, add/edit/delete templates, marker conventions). The identity ships in the injection precisely so an ancestor `CLAUDE.md` in the base directory does not have to carry it — ancestor loading would leak it into every project session underneath. Gate is the session *name* only (`home`); the recorded name-vs-directory boundary lives in `dev/features/home-prompt-split.md`.
 
 Writes the launch command to a temp script (`${TMPDIR:-/tmp}/claude-launch-XXXXXX`) and the system prompt to `<working_dir>/.claudemux-prompt` (`chmod 600`). The prompt lives in the project folder (not `$TMPDIR`) so it survives `$TMPDIR` reaping and can be regenerated across in-place relaunches; it is covered by the `.claudemux-*` gitignore pattern. The temp script uses `trap EXIT` to clean up the launch script (the wrapper owns the prompt's lifetime). Sends the temp script path to the tmux pane via `send-keys`. The prompt file is NOT deleted after the ready handshake (the wrapper re-reads and regenerates it on each in-place restart). Sleeps `SLEEP_BETWEEN` seconds after launching during `-a`.

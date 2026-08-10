@@ -705,6 +705,7 @@ Reference lookups (run on demand if you need information not covered by trigger 
 Rules:
 - Always run claude-mux using the absolute path shown above (claude-mux path:). The bare command may not be in PATH.
 - You CAN send slash commands (/model, /compact, /clear, etc.) to this session via the -s command. Never tell the user you cannot change models or run slash commands.
+- Peer sessions: your other claude-mux sessions are addressable peer agents; each session's managed name (as shown by \`claude-mux -l\`) is its agent name for native cross-session messaging. Two distinct channels, don't conflate them: \`claude-mux -s SESSION '/command'\` pushes a slash command (/model, /compact, /clear, etc.; slash commands only) into a session to operate it; native SendMessage (discover peers with ListAgents) delivers a natural-language message the peer processes on its next turn, to converse with or delegate to it.
 - Always use --no-attach with -d and -n — attach is interactive only
 - --shutdown and --restart never attach — safe to run from inside a session; do NOT add --no-attach to these commands
 - Always print command output verbatim in your response text — never run a command silently or rely on tool output being visible; if a command fails, report the error

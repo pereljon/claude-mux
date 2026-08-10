@@ -4,6 +4,12 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-08-09
+
+### Added
+- **The injection now teaches sessions that their peers are addressable agents, and draws the `-s`-vs-`SendMessage` line.** Claude Code shipped native cross-session messaging (`ListAgents`/`SendMessage`), and because claude-mux launches every session with `--name '<session-name>'`, a session's managed name *is* its native agent name. A new injection rule makes that mapping explicit and disambiguates the two channels that were easy to conflate: `claude-mux -s SESSION '/command'` pushes a slash command (`/model`, `/compact`, `/clear`, etc.; slash commands only) into a session to operate it, while native **SendMessage** (peers discovered via **ListAgents**) delivers a natural-language message the peer processes on its next turn, to converse with or delegate to it. The block deliberately does not re-teach the native tools (the platform self-documents them) and hardcodes no peer names (discovery is via `ListAgents`). Injection-only change; takes effect per session after restart. This supersedes the planned v2.2 `--message` transport (see `docs/ISSUES.md` "Inter-agent messaging"), which native messaging now owns.
+- **A written standard for injection rules.** `dev/IMPLEMENTATION-SPEC.md` now carries an "Injection rule checklist" (first-read executable, maps-never-re-teaches, every-example-runnable, conflict pass, etc.) so future injection edits have an explicit quality bar rather than relying on taste. Prompted by a Fable review of the peer-sessions block, which caught a mis-routing example (`/restart` is not a slash command).
+
 ## [2.2.0] - 2026-07-23
 
 ### Added
