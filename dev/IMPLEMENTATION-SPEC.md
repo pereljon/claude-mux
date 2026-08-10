@@ -13,6 +13,16 @@ claude-mux is infrastructure, not a framework. It keeps Claude Code sessions ali
 - **Conversational first.** The primary interface is natural language within a session. CLI flags exist for automation and scripting; the typical user should rarely need them.
 - **Eliminate complexity, don't relocate it.** Every abstraction must remove more burden than it introduces. If a feature requires the user to learn claude-mux-specific concepts to use Claude Code, it's doing more harm than good.
 
+## Relationship to the orchestrator project (ownership boundary)
+
+claude-mux coordinates with a separate **orchestrator** project (a home coordination/observability plane: dashboard, briefing, alerts, action queue). A boundary keeps responsibilities from re-blurring (decided 2026-08-09):
+
+- **Lifecycle** (session start/stop/restart/persistence/naming) = **claude-mux**.
+- **Transport** (session-to-session messaging) = **native Claude Code cross-session messaging**, not a claude-mux mechanism.
+- **Durable state + the coordination views** (dashboard, briefing, alerts, action queue) = **orchestrator**.
+
+Corollaries: capability/purpose metadata lives in the orchestrator's store, not a claude-mux file (no `.claudemux-card.json`); claude-mux exposes only lifecycle-domain primitives the orchestrator consumes -- the `--name` invariant (see Session Name Sanitization), a `.claudemux-id` identity anchor, and a `-l --json` liveness feed. Standing rule: when Claude Code ships a primitive that supersedes an internal mechanism, migrate to it and mark the internal one superseded (native cross-session messaging superseding the planned inter-agent messaging is the first case).
+
 ## Security Context
 
 claude-mux is a single-user tool installed and run by the user on their own account. All managed directories, config files, SSH keys, and templates are owned by that user. The relevant threat model is accidental footguns (e.g. path traversal in user-supplied arguments), not multi-user or adversarial scenarios. Hardening that assumes an untrusted operator or attacker-controlled config is out of scope.
@@ -417,6 +427,8 @@ session_name = dir_name
 ```
 
 If the result is empty (e.g. a directory named `*`), the directory is skipped with a log warning. The working directory passed to tmux is always the original (unsanitized) path.
+
+**`--name` invariant (native cross-session-messaging dependency).** claude-mux launches every session with `--name '<session_name>'` (all four launch paths in `create_claude_session` and `launch_single_session`), so the sanitized session name is also Claude Code's native agent name -- the address that native `ListAgents`/`SendMessage` and the orchestrator project key on. This mapping is load-bearing: it makes claude-mux session names == native agent names by construction, not coincidence. If a future Claude Code changes `--name` semantics or stops honoring it, cross-session addressing and any orchestrator keying that assumes name-parity break -- this is the place to look.
 
 ### Logging
 

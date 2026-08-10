@@ -410,6 +410,30 @@ Design posture: don't interfere with agent team lifecycle - that's Claude Code's
 
 ### Inter-agent messaging
 
+> **SUPERSEDED-BY-NATIVE (2026-08-09).** Claude Code shipped native cross-session
+> messaging (v2.1.224+; `ListAgents` + `SendMessage`, per-session Unix socket, turn-safe
+> delivery, enforced `crossSessionInbound` consent, `CLAUDE_CODE_MESSAGING_SOCKET` for
+> hooks). It owns transport, delivery, and consent — better than the `send-keys`/inbox
+> design below — so the messaging design in this section is **not being built as specced**.
+> The reasoning is kept below for the record. What replaces it (converged with the
+> orchestrator project, approved by Jonathan 2026-08-09):
+> - **Transport / delivery / consent** → native cross-session messaging.
+> - **Naming / addressing** → already handled: claude-mux passes `--name`, so session name
+>   == native agent name (see the `--name` invariant in `dev/IMPLEMENTATION-SPEC.md`).
+> - **Identity anchor** → a minimal `.claudemux-id` UUID marker (write-once, immutable,
+>   gitignored) for reuse-stability across rename/move. NOT a capability card.
+> - **Capability card (`.claudemux-card.json`)** → **dropped, not built.** Its functions
+>   relocate: identity → `.claudemux-id`; capability/purpose → the orchestrator's DB
+>   (auto-seeded from each project's `CLAUDE.md` + a Claude-set override); discovery → a DB
+>   query joined with native `ListAgents` and `claude-mux -l --json` liveness.
+> - **Injection** → a small mapping/disambiguation block (peers = managed session names;
+>   `-s` = control action into a session vs native `SendMessage` = peer message), NOT a
+>   re-teach of the native tools.
+> - **Liveness feed** → `claude-mux -l --json` (zombie-aware) so the orchestrator daemon
+>   detects running-but-not-publishing without parsing human `-l` text.
+>
+> Full decision trail: `dev/handoff/2026-08-09-messaging-convergence-context.md`.
+
 Formalize session-to-session communication. claude-mux sessions are already persistent, project-bound agents and `-s` is a de facto message bus — but `-s` currently hard-rejects non-slash input, so true inter-agent messaging is blocked. A dedicated command + an authorization marker turns the existing infrastructure into a lightweight agent network.
 
 Contrast with Claude Code agent teams: those are ephemeral and task-scoped. claude-mux sessions are long-lived and independent, coordinating ad-hoc — a different shape, not a competitor.
