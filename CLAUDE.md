@@ -58,23 +58,7 @@ Infrastructure, not a framework. Keep sessions alive, get out of the way.
 
 ## Non-Obvious Behaviors
 
-These affect how code changes should be made. Full architecture is in `dev/IMPLEMENTATION-SPEC.md`. Line numbers cited here are approximate — `dev/CODEMAP.md` has the authoritative function index with current line ranges.
-
-- **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name for self-referencing slash commands via `send-keys`
-- **Multi-coder symlinks**: `AGENTS.md`/`GEMINI.md` created as symlinks to `CLAUDE.md`. Configurable via `MULTI_CODER_FILES`.
-- **Ready trigger**: `poll_until_ready` waits until the session is genuinely idle (busy = `esc to interrupt` in the bottom status lines; ready = not busy + prompt drawn + quiescent, ~120s timeout) before sending `Ready?`, so it does not misfire during a resume-time compaction. Claude responds with "Session ready!" plus a second line "Running [model] in [mode] mode." — the injection passes the permission mode string at launch so Claude can report it accurately
-- **The `Ready?` handshake turn swallows any other injected content (general caveat)**: the post-restart / post-compact `Ready?` prompt forces Claude to reply with exactly the two ready lines and "Nothing else." Anything a `UserPromptSubmit` hook injects into *that* turn is therefore never surfaced to the user — and worse, any per-turn side effect the hook commits (state stamp, throttle, one-shot ack) still fires, so the message is *consumed* without being seen. This bit the daily tip, the claude-mux update notice, and the Claude Code upgrade notice (all injected by `on_prompt`), which is why `on_prompt` now detects the literal `Ready?` (`prompt.strip() == "Ready?"`) and **no-ops on it** before any injection or stamp (fixed v2.0.8; see `dev/features/tip-ready-handshake.md`). **Rule for future work:** any new `UserPromptSubmit` injection MUST short-circuit on the handshake the same way, or it will be silently eaten and burn its budget on the first prompt after every restart. The handshake string is a fixed literal emitted by `await_ready_handshake`, both launch wrappers, and the `on_compact` monitor.
-- **Output display tags**: listing commands wrap output in `<assistant-must-display>` XML tags when stdout is not a TTY
-- **Caller-last restart ordering**: `--restart` (all) from inside a session restarts the calling session last, **in place** (`restart_caller_in_place`: set `@claude-mux-restart` + `/exit`, the looped wrapper relaunches in-pane) rather than killing its pane. Non-caller sessions keep the kill+recreate path.
-- **Home session**: session named `home` in `$BASE_DIR`, protected by default (via `$BASE_DIR/.claudemux-protected` marker, created by `--install`), requires `--force` to shut down
-- **LaunchAgent scope**: the LaunchAgent only manages the `home` session - it checks if `home` is running and starts it if not. It does not start, restart, or monitor any other sessions.
-- **Script, not binary**: claude-mux is a shell script, not a compiled binary. Every invocation reads the script fresh from disk - there is no "stale binary in memory". After `brew upgrade claude-mux`, any new `claude-mux` command immediately uses the updated script. However, running sessions have the injection prompt baked in at creation time (via `--append-system-prompt`). Sessions won't pick up injection changes until restarted. After an upgrade, say "restart all sessions" or run `--update` (which calls `--restart` automatically).
-- **Remote Control reconnect**: RC connections are tied to the tmux session. When a session is restarted (via `--restart`, `--update`, or crash recovery), the RC connection drops and must be manually reconnected after ~5-10 seconds. This is expected behavior, not a bug. `/compact` also drops RC - when sent via `claude-mux -s SESSION /compact` or the conversational trigger, a background monitor sends `Ready?` after compact completes to reconnect RC without restarting the session; when typed directly in the pane, run `--restart SESSION` manually to recover.
-- **Version injection**: `get_version_prompt_lines()` reads `~/.claude-mux/.update-check`; if a newer version is cached, it appends an update note telling Claude to notify the user and suggest "update claude-mux"
-- **Claude Code upgrade detection** (distinct from the above, which is about the claude-mux script): each session stores the `claude` binary identity (`realpath:mtime`) in the `@claude-mux-claude-id` tmux option at launch. `detect_claude_upgrade()` in the on-prompt hook compares it on each prompt and injects a "Claude Code was upgraded; restart this session" notice when it differs. **persist-while-relevant (v2.0.10):** it does NOT ack-on-emit (no longer overwrites the option), so the notice re-injects every prompt until a restart re-captures the id — a missed relay can't silently lose it; Claude de-dups via the "mention once per session" instruction in the standing notice rule in `build_system_prompt` (not the notice text — the notice text carries only the clean user-facing line, v2.0.13). The id is re-captured on every restart path: kill+recreate (`create_claude_session`/`launch_single_session`) AND in-place caller restart (`await_ready_handshake`, the only path that skips the kill+recreate capture sites — without its re-capture the notice would never clear on the default "restart this session"). The notice is wrapped in `<assistant-must-display>` and backed by a standing surface-notices rule in `build_system_prompt` (still best-effort: the tag's force is proven for tool output, not injected context; true determinism needs upstream support). See `dev/features/notice-delivery-reliability.md`.
-- **Launch wrapper (looped, restart-in-place)**: the generated launch script passes the system prompt via `--append-system-prompt-file <path>` (not inline, so it's not in `ps`). The prompt lives at `<project>/.claudemux-prompt` (mode 600, in the project folder — stable, not `$TMPDIR`-reaped — so it survives and is regenerated across relaunches), NOT deleted after the ready handshake; the wrapper owns its lifetime. The `claude` invocation runs inside a `while` loop. On a clean exit (rc 0) the wrapper checks the `@claude-mux-restart` tmux option: if set, it relaunches `claude` in the **same pane** (resume, or fresh when the option is `fresh`) — consuming the option, regenerating the prompt via `--print-system-prompt`, and backgrounding `--await-ready` to handshake from outside the busy pane — instead of tearing down. With no restart pending it removes the marker + prompt + launch script and `kill-session`s the tmux session (no lingering shell pane). A crash (non-zero) breaks the loop, leaving the pane for the restore tick. This loop is what fixes restart-all-from-home (the caller resumes in-pane instead of being killed + forked). `create_claude_session` is `send-keys`-into-shell; `launch_single_session` is the pane command. Both wrappers are identical in shape.
-  - **This wrapper is malleable, not a fixed invariant.** Its behaviors are design *choices*, not constraints to engineer around. When a problem traces back to what the wrapper does (e.g. the caller-restart context-loss investigation, where the old clean-exit teardown is what killed an in-pane relaunch — now fixed by the loop), the right move is often to **change the wrapper itself** rather than build external machinery to work around it. Question this wrapper before adding handoffs/helpers/launchd tricks around it.
-- **Session status**: `>` prefix marks the calling session (via `$TMUX_PANE`); `protected` status for protected+running sessions; `stopped` for protected+not-running
+Behaviors that affect how code changes should be made - session lifecycle, restart ordering, the `Ready?` handshake, injection delivery, upgrade detection - live in `dev/SKELETON.md` (Key Invariants). Read it before touching session launch/restart, the `on_prompt` hook, or the injection prompt - these facts are not derivable from the code. Full architecture is in `dev/IMPLEMENTATION-SPEC.md`; `dev/CODEMAP.md` has the authoritative function→location index.
 
 ## Project Folder Indicators - Marker-File Philosophy
 
@@ -121,7 +105,6 @@ Single-user tool on the user's own account. Threat model: accidental footguns (p
 - **Questions vs. implementation**: answer questions as questions. Don't start coding until explicitly asked.
 - **No speculation as fact**: distinguish what you know from what you're guessing. Say "I'm not sure" when you can't verify.
 - **No LLM-stereotype writing** in human-facing content: no "delve", "leverage", "streamline", "excited to share". Write like a developer.
-- **No em dashes**. Use regular dashes (-) instead, everywhere: code, docs, comments, commit messages.
 
 ## Interactive Commands
 
@@ -142,6 +125,15 @@ Commands that attach (`-t`, `-d`/`-n` without `--no-attach`) are user-only -- ne
 
 Before coding any change, apply the **Consult docs before coding** rule (Working Rules) to scope what's affected before editing.
 
+### Worktree Policy
+
+- **Behavior changes** (new command, config var, workflow/injection behavior) get an isolated worktree/branch (per `superpowers:using-git-worktrees`) before landing on `main`. Report when creating one - no need to ask first (it's local and reversible, unlike commit/push/release).
+- **Docs-only or trivial fixes** (typos, translation tweaks, one-line ISSUES/CHANGELOG edits) can land directly on `main` - a worktree adds ceremony with no payoff at that size.
+- **Code review runs in the same worktree/branch**, not a separate one: review the diff before merging, fix findings there, then merge. A worktree isolates the change from `main`; review is part of finishing that change, not a new one.
+- **A major-release review (X.0.0)** gets its own dedicated worktree/branch (e.g. `release/2.0.0-review`), separate from any single feature's branch, since it reviews the accumulated surface across multiple prior features and may collect several fix commits before one merge + tag.
+- Solo-maintainer project: default to **merging locally** unless the user asks for a PR - there is no second reviewer requiring one.
+- **Testing sequence: merge -> verify -> push.** `make check` must pass before every commit (already enforced by the pre-commit hook). After merging into `main`, re-run `make check` on `main` itself before pushing - a merge changes what's on disk even when it's a fast-forward, so the merged tree, not the pre-merge branch, is what gets pushed and deployed.
+
 ### Workflow Pipeline
 
 The canonical order of a change, start to finish. This list is the *sequence*; the detailed rules live in the sections it links to — do not duplicate them here.
@@ -150,17 +142,19 @@ The canonical order of a change, start to finish. This list is the *sequence*; t
 2. **Research & verify assumptions** — confirm what the design rests on against reality (read the actual code, GitHub/vendor docs, run probes) *before* finalizing the plan. Docs must reflect verified reality, not guesses.
 3. **Write the design + test plans** — `dev/features/<feature>.md` + `<feature>-tests.md`. Review happy path, edge cases, flag conflicts, config migration, injection/display changes with the user (see Testing Plan). Confirm before coding.
 4. **Pre-code compact** — if context is getting heavy, compact before the code phase (coding is the context-hungry part; see the performance rules).
-5. **Code** — apply *Consult docs before coding* (read `dev/SKELETON.md` + `dev/CODEMAP.md` first). Edit `src/*.sh` (never `claude-mux` directly), `make build`, then smoke-test the built file (`bash ./claude-mux ...`) as you go.
-6. **Code review** — *Code Review Before Release*: scope by version bump; `superpowers:code-reviewer` agent; fix CRITICAL/HIGH. Decide the bump early (it sets review scope) even though `VERSION=` is physically written in step 7.
-7. **Update context files** — the *Change Checklist* GATE. After review, so docs reflect the final code: CODEMAP, SKELETON, IMPLEMENTATION-SPEC, README, CHANGELOG, VERSION, ISSUES, injection prompt, etc.
-8. **Test** — verify real behavior (happy path + edge cases) on the repo copy. Tests verify correctness; running the actual command verifies the feature works.
-9. **Commit** — [approval gate] (see Git Approvals).
-10. **Deploy** — `make build` then `cp claude-mux ~/bin/` so local sessions use the new code (after commit).
-11. **Push** — [approval gate].
-12. **Release** — [approval gate]; only if `claude-mux`/`install.sh` changed; **`make check` must pass clean immediately before `git tag`** (never tag a stale artifact); `git tag` → `git push origin TAG` → `gh release create`, ascending version order (see Git Approvals → Release).
-13. **Post-release clear** — `claude-mux -s SESSION '/clear'`. The next cycle starts a fresh feature; no context from this cycle needs to carry over (the handoff lives in the feature docs + memory, not the transcript).
+5. **Set up a worktree** (if warranted, see Worktree Policy above) — report when creating one, no need to ask first.
+6. **Code** — apply *Consult docs before coding* (read `dev/SKELETON.md` + `dev/CODEMAP.md` first). Edit `src/*.sh` (never `claude-mux` directly), `make build`, then smoke-test the built file (`bash ./claude-mux ...`) as you go.
+7. **Code review** — *Code Review Before Release*: scope by version bump; `superpowers:code-reviewer` agent; fix CRITICAL/HIGH. Decide the bump early (it sets review scope) even though `VERSION=` is physically written in step 8.
+8. **Update context files** — the *Change Checklist* GATE. After review, so docs reflect the final code: CODEMAP, SKELETON, IMPLEMENTATION-SPEC, README, CHANGELOG, VERSION, ISSUES, injection prompt, etc.
+9. **Test** — verify real behavior (happy path + edge cases) on the repo copy. Tests verify correctness; running the actual command verifies the feature works.
+10. **Commit** — [approval gate] (see Git Approvals).
+11. **Merge** — if built in a worktree, merge to `main` locally by default (Worktree Policy), then re-run `make check` on `main` before deploying/pushing.
+12. **Deploy** — `make build` then `cp claude-mux ~/bin/` so local sessions use the new code (after commit/merge).
+13. **Push** — [approval gate].
+14. **Release** — [approval gate]; only if `claude-mux`/`install.sh` changed; **`make check` must pass clean immediately before `git tag`** (never tag a stale artifact); `git tag` → `git push origin TAG` → `gh release create`, ascending version order (see Git Approvals → Release).
+15. **Post-release clear** — `claude-mux -s SESSION '/clear'`. The next cycle starts a fresh feature; no context from this cycle needs to carry over (the handoff lives in the feature docs + memory, not the transcript).
 
-Plan docs (steps 1-3) come before code; reference/changelog docs (step 7) come after code+review so they describe the final result. Commit, push, and release are independent approval gates — one does not imply the next.
+Plan docs (steps 1-3) come before code; reference/changelog docs (step 8) come after code+review so they describe the final result. Commit, push, and release are independent approval gates — one does not imply the next.
 
 ### Code Review Before Release
 
@@ -176,10 +170,11 @@ Use `dev/SKELETON.md` to understand the impact on logic flows and `dev/CODEMAP.m
 
 Each step requires explicit user approval. Approval for one step does not imply approval for the next.
 
-1. **Commit**: propose the commit message and changed files, wait for approval before running `git commit`
-2. **Push**: wait for explicit approval before running `git push`
-3. **Release**: only the user can authorize a release. A release requires all three: `git tag vX.Y.Z`, `git push origin vX.Y.Z`, and `gh release create vX.Y.Z`. "Commit" or "push" do not imply release. Pushing a tag alone does NOT create a GitHub Release.
-   - **Release gate**: only create a release if `claude-mux` or `install.sh` have changed since the last release. These are the only release assets users download. Injection changes count as functional changes (they alter session behavior). Docs-only changes (translations, FAQ, ISSUES, CHANGELOG, README) are available via the repo and do not need a release.
+1. **Worktree**: report when creating a new git worktree (e.g. via `superpowers:using-git-worktrees` or an `EnterWorktree`-style tool) - no need to ask first, since the Worktree Policy above already decides when one applies. It's local and reversible, unlike commit/push/release. Ask only when it's genuinely ambiguous whether a change counts as "behavior change" (worktree) vs. "trivial" (main) under that policy.
+2. **Commit**: propose the commit message and changed files, wait for approval before running `git commit`
+3. **Push**: wait for explicit approval before running `git push`
+4. **Release**: only the user can authorize a release. A release requires all three: `git tag vX.Y.Z`, `git push origin vX.Y.Z`, and `gh release create vX.Y.Z`. "Commit" or "push" do not imply release. Pushing a tag alone does NOT create a GitHub Release.
+   - **Release gate**: only tag a release if the deliverable script, its installer, or its packaged config/service templates changed since the last release - those are the only assets an install or upgrade actually consumes. Docs-only changes are already available via the repo and don't need a release. (Injection prompt changes count as script changes - they alter session behavior.)
    - **Release order matters**: the Homebrew bump CI triggers on every `gh release create` and blindly sets the formula to that version. Always create releases in ascending version order. If backfilling an older release after a newer one is already live, manually update the tap formula afterward.
 
 After completing work, proactively ask which steps the user wants: "Want to commit, push, or release?"
