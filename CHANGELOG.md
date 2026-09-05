@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-09-04
+
+### Fixed
+- **`poll_until_ready`'s folder-trust auto-accept confirmed "No, exit" instead of "Yes, I trust this folder", on every launch of any never-before-trusted project.** The dialog defaults to "No, exit" selected, with "Yes, I trust this folder" as the second, unselected option (same shape as the already-correctly-handled `bypassPermissions` warning right below it in the same function). The trust-prompt branch sent a bare `Enter`, confirming the default and cleanly exiting Claude Code (`rc=1`, no stderr — indistinguishable from a crash). Every retry (resume, then fresh fallback, then every subsequent auto-restore tick) hit the same untrusted dialog and declined it the same way, so the session never recovered on its own — it settled at a bare shell with the eventual literal `Ready?` handshake sent as a failed shell command (`zsh: no matches found: Ready?`). Fix: send `Down`, wait 1s, then `Enter`, mirroring the adjacent `bypassPermissions` branch exactly. Live-verified end to end: a fresh untrusted project now dismisses the dialog correctly on the first attempt, `hasTrustDialogAccepted` is persisted `true` in `~/.claude.json`, and the session reaches a clean `Ready?` handshake with no retries.
+
 ## [2.3.0] - 2026-08-10
 
 ### Fixed

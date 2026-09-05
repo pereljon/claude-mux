@@ -479,7 +479,9 @@ loop:
   if now - start >= timeout: return 1            # caller still sends Ready? (fallback)
   sleep 0.5
   pane = capture-pane(session)  (continue on failure)
-  if pane has "Yes, I trust this folder": send Enter; sleep 2; continue   # pre-ready
+  if pane has "Yes, I trust this folder": send Down; sleep 1; send Enter; sleep 2; continue   # pre-ready.
+    # "No, exit" is the default-selected option in this dialog; a bare Enter confirms IT, not
+    # trust, which cleanly exits Claude and looks like a launch failure with no error output.
   if pane has /yes.*accept/i:              send Down; sleep 1; send Enter; sleep 2; continue
   if bottom-4(pane) has "esc to interrupt": continue          # BUSY (turn or compaction)
   if pane lacks ^❯ / "^> ":                continue           # no prompt yet

@@ -840,8 +840,14 @@ poll_until_ready() {
         # keypress during a long resume.
         local pane_tail
         pane_tail=$(echo "$pane" | tail -6)
+        # Folder-trust prompt: "No, exit" (selected) + "Yes, I trust this folder".
+        # Send Down to option 2, wait 1s for the UI to register, then Enter -- a
+        # bare Enter confirms "No, exit" (the default), which cleanly exits Claude
+        # and looks like a launch failure with no error output.
         if echo "$pane_tail" | grep -q "Yes, I trust this folder"; then
             log "Auto-accepting trust prompt for '$session'"
+            "$TMUX_BIN" send-keys -t "$session" Down
+            sleep 1
             "$TMUX_BIN" send-keys -t "$session" Enter
             sleep 2
             continue   # a bypassPermissions warning may follow immediately
