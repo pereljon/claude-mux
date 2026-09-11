@@ -8,11 +8,18 @@ Projection of each feature doc's `lifecycle:`. This reflects the **declared** st
 verified reality (a doc can claim `ready` before it is). `kind: investigation` docs and
 `*-tests.md` plans are excluded. Grouped by lifecycle (build-priority order), then by name.
 
+## ready
+
+| Feature | Lifecycle | Target | Status | Severity | Doc |
+|---|---|---|---|---|---|
+| `session-identity-reply` | ready | 2.4.0 (minor) — enriches the ready handshake + adds a new... | READY 2026-08-17. Architect-reviewed twice; second pass APPROVE-WITH-CHANGES, all chang... | N/A (enhancement) — orientation-on-reconnect UX; the current handshake gives no session... | [session-identity-reply.md](session-identity-reply.md) |
+
 ## designing
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
-| `cross-cli-coders` | designing | — | planned (REVISED 2026-06-27: folded in the Codex mobile / remote-connections landscape ... | — | [cross-cli-coders.md](cross-cli-coders.md) |
+| `cross-cli-coders` | designing | — | planned (REVISED 2026-09-04: Codex 0.153.2 now has a native hook system, close in shape... | — | [cross-cli-coders.md](cross-cli-coders.md) |
+| `external-prompt-routing` | designing | unscheduled minor (new capability, not a bug fix) | DESIGNED via brainstorm 2026-09-11, verified against live `claude -p` behavior and prim... | N/A (new capability) | [external-prompt-routing.md](external-prompt-routing.md) |
 | `inter-agent-messaging` | designing | UNSCHEDULED — parked behind 3 gates (close exfiltration-e... | REOPENED (was SHELVED) — discussion-log #15 narrowed the obstacle: a worker boots in th... | N/A (new capability) — but ships a prompt-injection attack surface; see Threat Model | [inter-agent-messaging.md](inter-agent-messaging.md) |
 | `launched-version-detection` | designing | 2.x (minor; notify-only behavior) | REVISED 2026-06-24 (bare-home incident exposed that a truly stale wrapper does NOT re-b... | LOW for the version nudge; HIGH for the degraded-launch case (a stale | [launched-version-detection.md](launched-version-detection.md) |
 | `session-activity-timestamps` | designing | 2.1.0 (minor) — new capability, new hook, new per-project... | DESIGNING 2026-07-15 (decisions captured from live brainstorm; pre-architect-review). H... | N/A (enhancement) — feeds v2.0 situational-awareness + v2.1 context-discipline | [session-activity-timestamps.md](session-activity-timestamps.md) |
