@@ -8,16 +8,6 @@ Guidance for Claude Code when working in this repository.
 
 This is an open-source project with external users. Treat it accordingly: safety, portability, stability matter.
 
-## Feature Freeze
-
-**Status: LIFTED** as of 2026-05-30. v2.0 planning and implementation work has begun. Patches in the v1.14.x range and v2.x minors are in scope.
-
-Sequencing is tracked in `docs/ISSUES.md`:
-- **Planned Patches** section: small UX work shipping as v1.14.x minors before v2.0.
-- **v2.0 Milestone** section: architectural changes split across v2.0 ("Self-healing + situational awareness"), v2.1 ("Context discipline"), v2.2 ("Agent network").
-
-**Prior exception (v1.13.0):** `--restart --fresh` / "restart this session fresh" / "kill this session" was shipped under the previous freeze due to high severity (MCP installs unusable without it).
-
 ## Design Principles
 
 Infrastructure, not a framework. Keep sessions alive, get out of the way.
@@ -35,12 +25,7 @@ Infrastructure, not a framework. Keep sessions alive, get out of the way.
 |------|---------|
 | `CLAUDE.md` | Conventions, checklists, guardrails for working in this repo |
 | `dev/IMPLEMENTATION-SPEC.md` | Product spec: architecture, config reference, design decisions, translation standards, deprecation policy |
-| `README.md` | Landing page: install, capabilities, conversational examples, links to docs |
-| `CHANGELOG.md` | What changed per release |
-| `docs/CLI.md` | Full CLI command reference for scripting and automation |
 | `docs/GUIDE.md` | Configuration, session details, internals, troubleshooting |
-| `docs/INSTALL.md` | Full installation guide (curl, Homebrew, manual, uninstall) |
-| `docs/FAQ.md` | Common questions about claude-mux |
 | `docs/ISSUES.md` | Open bugs, planned features, resolved issues |
 | `dev/CODEMAP.md` | Function **purposes** (prose), config vars, dispatch table, marker file registry — for locating things in the script. The function→location index is generated (see next row) |
 | `dev/CODEMAP.index.md` | **Generated** by `make codemap` — function→`module:within-module-line` index. Never hand-edit; guarded by `make check` |
@@ -64,13 +49,7 @@ Behaviors that affect how code changes should be made - session lifecycle, resta
 
 Per-project state lives in the project folder, not in central config. State files use the prefix `.claudemux-` and are auto-added to `.gitignore` when claude-mux creates them in a git-tracked project.
 
-| Marker | Meaning |
-|---|---|
-| `.claudemux-ignore` | Hide project from `claude-mux -L` and `discover_projects()` |
-| `.claudemux-protected` | Set `@claude-mux-protected = 1` on the tmux session at launch |
-| `.claudemux-running` | Auto-restore intent: session should be alive. The `--autolaunch` tick restores it if Claude died. Removed on clean `/exit` (rc 0, no restart pending) or `--shutdown`. Written at launch (not for home). Preserved through a `--restart` (via `shutdown_single_session`'s `preserve_marker` arg) so a crashed restart is recoverable. |
-| `.claudemux-restarting/` | Transient restart lock (directory; atomic `mkdir`/`rmdir`). Presence = an intentional restart is in flight. Created around each non-caller session's shutdown+create in `--restart`, removed after create. The `--autolaunch` tick consumes it on sight (`rmdir` + defer one tick) so auto-restore doesn't race the restart window. NOT used for in-place caller restarts (the pane never goes down). |
-| `.claudemux-prompt` | Per-session system-prompt file (`--append-system-prompt-file`). In the project folder (stable, not `$TMPDIR`-reaped) so it survives + is regenerated (`--print-system-prompt`) across in-place relaunches. Mode 600; removed on final teardown. |
+Current markers (`.claudemux-ignore`, `-protected`, `-running`, `-restarting/`, `-prompt`), who creates and removes each, and what it means: `dev/CODEMAP.md` "Marker File Registry".
 
 **Why marker files, not config:**
 - State follows the folder across renames, moves, and machine syncs.
@@ -136,25 +115,7 @@ Before coding any change, apply the **Consult docs before coding** rule (Working
 
 ### Workflow Pipeline
 
-The canonical order of a change, start to finish. This list is the *sequence*; the detailed rules live in the sections it links to — do not duplicate them here.
-
-1. **Define the feature** — when a `docs/ISSUES.md` entry is ready to build, lift it to `dev/features/<feature>.md` (see the feature design+test convention under Documentation Roles).
-2. **Research & verify assumptions** — confirm what the design rests on against reality (read the actual code, GitHub/vendor docs, run probes) *before* finalizing the plan. Docs must reflect verified reality, not guesses.
-3. **Write the design + test plans** — `dev/features/<feature>.md` + `<feature>-tests.md`. Review happy path, edge cases, flag conflicts, config migration, injection/display changes with the user (see Testing Plan). Confirm before coding.
-4. **Pre-code compact** — if context is getting heavy, compact before the code phase (coding is the context-hungry part; see the performance rules).
-5. **Set up a worktree** (if warranted, see Worktree Policy above) — report when creating one, no need to ask first.
-6. **Code** — apply *Consult docs before coding* (read `dev/SKELETON.md` + `dev/CODEMAP.md` first). Edit `src/*.sh` (never `claude-mux` directly), `make build`, then smoke-test the built file (`bash ./claude-mux ...`) as you go.
-7. **Code review** — *Code Review Before Release*: scope by version bump; `superpowers:code-reviewer` agent; fix CRITICAL/HIGH. Decide the bump early (it sets review scope) even though `VERSION=` is physically written in step 8.
-8. **Update context files** — the *Change Checklist* GATE. After review, so docs reflect the final code: CODEMAP, SKELETON, IMPLEMENTATION-SPEC, README, CHANGELOG, VERSION, ISSUES, injection prompt, etc.
-9. **Test** — verify real behavior (happy path + edge cases) on the repo copy. Tests verify correctness; running the actual command verifies the feature works.
-10. **Commit** — [approval gate] (see Git Approvals).
-11. **Merge** — if built in a worktree, merge to `main` locally by default (Worktree Policy), then re-run `make check` on `main` before deploying/pushing.
-12. **Deploy** — `make build` then `cp claude-mux ~/bin/` so local sessions use the new code (after commit/merge).
-13. **Push** — [approval gate].
-14. **Release** — [approval gate]; only if `claude-mux`/`install.sh` changed; **`make check` must pass clean immediately before `git tag`** (never tag a stale artifact); `git tag` → `git push origin TAG` → `gh release create`, ascending version order (see Git Approvals → Release).
-15. **Post-release clear** — `claude-mux -s SESSION '/clear'`. The next cycle starts a fresh feature; no context from this cycle needs to carry over (the handoff lives in the feature docs + memory, not the transcript).
-
-Plan docs (steps 1-3) come before code; reference/changelog docs (step 8) come after code+review so they describe the final result. Commit, push, and release are independent approval gates — one does not imply the next.
+The canonical 15-step order of a change (define, verify, design docs, worktree, code, review, context files, test, commit, merge, deploy, push, release, clear) is in the `claude-mux-change-pipeline` skill (`.claude/skills/claude-mux-change-pipeline/SKILL.md`). Commit, push, and release remain independent approval gates (see Git Approvals).
 
 ### Code Review Before Release
 

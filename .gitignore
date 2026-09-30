@@ -2,6 +2,7 @@
 
 # Claude local settings
 .claude/settings.local.json
+.claude/worktrees/
 .ignore-claudemux
 
 # OS
