@@ -12,13 +12,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
-| `session-identity-reply` | ready | 2.4.0 (minor) — enriches the ready handshake + adds a new... | READY 2026-08-17. Architect-reviewed twice; second pass APPROVE-WITH-CHANGES, all chang... | N/A (enhancement) — orientation-on-reconnect UX; the current handshake gives no session... | [session-identity-reply.md](session-identity-reply.md) |
-
-## building
-
-| Feature | Lifecycle | Target | Status | Severity | Doc |
-|---|---|---|---|---|---|
-| `agents-md-canonical` | building | 2.4.0 (minor). Behavior change plus a deprecation (MULTI_... | BUILDING 2026-09-30, version 2.4.0 (uncommitted in worktree agents-md-canonical). Archi... | N/A (enhancement); a wrong migration silently drops project instructions | [agents-md-canonical.md](agents-md-canonical.md) |
+| `session-identity-reply` | ready | 2.5.0 (minor; was 2.4.0, which shipped agents-md-canonica... | READY 2026-08-17. Architect-reviewed twice; second pass APPROVE-WITH-CHANGES, all chang... | N/A (enhancement) — orientation-on-reconnect UX; the current handshake gives no session... | [session-identity-reply.md](session-identity-reply.md) |
 
 ## designing
 
@@ -53,6 +47,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
+| `agents-md-canonical` | shipped | 2.4.0 (minor), released 2026-09-30 | SHIPPED 2026-09-30 in v2.4.0 (commits 64b8afd, a94e778; tag v2.4.0). Architect-reviewed... | N/A (enhancement); a wrong migration silently drops project instructions | [agents-md-canonical.md](agents-md-canonical.md) |
 | `auto-restore` | shipped | — | — | — | [auto-restore.md](auto-restore.md) |
 | `claude-code-upgrade-detection` | shipped | — | — | — | [claude-code-upgrade-detection.md](claude-code-upgrade-detection.md) |
 | `clear-ready-handshake` | shipped | 2.2.0 (minor) — new always-on hook + new capability (clea... | SHIPPED in v2.2.0 (committed 3542d98, RELEASED 2026-07-23, deployed to ~/bin). Code rev... | N/A (enhancement) — UX parity with compact; clear currently gives no confirmation and n... | [clear-ready-handshake.md](clear-ready-handshake.md) |

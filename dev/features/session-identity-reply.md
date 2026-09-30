@@ -3,7 +3,7 @@ kind: feature
 lifecycle: ready
 feature: session-identity-reply
 status: READY 2026-08-17. Architect-reviewed twice; second pass APPROVE-WITH-CHANGES, all changes folded in (breadcrumb dropped from auto `ready`; branch on its own line so the floor is emitted first; memory path corrected to `memory/MEMORY.md`; worktree `.git`-file handled; Fable kept, basis noted; SKELETON hard-stop sub-clauses called out). Sourcing is Read-only (no raw git). Not yet built.
-target_version: 2.4.0 (minor) — enriches the ready handshake + adds a new conversational identity trigger; injection-behavior change
+target_version: 2.5.0 (minor; was 2.4.0, which shipped agents-md-canonical instead) — enriches the ready handshake + adds a new conversational identity trigger; injection-behavior change
 severity: N/A (enhancement) — orientation-on-reconnect UX; the current handshake gives no session name and no situational context
 related: clear-ready-handshake, ready-handshake, tip-ready-handshake
 ---

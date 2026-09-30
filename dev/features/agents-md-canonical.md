@@ -1,9 +1,9 @@
 ---
 kind: feature
-lifecycle: building
+lifecycle: shipped
 feature: agents-md-canonical
-status: BUILDING 2026-09-30, version 2.4.0 (uncommitted in worktree agents-md-canonical). Architect-reviewed twice before build (pass 1 C1-C4, I1-I9; pass 2 N1, N2, I-a to I-e); code written and reviewed, review fixes applied (LOCKED-INDEX, DEST-EXISTS, post-lock rescan, per-op revalidation, MIXED block, drift scan). Docs pass done; manual tests (agents-md-canonical-tests.md) pending. Fallback semantics verified on Claude Code 2.1.285. Jonathan will rename his own ~/Claude tree by hand first.
-target_version: 2.4.0 (minor). Behavior change plus a deprecation (MULTI_CODER_FILES), so a worktree is warranted.
+status: SHIPPED 2026-09-30 in v2.4.0 (commits 64b8afd, a94e778; tag v2.4.0). Architect-reviewed twice, code-reviewed, review findings fixed. Live-tested on an isolated tmux rig (report, --apply + restart, plain --restart regression). Not live-tested: caller-in-place restart of the session running --apply, the failed-session WARN path, real Claude Code. Jonathan migrates his own ~/Claude tree by hand.
+target_version: 2.4.0 (minor), released 2026-09-30
 severity: N/A (enhancement); a wrong migration silently drops project instructions
 related: cross-cli-coders, external-prompt-routing
 ---
