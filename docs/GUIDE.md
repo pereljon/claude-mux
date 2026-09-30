@@ -191,7 +191,7 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Remove all hooks and permissions (--uninstall)
   - Update claude-mux (--update)
 
-GitHub SSH accounts configured in ~/.ssh/config: <accounts>. For gh CLI operations (repo create, PR create, etc.), run `gh auth switch --user <account>` first to target the correct GitHub account. Before any gh command, check `gh auth status` to verify the active account matches the repo's remote.
+GitHub SSH accounts configured in ~/.ssh/config: <accounts>. For gh CLI operations (repo create, PR create, etc.), prefix each command with `GH_TOKEN=$(gh auth token --user <account>)` to target the correct GitHub account, e.g. `GH_TOKEN=$(gh auth token --user <account>) gh pr create`. Never run `gh auth switch`: the active gh account is one machine-wide setting, so switching it changes the account for every running session. Use the account that owns the repo's remote.
 ```
 
 The home session receives additional context: its identity as the session orchestrator (session management and project orchestration, not project work; an operational session that acts without asking when intent is clear), plus self-management triggers for reading/editing config and templates. As of v2.1.0 this identity ships in the injection itself, so it does not need to live in an ancestor `CLAUDE.md` (where it would leak into every project session under the base directory). Config/template edit authority is the role-neutral rule above, injected into every session. The `-s` send command can target any managed session (used by the "compact/clear/switch the X session" triggers and home orchestration). The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.

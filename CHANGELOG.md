@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-09-30
+
+### Fixed
+- **The injected GitHub advice no longer tells sessions to run `gh auth switch`.** The active `gh` account is one machine-wide value (`~/.config/gh/hosts.yml`), so a session that switched accounts changed it for every running session, and two sessions working at once could push or open PRs under the wrong account. Sessions are now told to prefix each command with `GH_TOKEN=$(gh auth token --user <account>)`, which leaves the shared setting alone, and never to run `gh auth switch`.
+
 ## [2.4.1] - 2026-09-30
 
 ### Fixed

@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.4.1"
+VERSION="2.4.2"
 
 # Minimum Claude Code version that falls back to AGENTS.md when no CLAUDE.md is present.
 # A constant, not a config var.
@@ -2975,7 +2975,7 @@ detect_github_ssh_accounts() {
     printf -v joined '%s, ' "${parts[@]}"
     joined="${joined%, }"
 
-    GITHUB_SSH_INFO=" GitHub SSH accounts configured in ~/.ssh/config: ${joined}. Use the host alias as the git remote, e.g. git clone git@github.com-${accounts[0]}:org/repo.git. For gh CLI operations (repo create, PR create, etc.), run \`gh auth switch --user <account>\` first to target the correct GitHub account. Before any gh command, check \`gh auth status\` to verify the active account matches the repo's remote."
+    GITHUB_SSH_INFO=" GitHub SSH accounts configured in ~/.ssh/config: ${joined}. Use the host alias as the git remote, e.g. git clone git@github.com-${accounts[0]}:org/repo.git. For gh CLI operations (repo create, PR create, etc.), prefix each command with \`GH_TOKEN=\$(gh auth token --user <account>)\` to target the correct GitHub account, e.g. \`GH_TOKEN=\$(gh auth token --user <account>) gh pr create\`. Never run \`gh auth switch\`: the active gh account is one machine-wide setting, so switching it changes the account for every running session. Use the account that owns the repo's remote."
 }
 
 # Wait until a session is genuinely ready for input, not merely showing the ❯
