@@ -42,6 +42,21 @@ if [[ -f "$CLAUDE_MUX_CONFIG" ]]; then
     source "$CLAUDE_MUX_CONFIG"
 fi
 
+# Deprecated no-ops: MULTI_CODER_FILES (config) and --no-multi-coder (flag). Warn once
+# ever (stamp file), since every claude-mux launch is a separate process. Skipped for
+# hook and background commands. Never warns per session launch.
+_mc_stamp="$CLAUDE_MUX_DIR/.deprecated-multi-coder-warned"
+if [[ ! -e "$_mc_stamp" ]] && \
+   case "$COMMAND" in on-prompt|on-compact|on-clear|update-check-bg|autolaunch) false ;; *) true ;; esac; then
+    if [[ "$NO_MULTI_CODER" == "true" ]] || \
+       { [[ -f "$CLAUDE_MUX_CONFIG" ]] && grep -Eq '^[[:space:]]*(export[[:space:]]+)?MULTI_CODER_FILES=' "$CLAUDE_MUX_CONFIG"; }; then
+        echo "WARN: MULTI_CODER_FILES and --no-multi-coder are deprecated and ignored: claude-mux no longer creates AGENTS.md/GEMINI.md symlinks. Remove them from your config/command line. (Shown once.)" >&2
+        mkdir -p "$CLAUDE_MUX_DIR" 2>/dev/null || true
+        touch "$_mc_stamp" 2>/dev/null || true
+    fi
+fi
+unset _mc_stamp
+
 # Backward compat: LAUNCHAGENT_ENABLED=true (legacy) → LAUNCHAGENT_MODE=home
 # (Previously mapped to batch, but batch mode has been removed.)
 if [[ "$LAUNCHAGENT_MODE" == "none" && "$LAUNCHAGENT_ENABLED" == "true" ]]; then

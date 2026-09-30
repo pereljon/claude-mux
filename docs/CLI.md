@@ -12,8 +12,7 @@ claude-mux -t my-app             # attach to an existing tmux session
 # Create new projects
 claude-mux -n ~/projects/app     # create a new Claude project and attach
 claude-mux -n ~/new/path/app -p  # same, creating the directory and parents
-claude-mux -n ~/app --template web        # new project with a specific CLAUDE.md template
-claude-mux -n ~/app --no-multi-coder      # new project without AGENTS.md/GEMINI.md symlinks
+claude-mux -n ~/app --template web        # new project with a specific instructions-file template (AGENTS.md when supported, else CLAUDE.md)
 
 # Session management
 claude-mux -l                    # list sessions by status (active, running, stopped)
@@ -47,7 +46,10 @@ claude-mux --rename my-project new-name  # rename project directory
 claude-mux --move my-project ~/Claude/work  # move project to a new parent
 
 # Other
-claude-mux --list-templates      # show available CLAUDE.md templates
+claude-mux --list-templates      # show available instructions-file templates
+claude-mux --migrate-agents-md   # read-only report: can BASE_DIR move from CLAUDE.md to AGENTS.md?
+claude-mux --migrate-agents-md --apply       # migrate the whole BASE_DIR tree, then restart running sessions under it
+claude-mux --migrate-agents-md --apply --no-restart   # migrate, leave running sessions alone (--dry-run stays report-only)
 claude-mux --guide               # show conversational commands for use within sessions
 claude-mux --commands            # show full CLI reference
 claude-mux --config-help         # show all config options with defaults and descriptions

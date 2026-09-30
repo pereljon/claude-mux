@@ -23,6 +23,7 @@ Read only the section you need - `grep -n "^## <name>" dev/SKELETON.md` for its 
 - **tip_of_day** - tip selection (no gating)
 - **on_prompt** - UserPromptSubmit hook: home-only daily tip (global stamp) + persist-while-relevant update/upgrade notices (wrapped in `<assistant-must-display>`) + bg check spawn
 - **update_check_bg** - disowned background GitHub release check
+- **migrate_agents_md** - `--migrate-agents-md`: CLAUDE.md -> AGENTS.md tree migration, lock, failure path, drift notice
 - **Key Invariants** - rules that must hold across changes
 
 ## How to Use
@@ -33,7 +34,7 @@ Read only the section you need - `grep -n "^## <name>" dev/SKELETON.md` for its 
 
 ## Source Layout
 
-`claude-mux` is built from 13 ordered `src/*.sh` fragments by `make build` (byte-identical concat; see `dev/IMPLEMENTATION-SPEC.md` → "Build / Source Layout"). The fragments **are** ordered slices of the linear flow below, so this file's section order already equals the module order. The logic flow is unchanged by the split — the build runs top-to-bottom exactly as before. To open the file behind a given phase:
+`claude-mux` is built from 14 ordered `src/*.sh` fragments by `make build` (byte-identical concat; see `dev/IMPLEMENTATION-SPEC.md` → "Build / Source Layout"). The fragments **are** ordered slices of the linear flow below, so this file's section order already equals the module order. The logic flow is unchanged by the split — the build runs top-to-bottom exactly as before. To open the file behind a given phase:
 
 | Flow phase | Fragment |
 |---|---|
@@ -44,8 +45,9 @@ Read only the section you need - `grep -n "^## <name>" dev/SKELETON.md` for its 
 | Attach + validate `-d`/`-n` + dep check (phase 9 pre-dispatch) | `src/35-validate-deps.sh` |
 | Shutdown paths | `src/40-shutdown.sh` |
 | restore-state / `poll_until_ready` | `src/50-restore-state.sh` |
-| `await_ready_handshake` / `restart_caller_in_place` / `create_claude_session` | `src/55-session-launch.sh` |
+| `await_ready_handshake` / `restart_caller_in_place` / `restart_sessions_in` / `create_claude_session` | `src/55-session-launch.sh` |
 | migrate / discover projects | `src/60-discovery.sh` |
+| `migrate_agents_md` / `am_*` / `agents_md_drift_notice` | `src/65-agents-md-migration.sh` |
 | `start_sessions` / `launch_single_session` (call `build_system_prompt`, defined in `30-helpers`) | `src/70-start-launch.sh` |
 | `tip_of_day` / `on_prompt` / `spawn_ready_handshake_monitor` / `on_compact` / `on_clear` / update machinery | `src/75-tip-notices.sh` |
 | templates / `autorestore_walk` / `autolaunch_dispatch` | `src/80-templates-restore.sh` |
@@ -190,6 +192,7 @@ case COMMAND:
   disable-tips → disable_tips()
   install-hooks → install_hooks_command()   # backfill hooks (incl. PreCompact + SessionStart clear) into all projects
   list-templates → list_templates()
+  migrate-agents-md → migrate_agents_md()   # exit $?; see the migrate_agents_md section
   save-template  → save_template_command(name, dir)
   rename    → rename_move_command(src, dst, "rename")
   move      → rename_move_command(src, dst, "move")
@@ -265,25 +268,37 @@ case COMMAND:
 
       print "Restarting N session(s) to apply updated injection..."
 
-      partition: caller session vs others (caller restarted in place, last)
+      restart_sessions_in(list, "to apply updated injection")   # return value ignored: --restart's exit code is unchanged
+        # (shared with migrate_agents_md --apply; see restart_sessions_in below)
 
-      # CRITICAL: do NOT call shutdown_claude_sessions() here — it walks every
-      # managed session including the caller, whose /exit SIGHUPs this script
-      # mid-loop and strands the rest. Shut down + recreate each non-caller
-      # individually, honoring the caller partition.
-      detect_github_ssh_accounts()
-      for each non-caller session:
-        restore_state_clear(name)   # user restart un-trips crash-loop history
-        mkdir .claudemux-restarting
-        shutdown_single_session(name, force=true, preserve_marker=true)  # force: recycle protected too
-        create_claude_session(name, dir, "", FRESH_START)
-        rmdir .claudemux-restarting
+```
 
-      if caller session exists:
-        restart_caller_in_place(caller, FRESH_START)
-        # set @claude-mux-restart=resume|fresh + send /exit; NO kill-session, NO
-        # background handoff. The caller's looped wrapper sees the clean exit + option,
-        # relaunches claude in-pane (resume/fresh), and fires --await-ready itself.
+## restart_sessions_in(list, reason)
+```
+# list = newline-separated "name|dir" pairs computed by the caller. RESTART_FAILED_SESSIONS reset per call.
+if DRY_RUN: log "Would restart ..." per pair; return 0
+print "Restarting N session(s) <reason>. RC will need to reconnect in ~10s."
+partition: caller session (tmux display-message) vs others (caller restarted in place, last)
+
+# CRITICAL: do NOT call shutdown_claude_sessions() here: it walks every managed session
+# including the caller, whose /exit SIGHUPs this script mid-loop and strands the rest.
+# Shut down + recreate each non-caller individually, honoring the caller partition.
+detect_github_ssh_accounts()
+for each non-caller session:
+  restore_state_clear(name)   # user restart un-trips crash-loop history
+  mkdir .claudemux-restarting
+  shutdown_single_session(name, force=true, preserve_marker=true)  # force: recycle protected too
+  create_claude_session(name, dir, "", FRESH_START) || append name to RESTART_FAILED_SESSIONS
+  rmdir .claudemux-restarting
+
+if caller session exists:
+  # output after the caller's /exit is lost (this script runs in that pane): report first
+  if RESTART_FAILED_SESSIONS: print "WARN: failed to restart: <names>"
+  restart_caller_in_place(caller, FRESH_START) || append caller to RESTART_FAILED_SESSIONS
+  # set @claude-mux-restart=resume|fresh + send /exit; NO kill-session, NO background handoff.
+  # The caller's looped wrapper relaunches claude in-pane and fires --await-ready itself.
+return 0 iff RESTART_FAILED_SESSIONS is empty
+```
 
 ## restart_caller_in_place(session, fresh)
 ```
@@ -311,6 +326,7 @@ exit (1 if any error else 0)
 
 ## launch_home_session()
 ```
+if migration_lock_active: log; print ERROR "migration in progress"; return 1
 LAUNCH_DIR=$BASE_DIR; HOME_LAUNCH=true; LAUNCH_SESSION_NAME=home; launch_single_session()
 # Home model flag (HOME_SESSION_MODEL) is only assembled inside launch_single_session under
 # HOME_LAUNCH, so home must go through here, not create_claude_session. Caller sets NO_ATTACH
@@ -324,6 +340,9 @@ LAUNCH_DIR=$BASE_DIR; HOME_LAUNCH=true; LAUNCH_SESSION_NAME=home; launch_single_
 Core launcher for all regular sessions (`-d`, `-n`, `--restart`).
 
 ```
+# Migration lock: if migration_lock_active → log, ERROR "migration in progress", return 1
+# (no multi-coder symlink step any more; build_system_prompt gets working_dir as its 3rd arg)
+
 # Collision guard
 if tmux session exists:
   if not @claude-mux-managed:
@@ -498,9 +517,14 @@ check is ever defeated.
 
 ---
 
-## build_system_prompt(session_name, permission_mode)
+## build_system_prompt(session_name, permission_mode, [project_dir])
 
 ```
+project_dir = arg 3, else @claude-mux-dir, else resolve_session_dir(session_name)
+agents_md_rule = "This project uses AGENTS.md ... Never create or edit a CLAUDE.md or CLAUDE.local.md"
+  only if agents_md_supported() && agents_md_path_clear(project_dir) && agents_md_in_walkup(project_dir)
+  # emitted in the Rules block right after config_rule; other sessions pay no tokens
+
 if session_name == "home":
   home_line = "This is the home session: always-on, protected, the session ORCHESTRATOR
                (session management, not project work; operational - act without asking)..."
@@ -523,7 +547,7 @@ assemble and return prompt:
    {home_line if home}
    {home_management if home}
 
-   Reference lookups: --guide, --commands, --config-help, --list-templates, --tip
+   Reference lookups: --guide, --commands, --config-help, --list-templates, --migrate-agents-md, --tip
 
    Rules:
    - always use absolute claude-mux path
@@ -551,7 +575,7 @@ assemble and return prompt:
 
 ```
 # Read globals: NEW_PROJECT_DIR, NEW_CREATE_PARENTS, NO_GIT, NO_TEMPLATE,
-#               NO_MULTI_CODER, NO_PERMISSION_MODE, TEMPLATE_NAME
+#               NO_PERMISSION_MODE, TEMPLATE_NAME   (NO_MULTI_CODER: deprecated no-op)
 
 validate: dir does not exist, or exists and is empty
 if NEW_CREATE_PARENTS: mkdir -p
@@ -563,11 +587,9 @@ if not NO_GIT:
 
 if not NO_TEMPLATE:
   apply_template(TEMPLATE_NAME or DEFAULT_TEMPLATE, dir)
-    # copies template file to dir/CLAUDE.md
-
-if not NO_MULTI_CODER:
-  setup_multi_coder_files(dir)
-    # create AGENTS.md, GEMINI.md as symlinks to CLAUDE.md
+    # copies template file to dir/AGENTS.md when agents_md_supported() and the parent walk-up has
+    # no CLAUDE.md/CLAUDE.local.md; otherwise dir/CLAUDE.md (reason logged). Skips if either exists.
+    # NO_MULTI_CODER is a deprecated no-op; no AGENTS.md/GEMINI.md symlinks are created.
 
 if not NO_PERMISSION_MODE:
   setup_default_mode(dir)
@@ -588,6 +610,8 @@ create_claude_session(session_name, dir, "", false)
 Called by LaunchAgent every 60s via KeepAlive.
 
 ```
+if migration_lock_active: log; return 0     # launch nothing (home included); lock not consumed
+
 case LAUNCHAGENT_MODE:
 
   none:
@@ -614,6 +638,7 @@ The restore tick. Pure bash, no Claude turn. Called from `autolaunch_dispatch` (
 
 ```
 if AUTORESTORE != true: return            # nothing to act on
+if migration_lock_active: log; return     # skip the whole tick; lock not consumed
 
 discover_projects()                        # populates PROJECT_DIRS + HIDDEN_PROJECT_DIRS
 now = epoch
@@ -771,6 +796,64 @@ print tips[index]   # no gating; --tip always works, on_prompt gates home-only/g
 
 ---
 
+## migrate_agents_md()  (--migrate-agents-md [--apply] [--no-restart])
+
+Claude Code falls back to AGENTS.md only when no CLAUDE.md / CLAUDE.local.md exists in cwd or any ancestor, so the migration is tree-wide and all-or-nothing. Module: `src/65-agents-md-migration.sh`. Design: `dev/features/agents-md-canonical.md`.
+
+```
+base = physical(BASE_DIR); ver = claude_version_line(); gate_ok = agents_md_supported()
+apply = MIGRATE_APPLY && !DRY_RUN
+
+am_scan(base); am_enrich()          # classify every dir; git method/hash/state per action record
+plan_sig = am_signature()
+am_running_sessions(base)           # AM_RUN_IN (under base) / AM_RUN_OUT
+am_print_report(gate_ok, ver)       # findings, sessions, textual CLAUDE.md refs (listed, never edited), Result
+if !MIGRATE_APPLY: return 0                                   # read-only default
+if DRY_RUN: print planned ops; (restart_sessions_in dry-run unless --no-restart); return 0
+
+# preflight (nothing changed on any abort)
+if !gate_ok: ABORT
+if any abort-class finding (CONFLICT LOCAL ANOMALY EXT-LINK BROKEN-LINK NOT-A-FILE CASE-VARIANT
+   ABOVE UNWRITABLE LOCKED-INDEX DEST-EXISTS): ABORT
+if lock dir exists and migration_lock_active: ABORT
+if no action records: if am_verify_walkup(base) is clean → write marker (files: 0), return 0
+                      # "already migrated" (e.g. renamed by hand)
+
+am_take_lock()     # mkdir BASE_DIR/.claudemux-migrating (pid, then started); takes over a stale lock;
+                   # EXIT trap releases, INT/TERM/HUP → manifest "interrupted", release, exit 130
+am_scan(base); am_enrich()          # rescan UNDER the lock (the report steps were slow)
+if am_signature() != plan_sig: release lock; ABORT "tree changed between the scan and the lock"
+
+manifest = ~/.claude-mux/migrations/agents-md-<ts>.json      # atomic temp+mv, every planned op, BEFORE any change
+for each action record, top-down (records are in parent-first directory order):
+    am_run_op(i):
+      revalidate the scan's assumption (MIGRATE: dest still absent; IDENTICAL: still cmp-equal, no links;
+        LINK: dest still a link to CLAUDE.md)                                     # per-op TOCTOU check
+      by recorded method: "git mv" → git mv -f CLAUDE.md AGENTS.md                # CLAUDE.md tracked
+                          "mv + git add" → mv + git add -- AGENTS.md              # CLAUDE.md untracked/ignored, AGENTS.md tracked link
+                          "mv" → mv (MIGRATE uses -n; LINK/IDENTICAL -f)          # neither tracked
+                          "git rm --cached + unlink" / "unlink" → INVERSE, STUB, GEMINI-LINK
+      post-check: source gone, AGENTS.md a regular file with the recorded sha256 (rename classes)
+    ok → status done, rewrite manifest;  fail → status "failed: <err>", manifest "failed", break
+if failed: am_failure_block() (TREE IS MIXED; removes the marker) ; release lock ; return 1
+verify: am_verify_walkup(base) must be empty (no CLAUDE.md/CLAUDE.local.md under base or any ancestor)
+        else manifest "failed: verify", am_failure_block(offenders), release lock, return 1
+manifest "complete"; release lock; clear traps
+write BASE_DIR/.claudemux-agents-migrated (date, files, manifest)    # a record, not a gate
+print full summary FIRST (the caller's pane may be restarted afterwards)
+
+if --no-restart: list sessions still holding the old instructions; return 0
+am_running_sessions(base); if none: return 0
+if am_verify_walkup(base) not empty: print "NOT restarting: a CLAUDE.md reappeared" ; return 1   # e.g. /init after verify
+restart_sessions_in(AM_RUN_IN, "to load AGENTS.md instructions") || print failed names; return 1
+```
+
+**Failure path:** no rollback and no `--undo` (decided). The "TREE IS MIXED" block lists completed and pending ops and the manifest path; the migrated marker is removed; the lock is released. A re-run is idempotent: completed paths classify DONE, the rest report their class. Recovery otherwise is by hand from the manifest.
+
+**Lock honoring:** `migration_lock_active()` is read-only (never deletes; stale = dead/missing pid or > 60 min, then WARN + not blocking). It is checked in `autolaunch_dispatch` (before home), `autorestore_walk`, `create_claude_session` (`--start`, `-n`, restarts) and `launch_home_session`. `launch_single_session` deliberately does NOT check it: it is the wrapper's in-place relaunch entry and the `-d` path, and blocking there would strand a session mid-relaunch; the lock is enforced one level up.
+
+---
+
 ## on_prompt()  (UserPromptSubmit hook)
 
 ```
@@ -818,6 +901,15 @@ if TIP_OF_DAY:
       write tip.json {tip_date: today}
       # one-time sweep of orphaned legacy <uuid>.json stamps (exclude tip.json)
       find tip-state -maxdepth 1 -name '*-*-*-*-*.json' ! -name tip.json -delete
+
+# AGENTS.md drift notice (after the upgrade notice, before the tip/update toggles' guard, so it is
+# independent of TIP_OF_DAY/UPDATE_CHECK): agents_md_drift_notice(state_dir):
+#   return unless BASE_DIR/.claudemux-agents-migrated exists          # cheap: marker test first
+#   return if tip-state/agents-drift == today; return unless tmux session == "home"
+#   write today to tip-state/agents-drift                              # stamp before the scan
+#   off = am_verify_walkup(BASE_DIR)   # CLAUDE.md / CLAUDE.local.md under BASE_DIR or any ancestor
+#   if off: print "<assistant-must-display>claude-mux: N CLAUDE.md ... reappeared ... Say \"migrate to AGENTS.md\" ...</assistant-must-display>"
+# Appended to bin_notice, so it is printed first with the upgrade notice.
 
 # Update notice (persist-while-relevant; cache-gated). NO stamp/throttle: re-inject
 # every prompt while latest > VERSION; self-clears when the user updates (VERSION rises).
@@ -887,8 +979,8 @@ exit 0
 - `COMMAND` can only be set once — `set_command()` enforces this and exits on conflict.
 - Sessions are only touched if `@claude-mux-managed=1` is set in tmux — this prevents accidental collision with non-claude-mux tmux sessions.
 - Protected sessions (`@claude-mux-protected=1`) are skipped by `shutdown_claude_sessions()` unless `FORCE=true`. Restart-all does NOT use that blanket path; it calls `shutdown_single_session(name, force=true, ...)` per non-caller, so it recycles protected sessions too (restart ≠ permanent kill). Single-named `--restart SESSION` honors `$FORCE` (protected needs `--force`).
-- Restart-all must never call `shutdown_claude_sessions()`: that blanket walk includes the caller, whose `/exit` SIGHUPs the script mid-loop and strands the rest. The caller is partitioned out and restarted last via a `disown`ed background subshell; non-callers are shut-down+recreated individually in a loop, each wrapped in a `.claudemux-restarting` lock (mkdir/rmdir) with `preserve_marker=true`.
-- Caller-last ordering in full restart: the session running the restart script cannot kill itself mid-execution — it separates itself from the list and uses a background subshell with `disown` to handle its own restart.
+- Restart-all must never call `shutdown_claude_sessions()`: that blanket walk includes the caller, whose `/exit` SIGHUPs the script mid-loop and strands the rest. The caller is partitioned out and restarted last, in place (`restart_caller_in_place`); non-callers are shut-down+recreated individually in a loop, each wrapped in a `.claudemux-restarting` lock (mkdir/rmdir) with `preserve_marker=true`. All of this lives in `restart_sessions_in`, shared by `--restart` and `--migrate-agents-md --apply`.
+- Caller-last ordering in full restart: the session running the restart script cannot kill itself mid-execution; it separates itself from the list and restarts last via `restart_caller_in_place` (set `@claude-mux-restart` + `/exit`; its looped wrapper relaunches in-pane). No background subshell or `disown` is involved. Output after that `/exit` is lost, so summaries and warnings print before it.
 - `poll_until_ready` keys readiness on the `esc to interrupt` busy signal + quiescence, not the mere presence of the `❯` prompt (which is drawn during a resume-time compaction). It still sends `Ready?` on timeout (~120s) so a slow session eventually gets the handshake.
 - Temp launch scripts clean themselves up via `trap ... EXIT` — no orphaned files even if claude crashes.
 - Auto-restore marker presence ⇒ session should be alive. The marker is cleared exactly two ways, both = intent to stop: `--shutdown` (`remove_running_marker` before kill) or a clean in-pane exit (rc 0, the launch wrapper removes it). A crash/`kill-session`/reboot leaves it, so the tick restores it. A `--restart` deliberately preserves it (`preserve_marker=true`), so a restart that crashes between shutdown and recreate is still recovered by the tick.
@@ -899,7 +991,7 @@ exit 0
 - The system prompt is delivered via `--append-system-prompt-file <path>` (not `--append-system-prompt "<text>"`), so it never appears in `ps`. The prompt temp file is deleted right after the ready handshake (Claude reads it once at startup); the `trap` is the backstop.
 - A clean in-pane `/exit` (rc 0) tears down the tmux session (`kill-session`), matching `--shutdown`; a crash (non-zero) deliberately leaves the pane so the restore tick can relaunch into it.
 - **Tmux-aware sessions**: each session gets `--append-system-prompt` with its tmux session name for self-referencing slash commands via `send-keys`.
-- **Multi-coder symlinks**: `AGENTS.md`/`GEMINI.md` created as symlinks to `CLAUDE.md`. Configurable via `MULTI_CODER_FILES`.
+- **AGENTS.md canonical**: claude-mux no longer creates `AGENTS.md`/`GEMINI.md` symlinks (`MULTI_CODER_FILES` and `--no-multi-coder` are deprecated no-ops). Claude Code (>= 2.1.277) reads AGENTS.md only when NO CLAUDE.md or CLAUDE.local.md exists in cwd or any ancestor, so a half-migrated tree silently drops instructions: migration is tree-wide and atomic-by-preflight (`--migrate-agents-md`), and the injection tells sessions in an AGENTS.md tree never to create a CLAUDE.md. The `.claudemux-migrating/` lock blocks launches (not `launch_single_session`) while a migration runs.
 - **Ready trigger**: `poll_until_ready` waits until the session is genuinely idle (busy = `esc to interrupt` in the bottom status lines; ready = not busy + prompt drawn + quiescent, ~120s timeout) before sending `Ready?`, so it does not misfire during a resume-time compaction. Claude responds with "Session ready!" plus a second line "Running [model] in [mode] mode." — the injection passes the permission mode string at launch so Claude can report it accurately.
 - **The `Ready?` handshake turn swallows any other injected content (general caveat)**: the post-restart / post-compact `Ready?` prompt forces Claude to reply with exactly the two ready lines and "Nothing else." Anything a `UserPromptSubmit` hook injects into *that* turn is therefore never surfaced to the user — and worse, any per-turn side effect the hook commits (state stamp, throttle, one-shot ack) still fires, so the message is *consumed* without being seen. This bit the daily tip, the claude-mux update notice, and the Claude Code upgrade notice (all injected by `on_prompt`), which is why `on_prompt` now detects the literal `Ready?` (`prompt.strip() == "Ready?"`) and **no-ops on it** before any injection or stamp (fixed v2.0.8; see `dev/features/tip-ready-handshake.md`). **Rule for future work:** any new `UserPromptSubmit` injection MUST short-circuit on the handshake the same way, or it will be silently eaten and burn its budget on the first prompt after every restart. The handshake string is a fixed literal emitted by `await_ready_handshake`, both launch wrappers, and the `on_compact` monitor.
 - **Output display tags**: listing commands wrap output in `<assistant-must-display>` XML tags when stdout is not a TTY.

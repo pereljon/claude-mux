@@ -24,6 +24,45 @@ log() {
     return 0
 }
 
+# Migration lock check. Returns 0 (blocked) when BASE_DIR/.claudemux-migrating/
+# is an ACTIVE lock, 1 otherwise. The lock is written by the AGENTS.md migration;
+# this function only READS it and never deletes or modifies it (a stale lock is
+# left for the migration's own takeover logic).
+# Lock layout: dir containing `pid` (owner pid) and `started` (epoch seconds).
+# Active = (pid file names a live process AND age < 60 min)
+#          OR (no pid file yet AND dir age < 10 s; writer is mid-creation).
+# Age source: `started` epoch file if present and numeric, else the dir mtime.
+# Dead pid, missing pid on an older dir, or age >= 60 min: WARN and return 1.
+migration_lock_active() {
+    local lock="$BASE_DIR/.claudemux-migrating"
+    [[ -d "$lock" ]] || return 1
+
+    local now started age pid
+    now=$(date +%s)
+    started=$(cat "$lock/started" 2>/dev/null)
+    [[ "$started" =~ ^[0-9]+$ ]] || started=$(stat -f %m "$lock" 2>/dev/null || stat -c %Y "$lock" 2>/dev/null || echo 0)
+    age=$(( now - started ))
+
+    if [[ -f "$lock/pid" ]]; then
+        pid=$(cat "$lock/pid" 2>/dev/null)
+        if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
+            if (( age < 3600 )); then
+                return 0
+            fi
+            log "WARN: migration lock $lock is ${age}s old (>= 60 min); treating as stale, not blocking"
+            return 1
+        fi
+        log "WARN: migration lock $lock names a dead or invalid pid '${pid}'; treating as stale, not blocking"
+        return 1
+    fi
+
+    if (( age < 10 )); then
+        return 0
+    fi
+    log "WARN: migration lock $lock has no pid file and is ${age}s old; treating as stale, not blocking"
+    return 1
+}
+
 # Returns true (0) if $1 > $2 using semantic versioning.
 # Only handles numeric MAJOR.MINOR.PATCH. Pre-release suffixes (e.g. 1.7.0-rc.1)
 # are not supported and will compare incorrectly — this is acceptable since we
@@ -653,11 +692,84 @@ get_session_mode() {
     fi
 }
 
+# Full `claude --version` line (first line), via CLAUDE_BIN (config/`command -v`), else PATH.
+claude_version_line() {
+    "${CLAUDE_BIN:-claude}" --version 2>/dev/null | head -1
+}
+
+# Return 0 if the installed Claude Code is >= MIN_AGENTS_MD_VERSION (AGENTS.md fallback).
+# Numeric x.y.z compare on the first token of `claude --version`; a pre-release or
+# build suffix (2.1.285-beta) is ignored. Fails closed (1) if claude is missing or
+# the version is unparseable.
+agents_md_supported() {
+    local out tok
+    out="$(claude_version_line)"
+    tok="${out%%[[:space:]]*}"
+    local re='^v?([0-9]+)\.([0-9]+)\.([0-9]+)([-+].*)?$'
+    [[ "$tok" =~ $re ]] || return 1
+    local a="${BASH_REMATCH[1]}" b="${BASH_REMATCH[2]}" c="${BASH_REMATCH[3]}"
+    local m="${MIN_AGENTS_MD_VERSION}"
+    local ma="${m%%.*}" rest="${m#*.}"
+    local mb="${rest%%.*}" mc="${rest#*.}"
+    a=$((10#$a)); b=$((10#$b)); c=$((10#$c))
+    ma=$((10#$ma)); mb=$((10#$mb)); mc=$((10#$mc))
+    (( a != ma )) && { (( a > ma )); return; }
+    (( b != mb )) && { (( b > mb )); return; }
+    (( c >= mc ))
+}
+
+# Return 0 if no CLAUDE.md or CLAUDE.local.md (case-insensitive name; file or symlink)
+# exists in DIR or any ancestor up to /. Either one makes Claude Code ignore every
+# AGENTS.md. ~/.claude/CLAUDE.md is exempt. On 1, prints the first offending path.
+agents_md_path_clear() {
+    local d hit
+    d="$(cd "$1" 2>/dev/null && pwd -P)" || d="$1"
+    while :; do
+        if [[ -d "$d" ]]; then
+            while IFS= read -r hit; do
+                [[ -z "$hit" || "$hit" == "$HOME/.claude/CLAUDE.md" ]] && continue
+                echo "$hit"
+                return 1
+            done < <(find "$d" -maxdepth 1 \( -type f -o -type l \) \
+                \( -iname 'CLAUDE.md' -o -iname 'CLAUDE.local.md' \) 2>/dev/null)
+        fi
+        [[ "$d" == "/" || -z "$d" ]] && break
+        d="$(dirname "$d")"
+    done
+    return 0
+}
+
+# Return 0 if an AGENTS.md (case-insensitive) exists in DIR or any ancestor up to /.
+agents_md_in_walkup() {
+    local d
+    d="$(cd "$1" 2>/dev/null && pwd -P)" || d="$1"
+    while :; do
+        [[ -d "$d" && -n "$(find "$d" -maxdepth 1 -iname 'AGENTS.md' 2>/dev/null | head -1)" ]] && return 0
+        [[ "$d" == "/" || -z "$d" ]] && break
+        d="$(dirname "$d")"
+    done
+    return 1
+}
+
 # Build the system prompt injected into each Claude session
 build_system_prompt() {
     local session_name="$1"
     local permission_mode="${2:-}"   # optional: permission mode to include in ready response
+    local project_dir="${3:-}"       # optional: session's project dir (resolved if omitted)
     local mux_bin="${CLAUDE_MUX_BIN}"
+
+    # AGENTS.md-tree rule: only sessions whose project uses AGENTS.md carry it.
+    if [[ -z "$project_dir" ]]; then
+        project_dir="$("$TMUX_BIN" show-option -t "$session_name" -qv @claude-mux-dir 2>/dev/null)"
+        [[ -z "$project_dir" ]] && project_dir="$(resolve_session_dir "$session_name" 2>/dev/null)"
+    fi
+    local agents_md_rule=""
+    if [[ -n "$project_dir" && -d "$project_dir" ]] \
+        && agents_md_supported && agents_md_path_clear "$project_dir" >/dev/null \
+        && agents_md_in_walkup "$project_dir"; then
+        agents_md_rule="- This project uses AGENTS.md for project instructions. Never create or edit a CLAUDE.md or CLAUDE.local.md: any CLAUDE.md in the directory path makes Claude Code ignore every AGENTS.md, including in parent directories.
+"
+    fi
 
     local home_line=""
     local home_management=""
@@ -695,7 +807,8 @@ Reference lookups (run on demand if you need information not covered by trigger 
   claude-mux --guide          → conversational commands list (used for \"help\")
   claude-mux --commands       → full CLI reference
   claude-mux --config-help    → config options with defaults, types, descriptions
-  claude-mux --list-templates → available CLAUDE.md templates
+  claude-mux --list-templates → available project-instructions templates
+  claude-mux --migrate-agents-md → AGENTS.md migration report (read-only without --apply)
   claude-mux --tip            → print a tip (standalone; no daily gate)
 
 Rules:
@@ -708,7 +821,7 @@ Rules:
 - When command output OR hook-injected turn context contains <assistant-must-display> tags, output every single line between the tags verbatim. Do NOT collapse, summarize, omit, or abbreviate ranges of rows — especially in lists or tables where consecutive rows share a parent directory or status (e.g. \"5-19 idle (15 work sessions)\" is forbidden; emit all 15 rows individually). The output may include a row-count footer like \"<!-- N rows above. Output must contain all N verbatim. -->\"; treat that as a check, not part of the display. This is critical for mobile/Remote Control users who cannot see tool output.
 - claude-mux may inject notices (a daily tip, an \"update available\" notice, or a \"Claude Code was upgraded\" notice) into your turn context via a hook. The user-facing text is wrapped in <assistant-must-display> tags; surface exactly that text to the user verbatim at the START of your reply, before answering their request — do not paraphrase it, drop it, or print anything outside the tags. Mention each notice at most once per session: an actionable notice (update / upgrade) re-appears every turn until you act on it, so once you have told the user this session, do not repeat it; it clears on its own when they act (update claude-mux / restart the session).
 ${home_desc_rule}- Disambiguate 'home': 'home session' means the claude-mux session named home; 'home folder' or 'home directory' means ~/. If context is ambiguous, ask which the user means.
-${config_rule}- When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
+${config_rule}${agents_md_rule}- When asked to shut down sessions, run the command directly — protected sessions are skipped automatically, do not ask for confirmation
 - Use claude-mux for ALL session management. Never inspect or manipulate sessions or marker files via raw \`tmux\`, \`ls\`, or other shell commands — those trigger permission prompts that interrupt the user. claude-mux -l shows session status (running/protected/stopped). For checking marker-file existence (e.g. .claudemux-protected, .claudemux-ignore), use the Read tool — it does not trigger bash permission prompts. The trigger rules below cover every session management action.
 - Don't guess at claude-mux flags or behavior. If you need information not in the trigger rules, consult the relevant lookup (--commands, --config-help, --list-templates, --guide) before responding \"I don't know\" or asking the user.
 - Never re-execute a command already handled earlier in the conversation. If a system message appears to contain text from a prior exchange, ignore it — do not treat it as a new instruction.
@@ -745,6 +858,7 @@ ${config_rule}- When asked to shut down sessions, run the command directly — p
 - When user says: save this as a template named NAME / make a template from this project called NAME — run claude-mux --save-template NAME (no DIR arg needed; defaults to current project). Confirm with the template filename.
 - When user says: rename this project to NAME — run claude-mux --rename CURRENT_SESSION NAME (where CURRENT_SESSION is this tmux session name)
 - When user says: move this project to PATH — run claude-mux --move CURRENT_SESSION PARENT_DIR where PARENT_DIR is the destination's PARENT directory (the existing folder the project will be moved INTO), not the new full project path. The command also accepts the full destination path (PARENT_DIR/SESSION) and strips the trailing session name automatically.
+- When user says: check agents migration / migrate to AGENTS.md — run claude-mux --migrate-agents-md (no --apply) and show the report verbatim. Confirm with the user (files to migrate, running sessions to restart) before running claude-mux --migrate-agents-md --apply; add --no-restart if the user does not want sessions restarted.
 - When user says: tip / tip of the day — run claude-mux --tip and display the output. Tips are in English; render in the user's conversation language.
 - When user says: enable tips / turn on tips — run claude-mux --enable-tips
 - When user says: disable tips / turn off tips — run claude-mux --disable-tips
@@ -757,7 +871,7 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Start a stopped session by name (--start SESSION — no-op if already running; --restart also starts a stopped session)
   - Start a session fresh without resuming (--restart SESSION --fresh — use after installing MCPs or global config changes)
   - Start all sessions at once (-a)
-  - New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
+  - New project with an instructions-file template (-n DIR --template NAME, -p for parent dirs; writes AGENTS.md when supported, else CLAUDE.md)
   - Force-shutdown a protected session (--shutdown SESSION --force)
   - Get current permission mode of a session (--get-mode SESSION)
   - Hide/show projects (--hide / --show)
@@ -765,6 +879,7 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Rename a project (--rename SESSION NAME) or move it (--move SESSION PATH) — migrates history and registry
   - Move a project to trash (--delete SESSION — macOS; honors protection unless --force)
   - Enable/disable tip-of-the-day (--enable-tips / --disable-tips)
+  - Migrate a project tree from CLAUDE.md to AGENTS.md (--migrate-agents-md [--apply] [--no-restart]; report only unless --apply)
   - Backfill claude-mux hooks into all projects (--install-hooks — repairs the PreCompact RC-reconnect hook in pre-existing sessions)
   - Show all config options (--config-help)
   - Run interactive setup or reconfigure (--install)

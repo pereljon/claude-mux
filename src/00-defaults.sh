@@ -2,7 +2,11 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.3.1"
+VERSION="2.4.0"
+
+# Minimum Claude Code version that falls back to AGENTS.md when no CLAUDE.md is present.
+# A constant, not a config var.
+MIN_AGENTS_MD_VERSION="2.1.277"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 # Override any of these in ~/.claude-mux/config
@@ -90,11 +94,9 @@ STARTING_WINDOW=90
 # Check GitHub releases for newer versions. Set to false to disable.
 UPDATE_CHECK=true
 
-# ── Multi-CLI-coder integration ────────────────────────────────────────────────
-# Files to create as symlinks pointing at CLAUDE.md so other AI CLI coders
-# (Codex CLI reads AGENTS.md, Gemini CLI reads GEMINI.md, etc.) pick up the
-# same project instructions. Set to empty string "" to disable entirely.
-MULTI_CODER_FILES="AGENTS.md GEMINI.md"
+# ── Deprecated, ignored ───────────────────────────────────────────────────────
+# MULTI_CODER_FILES: accepted no-op (AGENTS.md is now canonical; see 20-config.sh).
+MULTI_CODER_FILES=""
 
 # ── Tip of the day ─────────────────────────────────────────────────────────────
 

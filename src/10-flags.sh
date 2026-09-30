@@ -17,6 +17,8 @@ TEMPLATE_NAME=""
 NO_TEMPLATE=false
 NO_GIT=false
 NO_MULTI_CODER=false
+MIGRATE_APPLY=false
+MIGRATE_NO_RESTART=false
 NO_ATTACH=false
 NO_PERMISSION_MODE=false
 FORCE=false
@@ -64,6 +66,7 @@ claude-mux conversational commands:
   update claude-mux
   hide this project / show this project
   protect this session / unprotect this session
+  check agents migration / migrate to AGENTS.md
   tip / tip of the day
   enable tips / disable tips
 EOF
@@ -99,9 +102,9 @@ Self-targeting (works inside sessions):
   -L --hidden              List only hidden
   -d DIR --no-attach       Launch session in directory
   -n DIR --no-attach       New project (with -p for parent dirs)
-  --template NAME          CLAUDE.md template for -n
+  --template NAME          Instructions-file (AGENTS.md) template for -n
   --list-templates         Show available templates
-  --save-template NAME [SESSION]  Save CLAUDE.md as a template (default: current session)
+  --save-template NAME [SESSION]  Save AGENTS.md/CLAUDE.md as a template (default: current session)
   --shutdown SESSION...    Shut down sessions (omit SESSION for all)
   --shutdown ... --force   Override protection
   --start SESSION...       Start sessions by name (start if stopped; no-op if already running)
@@ -132,6 +135,9 @@ Self-targeting (works inside sessions):
   --update-check-bg        Internal: background GitHub release check (refreshes cache)
   --enable-tips            Enable daily tips (registers the on-prompt hook)
   --disable-tips           Disable daily tips
+  --migrate-agents-md      Report (read-only) how to migrate BASE_DIR from CLAUDE.md to AGENTS.md
+                           --apply performs it (never commits) and restarts running sessions
+                           under BASE_DIR; --no-restart skips the restart; --dry-run stays read-only
   --install-hooks          Backfill claude-mux hooks (PreCompact RC-reconnect, SessionStart clear handshake) into all projects
   --config-help            List all valid config options
   --commands               Print this reference
@@ -200,11 +206,9 @@ STARTING_WINDOW                  default: 90
   Description: Window over which STAGGER_CONCURRENCY is counted, via each
                session's last restore-attempt timestamp.
 
-MULTI_CODER_FILES                default: "AGENTS.md GEMINI.md"
-  Type: space-separated filenames
-  Description: Files created as symlinks to CLAUDE.md so other AI CLIs (Codex,
-               Gemini, etc.) share the same project instructions. Empty
-               disables.
+MULTI_CODER_FILES                DEPRECATED (ignored)
+  Description: No longer used; claude-mux does not create AGENTS.md/GEMINI.md
+               symlinks. Accepted as a no-op; remove it from your config.
 
 UPDATE_CHECK                     default: true
   Type: true | false
@@ -213,7 +217,7 @@ UPDATE_CHECK                     default: true
 
 TEMPLATES_DIR                    default: "$HOME/.claude-mux/templates"
   Type: directory path
-  Description: Where CLAUDE.md template files (web.md, python.md, etc.) live.
+  Description: Where instructions-file template files (web.md, python.md, etc.) live.
                Used with -n DIR --template NAME.
 
 DEFAULT_TEMPLATE                 default: "default.md"
@@ -275,7 +279,7 @@ Commands:
   -a, --all             Start all managed sessions under \$BASE_DIR
   -n, --new DIR         Create a new Claude project in DIR and attach
   -p                    With -n, create the directory and parents if they don't exist
-  --template NAME       With -n, use a specific CLAUDE.md template
+  --template NAME       With -n, use a specific instructions-file template
   -s SESSION COMMAND    Send a slash command to a running session
   -t, --target SESSION  Attach to an existing tmux session by name
   -l, --list            Show active sessions (active + running + stopped)
@@ -283,7 +287,7 @@ Commands:
                           With --status STATUS: filter by status (idle, running, protected, stopped, queued, failed, hidden)
                           With --include-hidden: include hidden projects
                           With --hidden: show only hidden projects
-  --list-templates      Show available CLAUDE.md templates
+  --list-templates      Show available instructions-file templates
   --hide [SESSION]      Hide project from listings (creates .claudemux-ignore)
   --show [SESSION]      Restore project visibility (removes .claudemux-ignore)
   --protect [SESSION]   Protect a project's session at launch (creates .claudemux-protected)
@@ -307,10 +311,10 @@ Commands:
   --uninstall              Remove hooks, permissions, LaunchAgent, and config
 
 Options:
-  --no-template         With -n, skip applying CLAUDE.md template
+  --no-template         With -n, skip applying the instructions-file template
   --no-git              With -n, skip git init and .gitignore
   --no-permission-mode  With -n, skip setting permissions.defaultMode
-  --no-multi-coder      With -n, skip creating AGENTS.md/GEMINI.md symlinks
+  --no-multi-coder      Deprecated no-op (multi-coder symlinks are no longer created)
   --no-attach           With -d or -n, launch in background without attaching
   --force               With --shutdown or --delete, override session protection
   --yes, -y             With --delete, skip confirmation prompt
@@ -479,8 +483,11 @@ while [[ $# -gt 0 ]]; do
             ;;
         --yes|-y)        DELETE_YES=true; shift ;;
         --no-template)       NO_TEMPLATE=true; shift ;;
-        --no-multi-coder)    NO_MULTI_CODER=true; shift ;;
+        --no-multi-coder)    NO_MULTI_CODER=true; shift ;;  # deprecated no-op
         --no-git)            NO_GIT=true; shift ;;
+        --migrate-agents-md) set_command "--migrate-agents-md" "migrate-agents-md"; shift ;;
+        --apply)             MIGRATE_APPLY=true; shift ;;
+        --no-restart)        MIGRATE_NO_RESTART=true; shift ;;
         --no-attach)         NO_ATTACH=true; shift ;;
         --no-permission-mode) NO_PERMISSION_MODE=true; shift ;;
         -v|--version)     echo "claude-mux $VERSION"; exit 0 ;;
@@ -549,8 +556,12 @@ if [[ "$NO_PERMISSION_MODE" == "true" && "$COMMAND" != "new" ]]; then
     echo "ERROR: --no-permission-mode can only be used with -n" >&2
     exit 1
 fi
-if [[ "$NO_MULTI_CODER" == "true" && "$COMMAND" != "new" ]]; then
-    echo "ERROR: --no-multi-coder can only be used with -n" >&2
+if [[ "$MIGRATE_APPLY" == "true" && "$COMMAND" != "migrate-agents-md" ]]; then
+    echo "ERROR: --apply can only be used with --migrate-agents-md" >&2
+    exit 1
+fi
+if [[ "$MIGRATE_NO_RESTART" == "true" && "$COMMAND" != "migrate-agents-md" ]]; then
+    echo "ERROR: --no-restart can only be used with --migrate-agents-md" >&2
     exit 1
 fi
 if [[ "$NO_ATTACH" == "true" && "$COMMAND" != "launch" && "$COMMAND" != "new" ]]; then

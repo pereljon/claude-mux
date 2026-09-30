@@ -49,6 +49,7 @@ case "$COMMAND" in
     list)     status_claude_sessions; exit 0 ;;
     list-all) status_claude_sessions true "${STATUS_FILTER:-}"; exit 0 ;;
     list-templates) list_templates; exit 0 ;;
+    migrate-agents-md) migrate_agents_md; exit $? ;;
     tip)           tip_of_day; exit 0 ;;
     on-compact)    on_compact; exit 0 ;;
     on-clear)      on_clear; exit 0 ;;
@@ -241,64 +242,9 @@ case "$COMMAND" in
                 _count=$(echo "$_restart_list" | grep -c '|')
                 log "Remembering $_count running session(s) for restart"
 
-                if [[ "$DRY_RUN" == "true" ]]; then
-                    while IFS='|' read -r _name _dir; do
-                        [[ -z "$_name" ]] && continue
-                        log "Would restart session '$_name' in $_dir${FRESH_START:+ (fresh start)}"
-                    done <<< "$_restart_list"
-                else
-                    echo "Restarting $_count session(s) to apply updated injection. RC will need to reconnect in ~10s."
-
-                    # If running inside a session that's in the restart list,
-                    # separate it out. We can't kill-session on the caller because
-                    # this script is running in that pane (SIGHUP would kill us).
-                    _caller_session=""
-                    if [[ -n "${TMUX:-}" ]]; then
-                        _caller_session=$("$TMUX_BIN" display-message -p '#{session_name}' 2>/dev/null) || _caller_session=""
-                    fi
-                    _other_list=""
-                    _caller_entry=""
-                    while IFS='|' read -r _name _dir; do
-                        [[ -z "$_name" ]] && continue
-                        if [[ "$_name" == "$_caller_session" ]]; then
-                            _caller_entry="${_name}|${_dir}"
-                        else
-                            _other_list="${_other_list}${_name}|${_dir}
-"
-                        fi
-                    done <<< "$_restart_list"
-
-                    # Shut down and recreate non-caller sessions individually.
-                    # CRITICAL: must NOT call shutdown_claude_sessions here - it walks
-                    # every managed session including the caller, whose /exit SIGHUPs
-                    # this script mid-loop and strands the rest. The partition above
-                    # split the caller out for exactly this reason; honor it.
-                    detect_github_ssh_accounts
-                    while IFS='|' read -r _name _dir; do
-                        [[ -z "$_name" ]] && continue
-                        log "Restarting session '$_name' in $_dir"
-                        restore_state_clear "$_name"   # user restart un-trips crash-loop history
-                        # Restart marker: defer auto-restore for one tick. preserve_marker
-                        # keeps .claudemux-running so a crash mid-restart is recoverable.
-                        mkdir "$_dir/.claudemux-restarting" 2>/dev/null
-                        # force=true: restart-all recycles protected non-callers too
-                        # (protection guards --shutdown accidents, not --restart).
-                        shutdown_single_session "$_name" true true   # force, preserve_marker
-                        create_claude_session "$_name" "$_dir" "" "$FRESH_START"
-                        rmdir "$_dir/.claudemux-restarting" 2>/dev/null
-                    done <<< "$_other_list"
-
-                    # Restart the caller LAST, IN PLACE. We can't kill the caller's pane
-                    # (this script runs in it; the SIGHUP would kill us before recreate —
-                    # that stranded home and forked its conversation: the bug this fixes).
-                    # restart_caller_in_place sets @claude-mux-restart + sends /exit; the
-                    # looped wrapper relaunches claude in the same pane and handshakes.
-                    # See dev/features/restart-in-place.md.
-                    if [[ -n "$_caller_entry" ]]; then
-                        IFS='|' read -r _caller_name _caller_dir <<< "$_caller_entry"
-                        restart_caller_in_place "$_caller_name" "$FRESH_START"
-                    fi
-                fi
+                # Failures land in RESTART_FAILED_SESSIONS; --restart's own exit
+                # code is deliberately unchanged (return value ignored).
+                restart_sessions_in "$_restart_list" "to apply updated injection" || true
 
                 log "=== claude-mux restart complete ==="
             fi

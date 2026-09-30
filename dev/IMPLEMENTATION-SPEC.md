@@ -64,7 +64,7 @@ Note: `com.user.claude-mux.plist` was removed from the repo in v1.8.0. The plist
 
 ## Build / Source Layout
 
-`claude-mux` is a **generated, committed artifact**. The source of truth is `src/*.sh`: 13 ordered fragments that `make build` concatenates (`cat`) into the single `claude-mux` file that curl and Homebrew fetch. The build is a pure `cat` of an explicit, ordered file list, so the output is **byte-identical** to hand-maintaining the one file would be.
+`claude-mux` is a **generated, committed artifact**. The source of truth is `src/*.sh`: 14 ordered fragments that `make build` concatenates (`cat`) into the single `claude-mux` file that curl and Homebrew fetch. The build is a pure `cat` of an explicit, ordered file list, so the output is **byte-identical** to hand-maintaining the one file would be.
 
 **Why ordered slices, not topical modules.** The script has no `set -euo pipefail` and runs **top-to-bottom with imperative blocks interleaved between function definitions**: flag parsing consumes `$@` early, user-config sourcing must land *after* the defaults it overrides, validation must precede dispatch, and the terminal `case "$COMMAND"` must run last. Execution order is therefore load-bearing, so the fragments must be **contiguous ordered slices** of the original file concatenated in a fixed order. They cannot be re-grouped by topic. The upside: the split is byte-exact and trivially verifiable (`cat` of an exact partition reproduces the input).
 
@@ -72,13 +72,14 @@ Note: `com.user.claude-mux.plist` was removed from the repo in v1.8.0. The plist
 |---|---|
 | `src/00-defaults.sh` | shebang, `VERSION`, default config-var declarations |
 | `src/10-flags.sh` | flag-parsing loop + `guide`/`echo_hint`/`commands_help`/`config_help` |
-| `src/20-config.sh` | legacy `--tipotd` no-op, user-config sourcing + auto-migration, constants |
-| `src/30-helpers.sh` | general helpers (`check_for_update`, `do_update`, `get_version_prompt_lines`, `build_system_prompt`, ...) |
+| `src/20-config.sh` | legacy `--tipotd` no-op, user-config sourcing + auto-migration, constants, once-only `MULTI_CODER_FILES`/`--no-multi-coder` deprecation warning |
+| `src/30-helpers.sh` | general helpers (`migration_lock_active`, `agents_md_supported`/`agents_md_path_clear`/`agents_md_in_walkup`, `check_for_update`, `do_update`, `get_version_prompt_lines`, `build_system_prompt`, ...) |
 | `src/35-validate-deps.sh` | attach helper, validate `-d`/`-n`, dependency check, managed-session names |
 | `src/40-shutdown.sh` | shutdown functions |
 | `src/50-restore-state.sh` | restore-state bookkeeping (`restore_state_*`, `should_be_alive`, `poll_until_ready`) |
-| `src/55-session-launch.sh` | `await_ready_handshake`, `restart_caller_in_place`, `create_claude_session` |
+| `src/55-session-launch.sh` | `await_ready_handshake`, `restart_caller_in_place`, `restart_sessions_in`, `create_claude_session` |
 | `src/60-discovery.sh` | migrate stray sessions, discover projects, ensure base dir |
+| `src/65-agents-md-migration.sh` | `--migrate-agents-md`: `migrate_agents_md`, the `am_*` scan/classify/lock/manifest/op helpers, `agents_md_drift_notice` |
 | `src/70-start-launch.sh` | `start_sessions`, `launch_single_session` (both call `build_system_prompt`, defined in `30-helpers`) |
 | `src/75-tip-notices.sh` | `tip_of_day`, `detect_claude_upgrade`, `on_prompt`, `on_compact`, update-check machinery |
 | `src/80-templates-restore.sh` | `list_templates`, `apply_template`, `autorestore_walk`, `autolaunch_dispatch` |
@@ -113,9 +114,9 @@ The split is behavior-preserving by construction; it changes no feature, flag, c
 | `BASE_DIR` | `$HOME/Claude` | Root directory to scan for Claude projects (directories containing `.claude/`) |
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set `permissions.defaultMode` in `.claude/settings.local.json` per project. Valid: `""` (disabled), `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
-| `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing CLAUDE.md template files |
+| `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing instructions-file template files (written as AGENTS.md when supported, else CLAUDE.md) |
 | `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
-| `MULTI_CODER_FILES` | `"AGENTS.md GEMINI.md"` | Space-separated list of files to create as symlinks to CLAUDE.md for other AI CLI tools. Set to `""` to disable. |
+| `MULTI_CODER_FILES` | `""` (**deprecated, ignored**) | Accepted no-op since 2.4.0: claude-mux no longer creates AGENTS.md/GEMINI.md symlinks. Once-only warning; removal in a later minor. The `--no-multi-coder` flag is likewise a no-op. |
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches when `-a` is used |
 | `LAUNCHAGENT_MODE` | `home` | LaunchAgent at-login behavior: `none` or `home` (single protected session in `$BASE_DIR`). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `home` (previously `batch`, removed). |
 | `HOME_SESSION_MODEL` | `sonnet` | Model for the home session — any model alias or ID `claude --model` accepts (e.g. `sonnet`, `haiku`, `opus`, or a full ID like `claude-opus-4-8`). Pass-through: claude-mux only format-checks it to a shell-safe token (`^[A-Za-z0-9._][A-Za-z0-9._-]*$`, no leading dash) and lets `claude` validate which models exist. A bare family alias or full `claude-…` ID works; a versioned shorthand like `opus-4-8` does **not** (config values aren't normalized — that only happens for the conversational `/model` trigger). Empty inherits Claude's default. |
@@ -245,7 +246,7 @@ Optional third argument `mode_override` overrides the permission mode for the la
 
 Optional fourth argument `fresh_start` (default `false`): when `true`, omits `-c` from the Claude launch command so Claude Code starts a new conversation instead of resuming the last one. Used by `--restart --fresh`.
 
-Builds a system prompt via `build_system_prompt(session_name, permission_mode)` and passes it via `--append-system-prompt-file <temp-path>` (the path, not the expanded text, so the prompt is not visible in `ps`). The permission mode is passed so Claude can include it in the ready response. The prompt has a header, rules section, and commands section.
+Refuses to launch (returns 1) while `migration_lock_active` (an AGENTS.md migration is running). Builds a system prompt via `build_system_prompt(session_name, permission_mode, working_dir)` and passes it via `--append-system-prompt-file <temp-path>` (the path, not the expanded text, so the prompt is not visible in `ps`). The permission mode is passed so Claude can include it in the ready response. The prompt has a header, rules section, and commands section.
 
 **Header** — environment context:
 ```
@@ -255,12 +256,13 @@ claude-mux version: <VERSION>
 ```
 The version line is always present. The update line is included only when `~/.claude-mux/.update-check` contains a version newer than the running version. The check date comes from the cache's `last_check` timestamp. Version context is built by `get_version_prompt_lines()`.
 
-**Reference lookups** — five lookup flags that Claude runs on demand rather than inlining:
+**Reference lookups** — lookup flags that Claude runs on demand rather than inlining:
 ```
 claude-mux --guide          → conversational commands list (used for "help")
 claude-mux --commands       → full CLI reference
 claude-mux --config-help    → config options with defaults, types, descriptions
-claude-mux --list-templates → available CLAUDE.md templates
+claude-mux --list-templates → available project-instructions templates
+claude-mux --migrate-agents-md → AGENTS.md migration report (read-only without --apply)
 claude-mux --tip            → print a tip (standalone; no daily gate)
 ```
 
@@ -279,6 +281,8 @@ claude-mux --tip            → print a tip (standalone; no daily gate)
 - "save this as a template named NAME": `--save-template NAME` (defaults to current dir)
 - "rename this project to NAME": `--rename . NAME`
 - "move this project to PATH": `--move . PATH`
+- "check agents migration / migrate to AGENTS.md": run `--migrate-agents-md` (no `--apply`), show the report verbatim, confirm once (files to migrate, running sessions to restart), then run `--migrate-agents-md --apply` (`--no-restart` if the user declines the restart)
+- **AGENTS.md rule (conditional, `agents_md_rule`):** "This project uses AGENTS.md for project instructions. Never create or edit a CLAUDE.md or CLAUDE.local.md: any CLAUDE.md in the directory path makes Claude Code ignore every AGENTS.md, including in parent directories." Emitted only when `agents_md_supported` && `agents_md_path_clear` && `agents_md_in_walkup` hold for the project dir (3rd arg to `build_system_prompt`, else `@claude-mux-dir`, else `resolve_session_dir`), so other sessions do not pay the tokens
 - "tip / tip of the day": run `--tip`, display output in the user's language
 
 **Additional capabilities** — compressed feature list for capability discovery:
@@ -286,10 +290,11 @@ claude-mux --tip            → print a tip (standalone; no daily gate)
 - Attach interactively to a session (-t — user-only, never from inside a session)
 - Start a stopped session by name (--start SESSION — no-op if already running; --restart also starts a stopped session)
 - Start all sessions at once (-a)
-- New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
+- New project with an instructions-file template (-n DIR --template NAME, -p for parent dirs; writes AGENTS.md when supported, else CLAUDE.md)
 - Force-shutdown a protected session (--shutdown SESSION --force)
 - Rename a project (--rename SESSION NAME) or move it (--move SESSION PATH) — migrates history and registry
-- Save current CLAUDE.md as a reusable template (--save-template NAME [SESSION])
+- Save current AGENTS.md/CLAUDE.md as a reusable template (--save-template NAME [SESSION])
+- Migrate a project tree from CLAUDE.md to AGENTS.md (--migrate-agents-md [--apply] [--no-restart]; report only unless --apply)
 - Hide/show projects (--hide [SESSION] / --show [SESSION])
 - Protect/unprotect sessions (--protect [SESSION] / --unprotect [SESSION])
 - Move a project to trash (--delete SESSION — macOS; honors protection unless --force)
@@ -351,7 +356,7 @@ Centralizes the home-launch setup: sets `LAUNCH_DIR=$BASE_DIR`, `HOME_LAUNCH=tru
 
 #### Starting sessions by name: `--start` and `--restart`-on-stopped
 
-Both bring a session up *by name* (via `resolve_session_dir`: basename scan of `PROJECT_DIRS` + `HIDDEN_PROJECT_DIRS`, special-casing `home`→`$BASE_DIR`), so neither needs a directory path. They differ only on the already-running case:
+Both bring a session up *by name* (the restart-all path is `restart_sessions_in(list, reason)`, shared with the migration: it returns 0/1 and sets `RESTART_FAILED_SESSIONS`, and `--restart`'s own exit code ignores it) (via `resolve_session_dir`: basename scan of `PROJECT_DIRS` + `HIDDEN_PROJECT_DIRS`, special-casing `home`→`$BASE_DIR`), so neither needs a directory path. They differ only on the already-running case:
 
 - **`--start NAME...`** (COMMAND `start-session`): "ensure it's running, don't disturb it." Stopped → start it (resume, or `--fresh` for a new conversation). Running → no-op, prints "Session 'NAME' is already running." and never cycles the live session. Multiple names handled independently; per-name errors don't abort the rest; exit non-zero if any failed. No names → error pointing to `-a` (do not silently alias start-all).
 - **`--restart NAME`**: "bring it up fresh." Running non-caller → kill+recreate; running caller → in-place (restart-in-place). Stopped → just start it. The stopped path was added by falling back to `resolve_session_dir` when `session_marker_dir` (live-tmux-only) returns empty, then branching on `claude_running_in_session`: running → the existing cycle; stopped `home` → `launch_home_session`; stopped non-home → `create_claude_session` (no shutdown, since nothing is running). `create_claude_session`'s own collision guard (no-op when claude is already running) is the race backstop for `--start`.
@@ -498,6 +503,30 @@ In `--dry-run` mode, output goes to stdout only (not the log file).
 - stdout/stderr are not redirected to files. LaunchAgent output goes to the macOS unified log. Use Console.app or `log show` for low-level LaunchAgent debugging.
 - LaunchAgent runs in the user's login session, inheriting `$USER` and `$HOME`.
 
+### AGENTS.md canonical and `--migrate-agents-md`
+
+Design: `dev/features/agents-md-canonical.md`. Module: `src/65-agents-md-migration.sh`.
+
+Claude Code >= 2.1.277 (`MIN_AGENTS_MD_VERSION`, a constant, gate fails closed) reads AGENTS.md when no CLAUDE.md or CLAUDE.local.md exists in cwd or any ancestor. Any CLAUDE.md / CLAUDE.local.md in the path (file, symlink or `@AGENTS.md` stub) makes it ignore every AGENTS.md; `~/.claude/CLAUDE.md` is exempt. So migration is tree-wide. claude-mux no longer creates AGENTS.md/GEMINI.md symlinks (`setup_multi_coder_files` was deleted). Gemini CLI reads AGENTS.md only if `"context": {"fileName": ["AGENTS.md"]}` is set in `~/.gemini/settings.json` (unverified whether the upstream default changed).
+
+`claude-mux --migrate-agents-md [--apply] [--no-restart]`: read-only report by default. `--apply` migrates all of `BASE_DIR` and then restarts running managed sessions under `BASE_DIR` (`restart_sessions_in`) unless `--no-restart`. `--apply` and `--no-restart` are valid only with this command; `--dry-run` stays report-only.
+
+**Classes.** Actions: DONE (nothing to do), MIGRATE (CLAUDE.md only: rename), LINK (AGENTS.md is a link to `CLAUDE.md`: replace with the file), IDENTICAL (both real, `cmp` equal: replace AGENTS.md), INVERSE (CLAUDE.md link to AGENTS.md: remove), STUB (CLAUDE.md is only `@AGENTS.md`: remove), GEMINI-LINK (GEMINI.md link to CLAUDE.md/AGENTS.md: delete; a real GEMINI.md is never touched). Abort classes (any one aborts `--apply` before the first change): CONFLICT, LOCAL, ANOMALY (`.claude/CLAUDE.md` or `.claude/AGENTS.md`), EXT-LINK, BROKEN-LINK, NOT-A-FILE, CASE-VARIANT, ABOVE (CLAUDE.md / CLAUDE.local.md in an ancestor of `BASE_DIR`), UNWRITABLE, LOCKED-INDEX (a git `index.lock` in a repo an operation touches), DEST-EXISTS (MIGRATE destination already present). The scan prunes `.git`, `node_modules`, `-*` and `worktrees` but not `.claude`, and matches names case-insensitively from the directory listing.
+
+**Apply sequence:** preflight (version gate, abort classes, live lock) -> take lock -> rescan under the lock (aborts if the plan signature changed) -> write manifest -> operations top-down with per-op revalidation -> verify (no CLAUDE.md / CLAUDE.local.md in any walk-up path) -> release lock -> write marker -> restart. With nothing to do and a clean tree, `--apply` still writes the marker.
+
+**Git handling:** `git mv -f` when CLAUDE.md is tracked; `mv -f` then `git add -- AGENTS.md` when CLAUDE.md is untracked/ignored and AGENTS.md is a tracked link; plain `mv` otherwise (`mv -n` for MIGRATE); `git rm --cached -f -q` then unlink for INVERSE/STUB/GEMINI-LINK when tracked. Never commits; never `git add -A`.
+
+**Lock:** `BASE_DIR/.claudemux-migrating/` (`mkdir` mutex; `pid`, `started`). Read, never consumed, by `autolaunch_dispatch`, `autorestore_walk`, `create_claude_session` and `launch_home_session` via `migration_lock_active`. `launch_single_session` does not check it: it is the wrapper's in-place relaunch entry. Stale = dead or missing pid, or older than 60 minutes; launchers WARN and continue, and a later `--apply` takes a stale lock over.
+
+**Manifest:** `~/.claude-mux/migrations/agents-md-<timestamp>.json`, written atomically before any change and rewritten after each operation (class, path, dest, repo root, method, link target, sha256, git state, status). A recovery log only: no `--undo`, no automatic rollback (decided).
+
+**Failure path:** a failed operation or failed verify prints a "TREE IS MIXED" block (completed and pending operations, manifest path), removes the marker, releases the lock, and exits 1. Re-running is idempotent (completed paths report DONE).
+
+**Marker and drift:** `BASE_DIR/.claudemux-agents-migrated` (date, file count, manifest) is a record, not a gate; every run rescans. `agents_md_drift_notice` (called from `on_prompt`) runs in the home session only, at most once a day (stamp `~/.claude-mux/tip-state/agents-drift`), when the marker exists, and names any CLAUDE.md / CLAUDE.local.md that reappeared (for example from `/init` or an old branch checkout).
+
+**Templates:** `apply_template` writes AGENTS.md when `agents_md_supported` and `agents_md_path_clear` (parent path) hold, else CLAUDE.md with the reason logged. `--save-template` reads AGENTS.md, else CLAUDE.md.
+
 ## Project Markers
 
 Per-project state lives in marker files at the project root, not in central config. This is a deliberate design choice: state follows the folder across renames, moves, and machine syncs; it's discoverable from `ls -la`; and one gitignore pattern covers all markers.
@@ -507,6 +536,8 @@ Per-project state lives in marker files at the project root, not in central conf
 | `.claudemux-protected` | Session is protected at launch. `--shutdown` requires `--force`. | `claude-mux --protect` or `claude-mux --install` (for `$BASE_DIR`) |
 | `.claudemux-ignore` | Project is hidden from `claude-mux -L` listings and `discover_projects()`. | `claude-mux --hide` |
 | `.claudemux-running` | Auto-restore intent: this session should be alive. The LaunchAgent tick restores it if its Claude process has died. Removed on a clean in-pane `/exit` (exit 0, no restart pending) or `--shutdown`. | `write_running_marker()` at session launch (skipped for the home session) |
+| `.claudemux-migrating/` | AGENTS.md migration lock (directory, at `BASE_DIR`): `pid` + `started`. Blocks launches while the owner is live and younger than 60 minutes. | `claude-mux --migrate-agents-md --apply` |
+| `.claudemux-agents-migrated` | Record that `BASE_DIR` was migrated (date, file count, manifest). Not a gate; arms the daily drift notice. | `claude-mux --migrate-agents-md --apply` |
 | `.claudemux-prompt` | Per-session system-prompt file passed via `--append-system-prompt-file`. In the project folder (stable, not `$TMPDIR`-reaped) so it survives and is regenerated across in-place restart relaunches. Mode 600; removed on final teardown. | `create_claude_session()` / `launch_single_session()` at launch; regenerated in-pane via `--print-system-prompt` |
 
 **Conventions:**
@@ -632,7 +663,7 @@ Removes all claude-mux traces from Claude Code settings:
 
 ### save_template_command(name, [dir])
 
-Copies `CLAUDE.md` from `dir` (default: current directory) to `~/.claude-mux/templates/<safe_name>.md`. Name transformation: lowercase + `tr -c '[:alnum:]' '-'`. Path traversal guard: verifies resolved template path stays inside `TEMPLATES_DIR`. Refuses if `CLAUDE.md` absent; refuses overwrite unless `--force`. Supports `--dry-run`.
+Copies `AGENTS.md` (else `CLAUDE.md`) from `dir` (default: current directory) to `~/.claude-mux/templates/<safe_name>.md`. Name transformation: lowercase + `tr -c '[:alnum:]' '-'`. Path traversal guard: verifies resolved template path stays inside `TEMPLATES_DIR`. Refuses if neither file is present; refuses overwrite unless `--force`. Supports `--dry-run`.
 
 ### rename_move_command(src, dst, mode)
 
@@ -805,6 +836,8 @@ When changing or removing existing behavior:
 3. **Removal**: drop the code, document under "Removed" in `CHANGELOG.md`. Keep a brief migration note.
 
 Example: `LAUNCHAGENT_MODE=batch` was deprecated in v1.4 and removed in v1.5. The legacy `LAUNCHAGENT_ENABLED=true` still works but maps to `home`.
+
+**Waiver (2.4.0):** `MULTI_CODER_FILES` and `--no-multi-coder` skip the "keep it functional" step. They are accepted no-ops with a once-only warning from the first release, because the symlinks they controlled are exactly what the AGENTS.md change removes. Consequence, accepted: Codex users in unmigrated trees no longer get an auto-created AGENTS.md link. Both are deleted in a later minor (with `config_help`, `commands_help`, `config.example`, README, GUIDE and CLI docs).
 
 Don't remove features without warning users first. Don't break someone's working setup without an upgrade path.
 

@@ -738,57 +738,6 @@ PYEOF
     return 10
 }
 
-# Create symlinks (e.g. AGENTS.md, GEMINI.md) pointing at CLAUDE.md so other
-# AI CLI coders pick up the same project instructions. Idempotent: skips
-# targets that already exist (real file or correct symlink). Silent if
-# CLAUDE.md is missing or MULTI_CODER_FILES is empty.
-setup_multi_coder_files() {
-    local dir="$1"
-
-    # Skip if --no-multi-coder was passed for this -n invocation
-    [[ "$NO_MULTI_CODER" == "true" ]] && return
-
-    # Skip if user disabled in config
-    [[ -z "$MULTI_CODER_FILES" ]] && return
-
-    # Skip if there's no canonical CLAUDE.md to link to
-    [[ ! -e "$dir/CLAUDE.md" ]] && return
-
-    local target
-    for target in $MULTI_CODER_FILES; do
-        local target_path="$dir/$target"
-
-        # Already a symlink pointing at CLAUDE.md — idempotent skip
-        if [[ -L "$target_path" ]]; then
-            local current_target
-            current_target=$(readlink "$target_path")
-            if [[ "$current_target" == "CLAUDE.md" ]]; then
-                continue
-            fi
-            # Wrong target or broken symlink — leave alone, don't surprise user
-            log "Skipping $target in $dir: existing symlink points elsewhere ($current_target)"
-            continue
-        fi
-
-        # Real file already exists — don't overwrite
-        if [[ -e "$target_path" ]]; then
-            continue
-        fi
-
-        # Create the symlink
-        if [[ "$DRY_RUN" == "true" ]]; then
-            log "Would create symlink $target → CLAUDE.md in $dir"
-            continue
-        fi
-
-        if (cd "$dir" && ln -s CLAUDE.md "$target") 2>/dev/null; then
-            log "Created $target → CLAUDE.md symlink in $dir"
-        else
-            log "WARN: Failed to create $target symlink in $dir"
-        fi
-    done
-}
-
 detect_github_ssh_accounts() {
     # Parses ~/.ssh/config for GitHub SSH host aliases (Host github.com-*)
     # and sets GITHUB_SSH_INFO to a prompt-ready string, or empty if none found.

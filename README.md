@@ -31,7 +31,7 @@ Remote Control promises Claude Code from anywhere - but without session manageme
 - **No home base** - nothing is running when you pick up your phone unless you left something open
 - **Remote Control requires a running session** - you can't start one from RC
 - **Slash commands don't work in RC sessions** - no model switching, compacting, or permission mode changes
-- **Starting new projects** - requires manually creating a directory, initializing git, writing a CLAUDE.md, and picking a model
+- **Starting new projects** - requires manually creating a directory, initializing git, writing an instructions file (AGENTS.md or CLAUDE.md), and picking a model
 - **No project management** - no way to see idle projects, or rename, move, and delete projects without breaking history
 
 **claude-mux fixes the session management gap.** It wraps Claude Code in tmux so sessions persist, automatically restores them after crashes and reboots (as long as you have auto-login enabled), injects a system prompt so Claude can manage its own sessions, and routes slash commands through tmux so they work over Remote Control. Once a session is running, you manage everything by talking to Claude - in the terminal or the mobile app.
@@ -42,13 +42,13 @@ Remote Control promises Claude Code from anywhere - but without session manageme
 - **Manage any session from any session** - start, stop, restart, list, and compact projects using natural language
 - **Access everything from anywhere** - every session has Remote Control enabled, so the Claude mobile app, desktop app, or any remote client is a full interface
 - **Switch models and permission modes** - say "switch to Haiku" or "switch to plan mode" and Claude handles it, even over Remote Control
-- **Create new projects** - "create a new project called my-app" sets up the directory, git, CLAUDE.md, and launches a session. CLAUDE.md templates let you reuse instructions across projects.
+- **Create new projects** - "create a new project called my-app" sets up the directory, git, an AGENTS.md from a template, and launches a session. Templates let you reuse instructions across projects.
 - **Send slash commands over Remote Control** - Claude routes `/model`, `/compact`, `/clear`, and other slash commands to the running session, working around a [known limitation](https://github.com/anthropics/claude-code/issues/30674). RC reconnects automatically after `/compact` via a `PreCompact` hook.
 - **Claude Code upgrade detection** - when the `claude` binary changes (after `brew upgrade` or an npm update), running sessions surface a notice to restart and load the new binary; it persists across prompts until you restart, so a missed turn can't lose it
 - **Preserve conversation history** - renaming, moving, and restarting projects all preserve conversation history automatically
 - **Organize projects** - hide, rename, move, delete, and protect projects from inside any session
 - **GitHub multi-account support** - detects SSH aliases in `~/.ssh/config` and injects them into sessions so Claude uses the right account per project
-- **Multi-CLI-coder support** - auto-creates `AGENTS.md` and `GEMINI.md` symlinks so Codex CLI, Gemini CLI, and others share instructions
+- **AGENTS.md as the project-instructions file** - `AGENTS.md` is the single real file, read by Claude Code and Codex CLI. Say "migrate to AGENTS.md" to convert an existing tree from `CLAUDE.md` (report first, nothing committed). Requires Claude Code 2.1.277 or later; older versions keep `CLAUDE.md`. Gemini CLI reads it only if `~/.gemini/settings.json` has `"context": {"fileName": ["AGENTS.md"]}`.
 - **Works in any language** - conversational commands are inferred from intent, not keywords
 
 ## Talking to Claude
@@ -117,7 +117,10 @@ Say: "rename this project to my-new-name"
 Stops the session, renames the folder, migrates conversation history, restarts
 
 Say: "save this as a template named web"
-Copies CLAUDE.md to ~/.claude-mux/templates/web.md
+Copies AGENTS.md (or CLAUDE.md) to ~/.claude-mux/templates/web.md
+
+Say: "check agents migration" / "migrate to AGENTS.md"
+Reports (read-only) which CLAUDE.md files can move to AGENTS.md; on confirmation renames them tree-wide and restarts the running sessions under the base directory
 
 Say: "tip"
 Prints a tip - same tip all day, or random if TIP_MODE=random is set

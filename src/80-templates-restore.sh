@@ -29,9 +29,11 @@ apply_template() {
     # Skip if --no-template
     [[ "$NO_TEMPLATE" == "true" ]] && return
 
-    # Skip if CLAUDE.md already exists
-    if [[ -f "$dir/CLAUDE.md" ]]; then
-        log "CLAUDE.md already exists in $dir, skipping template"
+    # Skip if an instructions file already exists (either name, case-insensitive)
+    local _existing
+    _existing="$(find "$dir" -maxdepth 1 \( -iname 'CLAUDE.md' -o -iname 'AGENTS.md' \) 2>/dev/null | head -1)"
+    if [[ -n "$_existing" ]]; then
+        log "$(basename "$_existing") already exists in $dir, skipping template"
         return
     fi
 
@@ -72,8 +74,19 @@ apply_template() {
         return
     fi
 
-    log "Applying template '$tpl_name' to $dir/CLAUDE.md"
-    [[ "$DRY_RUN" != "true" ]] && cp "$tpl_path" "$dir/CLAUDE.md"
+    # AGENTS.md when Claude Code supports the fallback and no CLAUDE.md in the
+    # parent walk-up would suppress it; otherwise CLAUDE.md, with the reason logged.
+    local _target="CLAUDE.md" _blocker
+    if ! agents_md_supported; then
+        log "Writing CLAUDE.md: Claude Code is missing, unparseable, or older than $MIN_AGENTS_MD_VERSION (no AGENTS.md fallback)"
+    elif ! _blocker="$(agents_md_path_clear "$(dirname "$dir")")"; then
+        log "Writing CLAUDE.md: $_blocker in the parent path would make Claude Code ignore AGENTS.md"
+    else
+        _target="AGENTS.md"
+    fi
+
+    log "Applying template '$tpl_name' to $dir/$_target"
+    [[ "$DRY_RUN" != "true" ]] && cp "$tpl_path" "$dir/$_target"
 }
 
 create_new_project() {
@@ -152,6 +165,10 @@ notify_home() {
 # Staggered so a reboot doesn't relaunch everything at once.
 autorestore_walk() {
     [[ "$AUTORESTORE" == "true" ]] || return 0   # nothing to act on
+    if migration_lock_active; then
+        log "Auto-restore: migration lock active, skipping this tick"
+        return 0
+    fi
 
     discover_projects
     local now; now=$(date +%s)
@@ -240,6 +257,11 @@ autorestore_walk() {
 # Autolaunch dispatches to the appropriate command based on LAUNCHAGENT_MODE.
 # This is invoked by the LaunchAgent plist at login.
 autolaunch_dispatch() {
+    # Migration lock: launch nothing (home included). Lock is not consumed.
+    if migration_lock_active; then
+        log "LaunchAgent autolaunch: migration lock active, not launching (home or otherwise)"
+        return 0
+    fi
     case "$LAUNCHAGENT_MODE" in
         none)
             log "LaunchAgent autolaunch: LAUNCHAGENT_MODE=none — exiting"

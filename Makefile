@@ -15,7 +15,7 @@
 MODULES = src/00-defaults.sh src/10-flags.sh src/20-config.sh \
           src/30-helpers.sh src/35-validate-deps.sh src/40-shutdown.sh \
           src/50-restore-state.sh src/55-session-launch.sh src/60-discovery.sh \
-          src/70-start-launch.sh src/75-tip-notices.sh src/80-templates-restore.sh \
+          src/65-agents-md-migration.sh src/70-start-launch.sh src/75-tip-notices.sh src/80-templates-restore.sh \
           src/90-dispatch.sh
 
 .PHONY: build check lint smoke install-hooks codemap features-index check-codemap check-features-index

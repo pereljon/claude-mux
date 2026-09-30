@@ -20,10 +20,9 @@ tip_of_day() {
         "Say \"hide this project\" to remove it from session listings. Useful for archived or inactive projects you don't want cluttering the list."
         "Say \"show this project\" or \"unprotect this session\" to reverse hiding or protection."
         "Say \"what mode is this session\" to check your current permission mode: bypassPermissions, acceptEdits, plan, or default."
-        "Every session gets \`AGENTS.md\` and \`GEMINI.md\` created as symlinks to \`CLAUDE.md\`. Codex CLI, Gemini CLI, and other AI coders pick up your project instructions automatically."
         "Trigger phrases work in any language. \"Cambia esta sesión a plan mode\" and \"このセッションをHaikuに切り替えて\" both work — Claude infers the intent."
         "Say \"help\" in any session to see all available conversational commands. Say \"list active sessions\" vs \"list all sessions\" for different levels of detail."
-        "Say \"start new session in ~/projects/new-thing\" with a template name to create a project with git init, permissions, and a CLAUDE.md from your template library."
+        "Say \"start new session in ~/projects/new-thing\" with a template name to create a project with git init, permissions, and an AGENTS.md from your template library."
         "Templates live in \`~/.claude-mux/templates/\`. Say \"list templates\" to see what's available, or \"save this as a template named NAME\" to add one."
         "Config lives in \`~/.claude-mux/config\`. Run \`claude-mux --config-help\` to see every option with its default value, type, and description."
         "Say \"show config\" from the home session to see your current settings. Say \"set BASE_DIR to ~/work\" to change a value."
@@ -45,6 +44,7 @@ tip_of_day() {
         "Say \"restart this session fresh\" or \"kill this session\" after installing a new MCP. The session restarts without resuming — new MCPs and config changes are picked up immediately."
         "claude-mux checks for new releases in the background and tells you right in the conversation when an update is available. Say \"update claude-mux\" when you see the notice."
         "Say \"start the api-server session\" to bring an idle project back online by name. Only brand-new projects need a path."
+        "Say \"check agents migration\" from the home session to see whether your projects can move from CLAUDE.md to AGENTS.md. It reports first and changes nothing until you confirm."
     )
 
     local num_tips=${#tips[@]}
@@ -128,6 +128,15 @@ print("1" if (obj.get("prompt", "") or "").strip() == "Ready?" else "0")' 2>/dev
     # the handshake check so a "Ready?" turn never consumes the one-shot notice.
     local _bin_notice
     _bin_notice=$(detect_claude_upgrade)
+
+    # AGENTS.md drift scan: home session only, once per day, only after a migration
+    # (agents_md_drift_notice gates itself; independent of the tip/update toggles).
+    local _drift_notice
+    _drift_notice=$(agents_md_drift_notice "$_state_dir" 2>/dev/null)
+    if [[ -n "$_drift_notice" ]]; then
+        [[ -n "$_bin_notice" ]] && _bin_notice="${_bin_notice}"$'\n'
+        _bin_notice="${_bin_notice}${_drift_notice}"
+    fi
 
     # Cheap guard: if both features are off there is nothing else to inject — flush
     # any upgrade notice and stop.
@@ -537,9 +546,10 @@ save_template_command() {
         return 1
     fi
 
-    local src_claude="$src_dir/CLAUDE.md"
+    local src_claude="$src_dir/AGENTS.md"
+    [[ -f "$src_claude" ]] || src_claude="$src_dir/CLAUDE.md"
     if [[ ! -f "$src_claude" ]]; then
-        echo "ERROR: No CLAUDE.md found in $src_dir" >&2
+        echo "ERROR: No AGENTS.md or CLAUDE.md found in $src_dir" >&2
         return 1
     fi
 

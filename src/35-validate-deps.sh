@@ -87,10 +87,10 @@ fi
 # hooks) need neither, so exempt them — otherwise `claude-mux --list-templates` (or
 # --tip / --enable-tips ...) would fail on a host without tmux or claude installed.
 # (--guide / --commands / --config-help exit during arg-parse, before this check, so
-# they need no entry here. --save-template is intentionally NOT exempt: its default
+# they need no entry here. migrate-agents-md guards its own tmux use. --save-template is intentionally NOT exempt: its default
 # form resolves the *current* session via tmux, so it genuinely needs tmux.)
 case "$COMMAND" in
-    list-templates|tip|enable-tips|disable-tips|install-hooks|update-check-bg)
+    list-templates|tip|enable-tips|disable-tips|install-hooks|update-check-bg|migrate-agents-md)
         : ;;  # no tmux/claude needed
     *)
         if [[ -z "$TMUX_BIN" || ! -x "$TMUX_BIN" ]]; then

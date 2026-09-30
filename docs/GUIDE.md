@@ -17,11 +17,11 @@ The home session is **protected** by default - `--shutdown home` refuses to stop
 | `BASE_DIR` | `$HOME/Claude` | Root directory to scan for Claude projects (directories containing `.claude/`) |
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set Claude's `permissions.defaultMode` in each project. Valid: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Set to `""` to disable. |
-| `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing CLAUDE.md template files |
+| `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing instructions-file template files (AGENTS.md when supported, else CLAUDE.md) |
 | `DEFAULT_TEMPLATE` | `default.md` | Default template applied to new projects (`-n`). Set to `""` to disable. |
 | `SLEEP_BETWEEN` | `5` | Seconds between session launches when `-a` is used. Increase if RC registration fails. |
 | `HOME_SESSION_MODEL` | `sonnet` | Model for the home session. Any model alias or ID `claude --model` accepts (e.g. `sonnet`, `haiku`, `opus`, or a full ID like `claude-opus-4-8`); passed through and validated by `claude` at launch. Empty inherits Claude's default. |
-| `MULTI_CODER_FILES` | `"AGENTS.md GEMINI.md"` | Space-separated list of files to create as symlinks to `CLAUDE.md` for other AI CLI tools. Set to `""` to disable. |
+| `MULTI_CODER_FILES` | `""` (deprecated) | Ignored since 2.4.0: claude-mux no longer creates `AGENTS.md`/`GEMINI.md` symlinks. A once-only warning is printed if it is still set; remove it from your config. `--no-multi-coder` is likewise a no-op. |
 | `LAUNCHAGENT_MODE` | `home` | LaunchAgent behavior at login: `none` (do nothing) or `home` (launch protected home session). Legacy `LAUNCHAGENT_ENABLED=true` is treated as `home`. |
 
 **Tmux session options** (all configurable, all enabled by default):
@@ -106,8 +106,8 @@ Under the hood, claude-mux handles:
 - **Persistent tmux sessions** with Remote Control enabled, so every session is accessible from the Claude mobile app
 - **Conversation resume** - resumes the last conversation (`claude -c`) when relaunching, preserving context
 - **System prompt injection** - each session gets commands for self-management, slash command routing, and SSH account awareness
-- **CLAUDE.md templates** - maintain template files (e.g. `web.md`, `python.md`) in `~/.claude-mux/templates/` and apply them to new projects
-- **Multi-CLI-coder support** - creates `AGENTS.md` and `GEMINI.md` as symlinks to `CLAUDE.md` so Codex CLI, Gemini CLI, and other tools share the same instructions
+- **Instructions-file templates** - maintain template files (e.g. `web.md`, `python.md`) in `~/.claude-mux/templates/` and apply them to new projects (written as `AGENTS.md` when Claude Code >= 2.1.277 and no `CLAUDE.md` sits in a parent directory, else `CLAUDE.md`)
+- **AGENTS.md as the canonical instructions file** - one real file for Claude Code and Codex CLI; `--migrate-agents-md` converts an existing tree (see "AGENTS.md migration")
 - **Auto-approved permissions** - adds claude-mux to each project's allow list so Claude can run session commands without prompting
 - **Stray process migration** - if Claude is already running outside tmux, migrates it into a managed session
 - **Tmux quality-of-life** - mouse support, 50k scrollback, clipboard, 256-color, extended keys, activity monitoring, tab titles
@@ -127,7 +127,8 @@ Reference lookups (run on demand if you need information not covered by trigger 
   claude-mux --guide          → conversational commands list (used for "help")
   claude-mux --commands       → full CLI reference
   claude-mux --config-help    → config options with defaults, types, descriptions
-  claude-mux --list-templates → available CLAUDE.md templates
+  claude-mux --list-templates → available project-instructions templates
+  claude-mux --migrate-agents-md → AGENTS.md migration report (read-only without --apply)
   claude-mux --tip            → print a tip (standalone; no daily gate)
 
 Rules:
@@ -141,6 +142,7 @@ Rules:
 - The 'home' session is the always-available session in the base directory. It is protected (shows 'protected' in status): --shutdown requires --force, but --restart bypasses protection. Protection is driven by the .claudemux-protected marker.
 - Disambiguate 'home': 'home session' means the claude-mux session named home; 'home folder' means ~/
 - Config and template edits (~/.claude-mux/config, ~/.claude-mux/templates/) are the home session's responsibility. If this session is named 'home', you may edit them directly; otherwise do not edit them - route the change to the home session (tell the user to make the change there).
+- (Only when the project uses AGENTS.md: supported Claude Code, no CLAUDE.md in the path, an AGENTS.md in the project or a parent) This project uses AGENTS.md for project instructions. Never create or edit a CLAUDE.md or CLAUDE.local.md: any CLAUDE.md in the directory path makes Claude Code ignore every AGENTS.md, including in parent directories.
 - When asked to shut down sessions, run the command directly - protected sessions are skipped automatically
 - Use claude-mux for ALL session management. Never use raw tmux, ls, or other shell commands for session management.
 - Don't guess at claude-mux flags. If you need information not in the trigger rules, run the relevant lookup.
@@ -168,6 +170,7 @@ Rules:
 - When user says: is this hidden / is this protected - check for .claudemux-ignore or .claudemux-protected
 - When user says: delete this project / delete PROJECT - confirm in chat first, then run claude-mux --delete SESSION --yes
 - When user says: list templates - run claude-mux --list-templates
+- When user says: check agents migration / migrate to AGENTS.md - run claude-mux --migrate-agents-md (no --apply) and show the report verbatim. Confirm with the user (files to migrate, running sessions to restart) before running claude-mux --migrate-agents-md --apply; add --no-restart if the user does not want sessions restarted.
 - When user says: enable tips / turn on tips - run claude-mux --enable-tips
 - When user says: disable tips / turn off tips - run claude-mux --disable-tips
 - These trigger phrases work in any language.
@@ -176,12 +179,13 @@ Additional capabilities (run claude-mux --commands for full syntax):
   - Attach interactively to a session (-t - user-only, never from inside a session)
   - Start a stopped session by name (--start SESSION - no-op if already running; --restart also starts a stopped session)
   - Start all sessions at once (-a)
-  - New project with a CLAUDE.md template (-n DIR --template NAME, -p for parent dirs)
+  - New project with an instructions-file template (-n DIR --template NAME, -p for parent dirs; writes AGENTS.md when supported, else CLAUDE.md)
   - Force-shutdown a protected session (--shutdown SESSION --force)
   - Hide/show projects (--hide / --show)
   - Protect/unprotect sessions (--protect / --unprotect)
   - Move a project to trash (--delete SESSION - macOS; honors protection unless --force)
   - Enable/disable tip-of-the-day hook (--enable-tips / --disable-tips)
+  - Migrate a project tree from CLAUDE.md to AGENTS.md (--migrate-agents-md [--apply] [--no-restart]; report only unless --apply)
   - Show all config options (--config-help)
   - Run interactive setup or reconfigure (--install)
   - Remove all hooks and permissions (--uninstall)
@@ -191,6 +195,26 @@ GitHub SSH accounts configured in ~/.ssh/config: <accounts>. For gh CLI operatio
 ```
 
 The home session receives additional context: its identity as the session orchestrator (session management and project orchestration, not project work; an operational session that acts without asking when intent is clear), plus self-management triggers for reading/editing config and templates. As of v2.1.0 this identity ships in the injection itself, so it does not need to live in an ancestor `CLAUDE.md` (where it would leak into every project session under the base directory). Config/template edit authority is the role-neutral rule above, injected into every session. The `-s` send command can target any managed session (used by the "compact/clear/switch the X session" triggers and home orchestration). The path is the absolute path to the script at launch time, so sessions don't depend on `PATH`.
+
+## AGENTS.md migration
+
+`AGENTS.md` is the canonical project-instructions file. Claude Code 2.1.277 and later reads it when no `CLAUDE.md` is present, and Codex CLI reads it natively, so claude-mux no longer creates `AGENTS.md`/`GEMINI.md` symlinks. Gemini CLI reads `AGENTS.md` only if `~/.gemini/settings.json` lists it (`"context": {"fileName": ["AGENTS.md"]}`); whether the upstream default has changed is unverified.
+
+The catch: Claude Code ignores every `AGENTS.md` if a `CLAUDE.md` or `CLAUDE.local.md` exists in the working directory or any ancestor (a symlink or an `@AGENTS.md` stub counts; `~/.claude/CLAUDE.md` does not). A half-migrated tree silently drops instructions, so migration is tree-wide.
+
+```
+claude-mux --migrate-agents-md                 # report only, changes nothing
+claude-mux --migrate-agents-md --apply         # migrate BASE_DIR, then restart running sessions under it
+claude-mux --migrate-agents-md --apply --no-restart
+```
+
+In a session, say "check agents migration" or "migrate to AGENTS.md"; Claude shows the report and confirms once before running `--apply`.
+
+**Report classes.** Actions: `DONE`, `MIGRATE` (rename CLAUDE.md), `LINK` and `IDENTICAL` (replace AGENTS.md with the file), `INVERSE` (CLAUDE.md symlink to AGENTS.md: removed), `STUB` (CLAUDE.md containing only `@AGENTS.md`: removed), `GEMINI-LINK` (GEMINI.md symlink: deleted; a real GEMINI.md is never touched). Blocking classes, each of which aborts `--apply` before anything changes: `CONFLICT` (both files exist, contents differ), `LOCAL` (`CLAUDE.local.md` suppresses AGENTS.md and has no equivalent), `ANOMALY` (`.claude/CLAUDE.md` or `.claude/AGENTS.md`), `EXT-LINK`, `BROKEN-LINK`, `NOT-A-FILE`, `CASE-VARIANT` (`claude.md`), `ABOVE` (a CLAUDE.md above `BASE_DIR`, out of reach: remove or merge it, or the tree keeps CLAUDE.md), `UNWRITABLE`, `LOCKED-INDEX` (a git `index.lock`), `DEST-EXISTS`. The report also lists running sessions, the Claude Code version gate (minimum 2.1.277; fails closed), and textual references to `CLAUDE.md` in the tree, which are listed and never edited.
+
+**What `--apply` does.** Takes the lock `BASE_DIR/.claudemux-migrating/`, rescans, writes a manifest to `~/.claude-mux/migrations/agents-md-<timestamp>.json`, applies the operations top-down (`git mv` for tracked files, `mv` otherwise), verifies that no `CLAUDE.md`/`CLAUDE.local.md` remains in any path, releases the lock, writes `BASE_DIR/.claudemux-agents-migrated`, and restarts running managed sessions under `BASE_DIR` (the calling session last, in place). It never commits: repos are left with uncommitted changes to review. There is no `--undo`; the manifest is a log for manual recovery.
+
+After a migration, once a day the home session tells you if a `CLAUDE.md` reappears (for example from `/init` or an old branch checkout).
 
 ## Tips
 
@@ -276,6 +300,14 @@ Running Sonnet 4.6 in auto mode.
 ```
 
 This confirms the session is alive and reports the active model and permission mode. The mode is passed from the launch command into the injection; the model is self-reported by Claude.
+
+### AGENTS.md migration problems
+
+- **"another migration holds ..." or launches refused with "migration in progress".** The lock `BASE_DIR/.claudemux-migrating/` is held by a running `--apply`. Wait for it. A lock whose pid is dead, or that is older than 60 minutes, is stale: launches and the restore tick ignore it (a WARN is logged), and the next `--apply` takes it over. To clear it by hand: `rm -rf "$BASE_DIR/.claudemux-migrating"`.
+- **"TREE IS MIXED".** An operation or the final verification failed partway. Some paths are migrated and some still hold a `CLAUDE.md`, so sessions under the latter ignore `AGENTS.md`. The block lists completed and pending paths and the manifest. Fix the cause named in the `FAILED:` line, then re-run `--migrate-agents-md --apply` (completed paths report `DONE`), or reverse the recorded operations by hand. There is no automatic rollback and the migrated marker is removed.
+- **`--apply` aborts with a blocking class.** Resolve the paths the report names: merge or delete a `CONFLICT` or `LOCAL` file, remove `.claude/CLAUDE.md`, rename a case variant, remove a stale `.git/index.lock`, and so on. A `CLAUDE.md` above `BASE_DIR` cannot be migrated by claude-mux.
+- **"the tree changed between the scan and the lock".** Something edited a `CLAUDE.md`/`AGENTS.md` after the report. Nothing was changed; re-run to see the current plan.
+- **Version gate.** Claude Code below 2.1.277, or an unparseable `claude --version`, blocks the migration and keeps `CLAUDE.md` canonical.
 
 ### Slash commands over Remote Control
 

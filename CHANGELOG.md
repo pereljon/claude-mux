@@ -4,6 +4,24 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.4.0] - Unreleased
+
+### Added
+- **`claude-mux --migrate-agents-md [--apply] [--no-restart]`: migrate a project tree from `CLAUDE.md` to `AGENTS.md`.** Claude Code 2.1.277 reads `AGENTS.md` when no `CLAUDE.md` exists, but a `CLAUDE.md` or `CLAUDE.local.md` anywhere in the working directory or its ancestors makes it ignore every `AGENTS.md`, so a half-migrated tree silently drops instructions. The command scans all of `BASE_DIR` (and the ancestors above it) and prints a read-only report by default: per-directory classes (DONE, MIGRATE, LINK, IDENTICAL, INVERSE, STUB, GEMINI-LINK), abort classes (CONFLICT, LOCAL, ANOMALY, EXT-LINK, BROKEN-LINK, NOT-A-FILE, CASE-VARIANT, ABOVE, UNWRITABLE, LOCKED-INDEX, DEST-EXISTS), running sessions, the version gate (minimum Claude Code 2.1.277, fails closed) and textual `CLAUDE.md` references (listed, never edited). `--apply` runs preflight, takes a `BASE_DIR/.claudemux-migrating/` lock (launches, the restore tick and the LaunchAgent home launch back off while it is live), rescans under the lock, writes a manifest to `~/.claude-mux/migrations/`, renames top-down (`git mv` for tracked files, never commits), verifies no `CLAUDE.md`/`CLAUDE.local.md` remains in any walk-up path, writes `.claudemux-agents-migrated`, then restarts running managed sessions under `BASE_DIR` unless `--no-restart`. A failure prints a "TREE IS MIXED" block and leaves the manifest; there is no `--undo`. `--apply` and `--no-restart` are valid only with this command; `--dry-run` stays report-only. Say "check agents migration" or "migrate to AGENTS.md" in the home session. Design + test plan: `dev/features/agents-md-canonical.md`.
+- **Daily drift notice.** After a migration, the home session tells you once a day if a `CLAUDE.md` or `CLAUDE.local.md` has reappeared (for example from `/init` or an old branch checkout).
+- **Tip for the migration.** Added to the tip-of-the-day list.
+
+### Changed
+- **New projects and templates use `AGENTS.md` when supported.** `apply_template` writes `AGENTS.md` when Claude Code is 2.1.277 or later and no `CLAUDE.md`/`CLAUDE.local.md` exists in a parent directory, otherwise `CLAUDE.md` (reason logged). `--save-template` reads `AGENTS.md` first, then `CLAUDE.md`. Help text says "instructions file" instead of "CLAUDE.md template".
+- **Injection: new rule for AGENTS.md trees.** Sessions whose project uses `AGENTS.md` (supported Claude Code, no `CLAUDE.md` in the path, an `AGENTS.md` in the project or a parent) are told never to create or edit a `CLAUDE.md`/`CLAUDE.local.md`. Other sessions do not carry the line. `--migrate-agents-md` is added to the feature list, trigger rules and lookups. `build_system_prompt` takes an optional third argument (the project dir). Takes effect per session after restart.
+- **`--restart` restart-all logic extracted into `restart_sessions_in`** (shared with `--migrate-agents-md --apply`). It records failed sessions and prints `WARN: failed to restart: ...` before the calling session's in-place step. `--restart`'s output and exit code are unchanged.
+
+### Deprecated
+- **`MULTI_CODER_FILES` and `--no-multi-coder`.** Both are accepted no-ops that print a one-time warning (stamp `~/.claude-mux/.deprecated-multi-coder-warned`; not shown for hook or background commands). The usual keep-it-functional period is waived because the symlinks are what this release removes. Removal in a later minor. The `--no-multi-coder`-requires-`-n` validation is dropped.
+
+### Removed
+- **claude-mux no longer creates `AGENTS.md`/`GEMINI.md` symlinks to `CLAUDE.md`** (`setup_multi_coder_files` deleted). `--migrate-agents-md` deletes existing such symlinks; a real `GEMINI.md` is never touched. Codex CLI reads `AGENTS.md` natively. Gemini CLI needs `"context": {"fileName": ["AGENTS.md"]}` in `~/.gemini/settings.json` (unverified whether the upstream default has changed). Codex users in unmigrated trees no longer get an auto-created `AGENTS.md` link.
+
 ## [2.3.1] - 2026-09-04
 
 ### Fixed

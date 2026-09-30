@@ -43,9 +43,9 @@ Three options, depending on what you want:
 
 ## What are templates?
 
-Templates are reusable CLAUDE.md files stored in `~/.claude-mux/templates/`. When you create a new project with `-n`, the default template (or one you specify with `--template NAME`) is copied to the project as its CLAUDE.md.
+Templates are reusable project-instructions files (written as AGENTS.md when supported, else CLAUDE.md) stored in `~/.claude-mux/templates/`. When you create a new project with `-n`, the default template (or one you specify with `--template NAME`) is copied to the project as its AGENTS.md (or CLAUDE.md when Claude Code is older than 2.1.277 or a CLAUDE.md exists in a parent directory).
 
-Create a template: "save this as a template named web" (copies the current project's CLAUDE.md to `~/.claude-mux/templates/web.md`).
+Create a template: "save this as a template named web" (copies the current project's AGENTS.md or CLAUDE.md to `~/.claude-mux/templates/web.md`).
 
 Use a template: `claude-mux -n ~/projects/my-app --template web` or from inside a session: "create a new project called my-app using the web template".
 
@@ -86,7 +86,7 @@ Claude will then know to use `git@github.com-work:org/repo.git` for work repos a
 | Location | What lives there |
 |----------|-----------------|
 | `~/.claude-mux/config` | User configuration (sourced as bash) |
-| `~/.claude-mux/templates/` | CLAUDE.md template files |
+| `~/.claude-mux/templates/` | Instructions-file template files |
 | `~/.claude-mux/tip-state/tip.json` | Global daily tip date (home session), v2.0.15+ |
 | `~/.claude-mux/.update-check` | Cached version check result |
 | `~/.claude-mux/.update-checking` | In-flight lock for the background update check |

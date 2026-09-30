@@ -121,7 +121,7 @@ launch_single_session() {
 
     # Build system prompt — home session always uses auto mode
     local tmux_prompt
-    tmux_prompt="$(build_system_prompt "$LAUNCH_SESSION_NAME" "auto")"
+    tmux_prompt="$(build_system_prompt "$LAUNCH_SESSION_NAME" "auto" "$LAUNCH_DIR")"
 
     # Create tmux session that runs Claude directly (no send-keys)
     log "Creating tmux session '$LAUNCH_SESSION_NAME' in $LAUNCH_DIR"

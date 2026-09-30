@@ -100,12 +100,103 @@ restart_caller_in_place() {
     "$TMUX_BIN" send-keys -t "$session" -l "/exit" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session" Enter 2>/dev/null
 }
 
+# Restart a list of running sessions. Args: $1 = newline-separated "name|dir"
+# pairs (already computed by the caller; empty lines ignored), $2 = reason text
+# for the banner ("Restarting N session(s) <reason>. ..."). Honors DRY_RUN and
+# FRESH_START. Non-caller sessions are shut down and recreated one by one, each
+# wrapped in .claudemux-restarting; the calling session (if in the list) is
+# restarted LAST, in place. Output: RESTART_FAILED_SESSIONS (global, newline-
+# separated names whose create_claude_session or in-place restart failed; reset
+# on every call); non-caller failures are also printed as a WARN line just before the
+# caller's in-place step (output after it is lost). Returns 0 if none failed, 1 otherwise.
+restart_sessions_in() {
+    local _list="$1" _reason="${2:-}"
+    local _name _dir _count _caller_session _other_list _caller_entry _caller_name _caller_dir
+    RESTART_FAILED_SESSIONS=""
+    _count=$(echo "$_list" | grep -c '|')
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        while IFS='|' read -r _name _dir; do
+            [[ -z "$_name" ]] && continue
+            log "Would restart session '$_name' in $_dir${FRESH_START:+ (fresh start)}"
+        done <<< "$_list"
+        return 0
+    fi
+
+    echo "Restarting $_count session(s) $_reason. RC will need to reconnect in ~10s."
+
+    # If running inside a session that's in the restart list,
+    # separate it out. We can't kill-session on the caller because
+    # this script is running in that pane (SIGHUP would kill us).
+    _caller_session=""
+    if [[ -n "${TMUX:-}" ]]; then
+        _caller_session=$("$TMUX_BIN" display-message -p '#{session_name}' 2>/dev/null) || _caller_session=""
+    fi
+    _other_list=""
+    _caller_entry=""
+    while IFS='|' read -r _name _dir; do
+        [[ -z "$_name" ]] && continue
+        if [[ "$_name" == "$_caller_session" ]]; then
+            _caller_entry="${_name}|${_dir}"
+        else
+            _other_list="${_other_list}${_name}|${_dir}
+"
+        fi
+    done <<< "$_list"
+
+    # Shut down and recreate non-caller sessions individually.
+    # CRITICAL: must NOT call shutdown_claude_sessions here - it walks
+    # every managed session including the caller, whose /exit SIGHUPs
+    # this script mid-loop and strands the rest. The partition above
+    # split the caller out for exactly this reason; honor it.
+    detect_github_ssh_accounts
+    while IFS='|' read -r _name _dir; do
+        [[ -z "$_name" ]] && continue
+        log "Restarting session '$_name' in $_dir"
+        restore_state_clear "$_name"   # user restart un-trips crash-loop history
+        # Restart marker: defer auto-restore for one tick. preserve_marker
+        # keeps .claudemux-running so a crash mid-restart is recoverable.
+        mkdir "$_dir/.claudemux-restarting" 2>/dev/null
+        # force=true: restart-all recycles protected non-callers too
+        # (protection guards --shutdown accidents, not --restart).
+        shutdown_single_session "$_name" true true   # force, preserve_marker
+        create_claude_session "$_name" "$_dir" "" "$FRESH_START" \
+            || RESTART_FAILED_SESSIONS="${RESTART_FAILED_SESSIONS}${_name}
+"
+        rmdir "$_dir/.claudemux-restarting" 2>/dev/null
+    done <<< "$_other_list"
+
+    # Restart the caller LAST, IN PLACE. We can't kill the caller's pane
+    # (this script runs in it; the SIGHUP would kill us before recreate,
+    # which stranded home and forked its conversation). restart_caller_in_place
+    # sets @claude-mux-restart + sends /exit; the looped wrapper relaunches
+    # claude in the same pane and handshakes. See dev/features/restart-in-place.md.
+    if [[ -n "$_caller_entry" ]]; then
+        # Output after the caller's /exit is lost (this script runs in that pane):
+        # report the non-caller failures first.
+        if [[ -n "$RESTART_FAILED_SESSIONS" ]]; then
+            echo "WARN: failed to restart: $(printf '%s' "$RESTART_FAILED_SESSIONS" | tr '\n' ' ' | sed 's/ *$//')"
+        fi
+        IFS='|' read -r _caller_name _caller_dir <<< "$_caller_entry"
+        restart_caller_in_place "$_caller_name" "$FRESH_START" \
+            || RESTART_FAILED_SESSIONS="${RESTART_FAILED_SESSIONS}${_caller_name}
+"
+    fi
+
+    [[ -z "$RESTART_FAILED_SESSIONS" ]]
+}
+
 # Launch the home session via the proper path. Home is special: its model flag
 # (HOME_SESSION_MODEL) is only assembled inside launch_single_session under
 # HOME_LAUNCH, so home must NOT be started via create_claude_session (which would
 # drop the model). Callers that want a non-attaching start set NO_ATTACH=true first
 # (the -d $BASE_DIR path leaves NO_ATTACH unset so an interactive run still attaches).
 launch_home_session() {
+    if migration_lock_active; then
+        log "Home launch refused: migration lock active"
+        echo "ERROR: migration in progress ($BASE_DIR/.claudemux-migrating); not launching home. Retry when it finishes." >&2
+        return 1
+    fi
     LAUNCH_DIR="$BASE_DIR"
     HOME_LAUNCH=true
     LAUNCH_SESSION_NAME="home"
@@ -118,11 +209,12 @@ create_claude_session() {
     local mode_override="${3:-}"   # optional: permission mode override
     local fresh_start="${4:-false}" # optional: skip -c to start new conversation instead of resuming
 
-    # Create multi-coder symlinks (AGENTS.md, GEMINI.md → CLAUDE.md) so other
-    # AI CLI tools see the same project instructions. Idempotent and silent
-    # when not applicable. Runs before session creation so a restart picks up
-    # missing symlinks too.
-    setup_multi_coder_files "$working_dir"
+    # Migration lock: refuse to (re)launch while an AGENTS.md migration runs.
+    if migration_lock_active; then
+        log "Launch of '$session_name' refused: migration lock active"
+        echo "ERROR: migration in progress ($BASE_DIR/.claudemux-migrating); not launching '$session_name'. Retry when it finishes." >&2
+        return 1
+    fi
 
     if "$TMUX_BIN" has-session -t "$session_name" 2>/dev/null; then
         # Collision guard: refuse to touch sessions not created by claude-mux.
@@ -166,7 +258,7 @@ create_claude_session() {
 
     # Build system prompt — pass permission mode so Claude reports it in the ready response
     local tmux_prompt
-    tmux_prompt="$(build_system_prompt "$session_name" "${mode_override:-auto}")"
+    tmux_prompt="$(build_system_prompt "$session_name" "${mode_override:-auto}" "$working_dir")"
 
     # Build permission mode flags for the launch command.
     # perm_flag_name and perm_flag_value are interpolated into the generated script below.

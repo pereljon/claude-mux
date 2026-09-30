@@ -69,12 +69,11 @@
 #TMUX_BIN="/path/to/tmux"
 #CLAUDE_BIN="/path/to/claude"
 
-# ── Multi-CLI-coder integration ────────────────────────────────────────────────
+# ── Multi-CLI-coder integration (DEPRECATED) ─────────────────────────────────
 
-# Files created as symlinks pointing at CLAUDE.md so other AI CLI coders
-# (Codex CLI reads AGENTS.md, Gemini CLI reads GEMINI.md, etc.) pick up
-# the same project instructions. Set to empty string "" to disable.
-# Default: "AGENTS.md GEMINI.md"
+# MULTI_CODER_FILES is deprecated and ignored: claude-mux no longer creates
+# AGENTS.md/GEMINI.md symlinks. Remove it from your config; the
+# --no-multi-coder flag is likewise a no-op.
 #MULTI_CODER_FILES="AGENTS.md GEMINI.md"
 
 # ── LaunchAgent ───────────────────────────────────────────────────────────────

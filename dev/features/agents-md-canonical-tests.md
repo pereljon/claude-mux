@@ -31,8 +31,10 @@ against `~/Claude`.
 ## 2. Classification (one directory per class in a scratch tree)
 Build one dir each for DONE, MIGRATE, LINK, IDENTICAL, CONFLICT, INVERSE, STUB, GEMINI-LINK,
 LOCAL, ANOMALY (`.claude/CLAUDE.md` and `.claude/AGENTS.md`), EXT-LINK (symlink to another
-target), BROKEN-LINK, NOT-A-FILE (directory named CLAUDE.md), CASE-VARIANT (`claude.md`), and
-ABOVE (a CLAUDE.md in an ancestor of the scratch `BASE_DIR`). The report must label each
+target), BROKEN-LINK, NOT-A-FILE (directory named CLAUDE.md), CASE-VARIANT (`claude.md`),
+ABOVE (a CLAUDE.md in an ancestor of the scratch `BASE_DIR`), UNWRITABLE (a MIGRATE dir with
+mode 555), LOCKED-INDEX (`.git/index.lock` in a repo with a `git mv` operation), and
+DEST-EXISTS (a MIGRATE directory whose AGENTS.md appears between report and apply). The report must label each
 correctly and change nothing.
 - LINK requires the symlink target to be exactly `CLAUDE.md`; a link to anything else is EXT-LINK.
 - Every abort-class case makes `--apply` abort before the first change; the report names the path.
@@ -58,8 +60,18 @@ correctly and change nothing.
 - INVERSE: symlink removed, then AGENTS.md loads (`claude -p` marker check).
 - STUB: removed, AGENTS.md loads. GEMINI-LINK: deleted. A real GEMINI.md is untouched.
 - Nested repo, submodule, and a directory inside a parent repo: correct repo root used per file.
-- Locked index (`.git/index.lock`): partial failure recorded in the manifest, run stops.
-- Paths with spaces and unusual characters: manifest JSON quoting and encoding are correct.
+- Mixed-tree preflight: a tree with one MIGRATE dir and one abort-class dir (any of the 11
+  abort classes, including LOCKED-INDEX and DEST-EXISTS): `--apply` aborts before the first
+  change and the MIGRATE dir is untouched (`diff -r` against a saved copy).
+- Locked index appearing after the preflight (`touch .git/index.lock` after the scan): the op
+  fails, the manifest records it, the run stops with the MIXED block.
+- Paths with spaces, tabs, newlines, quotes and backslashes in directory names: the NUL-delimited
+  scan classifies them, the manifest JSON parses (`python3 -m json.tool`), and the report names them.
+- TOCTOU: (a) change a CLAUDE.md or create an AGENTS.md between the report and the lock (slow the
+  report with a large tree, or a PATH shim for `tmux`): `--apply` aborts "the tree changed between
+  the scan and the lock", nothing changed, lock released. (b) Create AGENTS.md after the lock
+  and before that directory's op: the per-op revalidation fails the op (MIGRATE never
+  overwrites; `mv -n` backstop), MIXED block printed.
 - A symlinked directory inside the tree: `find` does not follow it.
 - Post-condition: no CLAUDE.md or CLAUDE.local.md remains in any scanned walk-up path.
 - Real behavior: `claude -p` in a migrated project reports the AGENTS.md marker and the
@@ -71,7 +83,12 @@ correctly and change nothing.
   during the manifest write; the manifest is never half-written). Each op records class, path,
   repo root, method, original symlink target, and sha256 of any removed file.
 - Simulate a failure on op N (read-only file): run stops, completed ops recorded, lock
-  released; reversing them by hand restores the original tree byte for byte (`diff -r`).
+  released; the "TREE IS MIXED" block lists completed and pending paths and the manifest path;
+  the migrated marker is removed if it existed; exit code 1. Reversing the ops by hand restores
+  the original tree byte for byte (`diff -r`). A re-run after fixing the cause is idempotent.
+- Verify failure (recreate a CLAUDE.md after the last op, for example via a stubbed hook): MIXED
+  block with "Still present after verify", marker not written, manifest `failed: verify`.
+- INT/TERM/HUP during apply: manifest status `interrupted`, lock released, exit 130.
 - Lock: contains pid and timestamp. Honored by `autolaunch_dispatch` (home is NOT launched
   while held), `autorestore_walk`, and manual `--start` / `-n` via `create_claude_session`.
   Not consumed on sight.
@@ -104,12 +121,18 @@ correctly and change nothing.
 ## 6. Marker and drift
 - Marker `BASE_DIR/.claudemux-agents-migrated` is written after verify, before restarts;
   contains date, count, manifest path; auto-gitignored when BASE_DIR is a repo.
+- `--apply` on an already-migrated clean tree (nothing to do, no abort class): writes the marker
+  (`files: 0`), prints "Nothing to migrate", exit 0.
 - Delete the marker: rescan reports nothing to do, no error.
 - Create a CLAUDE.md in a migrated project (simulating `/init`), and reintroduce one via a
   branch checkout: the home drift scan names the path; the marker's presence does not suppress it.
-- The drift scan runs at most once per day, only in the home session; non-home sessions skip
-  it. It never runs on the per-prompt path. Its cost is
-  measured on a large tree (open item 1).
+- The drift scan (`agents_md_drift_notice`, from `on_prompt`) runs only when the marker exists,
+  at most once per day (stamp `~/.claude-mux/tip-state/agents-drift`, written before the scan),
+  and only in the session named `home`; non-home sessions and the `Ready?` handshake turn skip
+  it. It prints an `<assistant-must-display>` notice naming up to 5 paths. Independent of
+  `TIP_OF_DAY`/`UPDATE_CHECK`. A second prompt the same day prints nothing.
+- Drift-scan cost on a large tree (`~/Claude` copy): time one `am_verify_walkup` `find`; not yet
+  measured.
 
 ## 7. New projects, templates, injection
 - Version gate passes, clean path: `apply_template` writes AGENTS.md.

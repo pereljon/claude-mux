@@ -1,9 +1,9 @@
 ---
 kind: feature
-lifecycle: ready
+lifecycle: building
 feature: agents-md-canonical
-status: READY 2026-09-30. Architect-reviewed twice: pass 1 APPROVE-WITH-CHANGES (C1-C4, I1-I9), pass 2 APPROVE-WITH-CHANGES (N1, N2, I-a to I-e, minors); all folded in, git sequences verified in scratch repos. Fallback semantics verified on Claude Code 2.1.285. Not yet built. Jonathan will rename his own ~/Claude tree by hand first.
-target_version: TBD (minor). Behavior change plus a deprecation (MULTI_CODER_FILES), so a worktree is warranted.
+status: BUILDING 2026-09-30, version 2.4.0 (uncommitted in worktree agents-md-canonical). Architect-reviewed twice before build (pass 1 C1-C4, I1-I9; pass 2 N1, N2, I-a to I-e); code written and reviewed, review fixes applied (LOCKED-INDEX, DEST-EXISTS, post-lock rescan, per-op revalidation, MIXED block, drift scan). Docs pass done; manual tests (agents-md-canonical-tests.md) pending. Fallback semantics verified on Claude Code 2.1.285. Jonathan will rename his own ~/Claude tree by hand first.
+target_version: 2.4.0 (minor). Behavior change plus a deprecation (MULTI_CODER_FILES), so a worktree is warranted.
 severity: N/A (enhancement); a wrong migration silently drops project instructions
 related: cross-cli-coders, external-prompt-routing
 ---
@@ -113,8 +113,10 @@ after the rename. References are listed, never edited.
 
 ### D4. Preflight (any failure aborts before the first change)
 Version below minimum; any CONFLICT, LOCAL, ANOMALY, EXT-LINK, BROKEN-LINK, NOT-A-FILE,
-CASE-VARIANT or ABOVE (a surviving CLAUDE.md leaves the path half-migrated); unwritable path;
-migration lock held by a live process. A mixed tree is never produced: if the plan cannot
+CASE-VARIANT or ABOVE (a surviving CLAUDE.md leaves the path half-migrated); UNWRITABLE
+(an actionable directory is not writable); LOCKED-INDEX (a git `index.lock` present in a repo
+that a git-based operation touches); DEST-EXISTS (a MIGRATE destination AGENTS.md already
+exists); migration lock held by a live process. A mixed tree is never produced: if the plan cannot
 complete, nothing is applied.
 
 ### D5. Apply
@@ -129,13 +131,20 @@ complete, nothing is applied.
    `launch_home_session`), at the top of `autorestore_walk`, and by `create_claude_session`
    (manual `--start`, `-n`). It is not consumed on sight (unlike `.claudemux-restarting`).
    Call `ensure_gitignore_entry()` for it before creating it when BASE_DIR is a repo.
+1b. **Post-lock rescan:** the report steps (grep, tmux) are slow, so after taking the lock the
+   tree is rescanned and a plan signature (class, path, dest, link target, method, content hash
+   per record) is compared with the one the report showed. Any difference aborts before the
+   first change and releases the lock.
 2. **Manifest:** write `~/.claude-mux/migrations/agents-md-<timestamp>.json` atomically (temp
    file then `mv`) with every planned operation **before** any change. Per operation: class,
    path, repo root, method (`git mv` or `mv`), original symlink target (LINK, GEMINI-LINK),
    sha256 of any removed AGENTS.md or stub, and git state per file (tracked, ignored, staged or
    unstaged edits present). Update each operation's status after it completes.
    It is a log for diagnosis and manual recovery; there is no `--undo` (decided 2026-09-30).
-3. **Operations, top-down:**
+3. **Operations, top-down**, each **revalidated immediately before it runs** (MIGRATE: the
+   destination is still absent, and `mv -n` is the backstop; IDENTICAL: still `cmp`-equal and
+   no links; LINK: still a link to `CLAUDE.md`) and post-checked (source gone, AGENTS.md a
+   regular file with the recorded sha256):
    - "Tracked" means `git -C <dir> ls-files --error-unmatch <file>` succeeds; the repo root is
      `git -C <dir> rev-parse --show-toplevel` (handles nested repos and submodules).
    - Sequence is chosen per file from `ls-files --error-unmatch` (tested in scratch repos):
@@ -156,9 +165,13 @@ complete, nothing is applied.
    Re-run the same walk-up check immediately before the restarts (a live session running
    `/init` after verify could recreate one); the drift scan (D7) is the backstop.
 5. **Release the lock and write the marker (D7)** after verify, before any restart.
-6. **On failure:** stop, release the lock, leave the manifest showing what completed. Recovery
-   is manual: reverse the recorded operations (`git mv` back or `git checkout` for tracked
-   files, `mv` back and recreate the link from the recorded target for the rest).
+6. **On failure** (a failed operation or a failed verify): stop, release the lock, mark the
+   manifest `failed`, **remove the migrated marker**, and print a "TREE IS MIXED" block: which
+   paths completed, which are pending or failed, the paths still holding a CLAUDE.md after
+   verify, and the manifest path. A re-run is idempotent (completed paths report DONE).
+   Otherwise recovery is manual: reverse the recorded operations (`git mv` back or `git
+   checkout` for tracked files, `mv` back and recreate the link from the recorded target for
+   the rest). INT/TERM/HUP during apply marks the manifest `interrupted` and releases the lock.
 
 ### D6. Restart
 Running sessions loaded their instructions at process start, so after a migration they are
@@ -197,9 +210,12 @@ record, not a gate.** Every run rescans the tree. Both new markers
 (`.claudemux-agents-migrated`, `.claudemux-migrating/`) go in the CODEMAP Marker File Registry.
 
 `/init` writes a CLAUDE.md, and a merge or checkout of an older branch or worktree can bring
-one back, so a CLAUDE.md can reappear while the marker still says "migrated". The drift scan runs in the
-home session only (never in other sessions' `--on-prompt`), from its existing daily gate (same place as the tip gate, with its own state
-stamp under `~/.claude-mux/`), never per prompt, and names any reappeared path.
+one back, so a CLAUDE.md can reappear while the marker still says "migrated". The drift scan (`agents_md_drift_notice`,
+implemented) runs in the home session only (never in other sessions' `--on-prompt`), at most
+once a day (its own stamp `~/.claude-mux/tip-state/agents-drift`), and only when the marker
+exists; cost is a marker test, a date stamp check, the tmux home check, then one pruned `find`.
+It names any reappeared path. `--apply` with nothing to do on a clean tree also writes the
+marker ("already migrated", for example renamed by hand).
 
 ### D8. New-project and template behavior
 - `apply_template` (`src/80-templates-restore.sh:26-76`, hardcodes `CLAUDE.md` at 33 and 75-76)
@@ -239,7 +255,7 @@ Codex reads AGENTS.md natively. Gemini CLI reads it only if `context.fileName` i
 - `src/75-tip-notices.sh` (`--save-template`, tip text, drift notice)
 - `src/80-templates-restore.sh` (`apply_template`; lock check in `autolaunch_dispatch` and `autorestore_walk`)
 - `src/90-dispatch.sh` (dispatch case; extract `restart_sessions_in`)
-- New module for scan/migrate (placement TBD). `src/70-start-launch.sh` changes only if the lock check is needed in `launch_single_session`.
+- New module `src/65-agents-md-migration.sh` (between `60-discovery` and `70-start-launch` in the Makefile). `src/70-start-launch.sh` changes only the `build_system_prompt` call (project dir arg): `launch_single_session` deliberately does not check the lock, because it is the wrapper's in-place relaunch entry; the lock is honored one level up in `launch_home_session` and `autolaunch_dispatch`.
 - Docs: `config.example`, README + translations (batched at release), `docs/CLI.md`,
   `docs/GUIDE.md`, `docs/ISSUES.md`, `dev/IMPLEMENTATION-SPEC.md` (settings table, deprecation
   note, function docs), `dev/CODEMAP.md` (+ `make codemap`, Marker File Registry),
@@ -262,11 +278,8 @@ Codex reads AGENTS.md natively. Gemini CLI reads it only if `context.fileName` i
 5. **Multi-coder links:** stop creating them; delete when found (D9). Deprecation-policy grace period waived for `MULTI_CODER_FILES` and `--no-multi-coder`.
 
 ## Remaining open items
-1. **Drift scan.** A daily `find` over `BASE_DIR` in the home session. Cost on a large tree
-   is unmeasured; measure on ~/Claude before choosing the cadence.
-2. **Open-source impact.** Renaming this repo's own CLAUDE.md breaks contributors on Claude
+1. **Open-source impact.** Renaming this repo's own CLAUDE.md breaks contributors on Claude
    Code older than 2.1.277. README must state the minimum version.
-3. **Target version and module placement** for the scan/migrate code.
 
 ## Not doing
 - Auto-committing anything in any repo.
