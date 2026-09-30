@@ -12,6 +12,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
+| `agents-md-canonical` | ready | TBD (minor). Behavior change plus a deprecation (MULTI_CO... | READY 2026-09-30. Architect-reviewed twice: pass 1 APPROVE-WITH-CHANGES (C1-C4, I1-I9),... | N/A (enhancement); a wrong migration silently drops project instructions | [agents-md-canonical.md](agents-md-canonical.md) |
 | `session-identity-reply` | ready | 2.4.0 (minor) — enriches the ready handshake + adds a new... | READY 2026-08-17. Architect-reviewed twice; second pass APPROVE-WITH-CHANGES, all chang... | N/A (enhancement) — orientation-on-reconnect UX; the current handshake gives no session... | [session-identity-reply.md](session-identity-reply.md) |
 
 ## designing
