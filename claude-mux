@@ -4112,7 +4112,7 @@ am_print_report() {
     if [[ $n_act -gt 0 ]]; then
         echo "Textual references to CLAUDE.md in the tree (listed, never edited; they break silently after the rename):"
         local refs cnt=0
-        refs=$(grep -rIl -i -e 'CLAUDE\.md' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=worktrees "$AM_BASE" 2>/dev/null | LC_ALL=C sort)
+        refs=$(grep -rIl -i -e 'CLAUDE\.md' --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=worktrees --exclude=.claudemux-prompt "$AM_BASE" 2>/dev/null | LC_ALL=C sort)
         if [[ -z "$refs" ]]; then echo "  none"; else
             while IFS= read -r r; do
                 cnt=$((cnt + 1))
