@@ -118,7 +118,7 @@ restart_sessions_in() {
     if [[ "$DRY_RUN" == "true" ]]; then
         while IFS='|' read -r _name _dir; do
             [[ -z "$_name" ]] && continue
-            log "Would restart session '$_name' in $_dir${FRESH_START:+ (fresh start)}"
+            log "Would restart session '$_name' in $_dir$([[ "$FRESH_START" == "true" ]] && echo " (fresh start)")"
         done <<< "$_list"
         return 0
     fi

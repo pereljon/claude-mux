@@ -51,6 +51,7 @@ correctly and change nothing.
   and no half-staged tree. `git add -A -- CLAUDE.md AGENTS.md` is never used.
 - Tracked stub/link with staged modifications that differ from both HEAD and the worktree:
   `git rm --cached -f` succeeds where plain `--cached` refuses.
+- v2.4.1: an `agents.md` (lowercase) inside a rules directory does not block; a CLAUDE.md beside a lowercase `agents.md` aborts with DEST-EXISTS; `CLAUDE.MD` still aborts as CASE-VARIANT; `.claude/agents.md` is still an ANOMALY.
 - `.claude` scan: a case-variant name (`claude.md`) classifies as CASE-VARIANT, not MIGRATE, on
   case-insensitive macOS.
 - Untracked file: plain `mv`.

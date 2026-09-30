@@ -113,7 +113,7 @@ am_list_names() {
 am_classify_dir() {
     local d="$1" p nm lower
     local hasC=0 hasCL=0 hasA=0 hasG=0
-    local variants=()
+    local variants=() avariants=()   # claude-family / agents-family case variants
     local in_dot_claude=false
     [[ "${d##*/}" == ".claude" ]] && in_dot_claude=true
 
@@ -128,7 +128,8 @@ am_classify_dir() {
             *)
                 lower=$(printf '%s' "$nm" | tr 'A-Z' 'a-z')
                 case "$lower" in
-                    claude.md|claude.local.md|agents.md) variants+=("$p") ;;
+                    claude.md|claude.local.md) variants+=("$p") ;;
+                    agents.md) avariants+=("$p") ;;
                 esac ;;
         esac
     done < <(am_list_names "$d")
@@ -138,10 +139,13 @@ am_classify_dir() {
         [[ $hasC -eq 1 ]] && am_add_record ANOMALY "$d" "$d/CLAUDE.md"
         [[ $hasA -eq 1 ]] && am_add_record ANOMALY "$d" "$d/AGENTS.md"
         [[ $hasCL -eq 1 ]] && am_add_record LOCAL "$d" "$d/CLAUDE.local.md"
-        for v in "${variants[@]}"; do am_add_record ANOMALY "$d" "$v"; done
+        for v in "${variants[@]}" "${avariants[@]}"; do am_add_record ANOMALY "$d" "$v"; done
         return 0
     fi
 
+    # Only CLAUDE-family variants block: on case-insensitive macOS they suppress the AGENTS.md
+    # fallback. A lowercase agents.md is harmless (it IS AGENTS.md there, or an unrelated rules
+    # doc); if it sits beside a CLAUDE.md the DEST-EXISTS guard still stops the rename.
     for v in "${variants[@]}"; do am_add_record CASE-VARIANT "$d" "$v"; done
     [[ $hasCL -eq 1 ]] && am_add_record LOCAL "$d" "$d/CLAUDE.local.md"
 

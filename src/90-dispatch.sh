@@ -130,7 +130,7 @@ case "$COMMAND" in
                 continue
             fi
             if [[ "$DRY_RUN" == "true" ]]; then
-                log "Would start '$_ss' in $_start_dir${FRESH_START:+ (fresh start)}"
+                log "Would start '$_ss' in $_start_dir$([[ "$FRESH_START" == "true" ]] && echo " (fresh start)")"
                 continue
             fi
             restore_state_clear "$_ss"   # user-initiated bring-up un-trips crash-loop history
@@ -185,7 +185,7 @@ case "$COMMAND" in
                     continue
                 fi
                 if [[ "$DRY_RUN" == "true" ]]; then
-                    log "Would restart session '$_rs' in $_restart_dir${FRESH_START:+ (fresh start)}"
+                    log "Would restart session '$_rs' in $_restart_dir$([[ "$FRESH_START" == "true" ]] && echo " (fresh start)")"
                 elif [[ -n "$_restart_caller" && "$_rs" == "$_restart_caller" ]]; then
                     # The caller is restarting itself → in place (can't SIGHUP our own
                     # pane). The looped wrapper relaunches + handshakes; no recreate here.

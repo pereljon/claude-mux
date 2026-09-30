@@ -4,6 +4,12 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-09-30
+
+### Fixed
+- **`--migrate-agents-md` no longer aborts on a lowercase `agents.md`.** A rules document such as `.claude/rules/.../agents.md` was reported as a `CASE-VARIANT` and blocked the whole migration. Only CLAUDE-family case variants (`claude.md`, `CLAUDE.MD`, `claude.local.md`) suppress the AGENTS.md fallback, so only those block now. A `CLAUDE.md` next to a lowercase `agents.md` is still stopped by the `DEST-EXISTS` check, and `.claude/agents.md` is still reported as an anomaly.
+- **`--restart --dry-run` (and `--start --dry-run`) no longer label every session "(fresh start)".** The label appeared even though fresh start was off; it now shows only with `--fresh`. Display text only; real restarts always behaved correctly.
+
 ## [2.4.0] - 2026-09-30
 
 ### Added

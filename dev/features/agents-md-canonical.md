@@ -102,7 +102,7 @@ Classify each directory:
 | ANOMALY | any `.claude/AGENTS.md` or `.claude/CLAUDE.md` (there should be none; `.claude/AGENTS.md` also double-loads) | **abort** |
 | EXT-LINK | CLAUDE.md or AGENTS.md is a symlink to any other target | **abort** |
 | BROKEN-LINK / NOT-A-FILE | dangling symlink, or a directory named CLAUDE.md / AGENTS.md | **abort** |
-| CASE-VARIANT | `claude.md`, `Agents.md` and similar | **abort** |
+| CASE-VARIANT | a CLAUDE-family case variant (`claude.md`, `CLAUDE.MD`, `claude.local.md`); v2.4.1: an `agents.md`-family variant no longer blocks (harmless on case-insensitive macOS, and a CLAUDE.md beside one is still stopped by DEST-EXISTS) | **abort** (CLAUDE-family only) |
 | ABOVE | CLAUDE.md or CLAUDE.local.md in an ancestor of `BASE_DIR` | **abort** (outside the migration's reach; user resolves) |
 
 The report also lists: Claude Code version and gate result; running managed sessions (busy or

@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.4.0"
+VERSION="2.4.1"
 
 # Minimum Claude Code version that falls back to AGENTS.md when no CLAUDE.md is present.
 # A constant, not a config var.
@@ -3157,7 +3157,7 @@ restart_sessions_in() {
     if [[ "$DRY_RUN" == "true" ]]; then
         while IFS='|' read -r _name _dir; do
             [[ -z "$_name" ]] && continue
-            log "Would restart session '$_name' in $_dir${FRESH_START:+ (fresh start)}"
+            log "Would restart session '$_name' in $_dir$([[ "$FRESH_START" == "true" ]] && echo " (fresh start)")"
         done <<< "$_list"
         return 0
     fi
@@ -3669,7 +3669,7 @@ am_list_names() {
 am_classify_dir() {
     local d="$1" p nm lower
     local hasC=0 hasCL=0 hasA=0 hasG=0
-    local variants=()
+    local variants=() avariants=()   # claude-family / agents-family case variants
     local in_dot_claude=false
     [[ "${d##*/}" == ".claude" ]] && in_dot_claude=true
 
@@ -3684,7 +3684,8 @@ am_classify_dir() {
             *)
                 lower=$(printf '%s' "$nm" | tr 'A-Z' 'a-z')
                 case "$lower" in
-                    claude.md|claude.local.md|agents.md) variants+=("$p") ;;
+                    claude.md|claude.local.md) variants+=("$p") ;;
+                    agents.md) avariants+=("$p") ;;
                 esac ;;
         esac
     done < <(am_list_names "$d")
@@ -3694,10 +3695,13 @@ am_classify_dir() {
         [[ $hasC -eq 1 ]] && am_add_record ANOMALY "$d" "$d/CLAUDE.md"
         [[ $hasA -eq 1 ]] && am_add_record ANOMALY "$d" "$d/AGENTS.md"
         [[ $hasCL -eq 1 ]] && am_add_record LOCAL "$d" "$d/CLAUDE.local.md"
-        for v in "${variants[@]}"; do am_add_record ANOMALY "$d" "$v"; done
+        for v in "${variants[@]}" "${avariants[@]}"; do am_add_record ANOMALY "$d" "$v"; done
         return 0
     fi
 
+    # Only CLAUDE-family variants block: on case-insensitive macOS they suppress the AGENTS.md
+    # fallback. A lowercase agents.md is harmless (it IS AGENTS.md there, or an unrelated rules
+    # doc); if it sits beside a CLAUDE.md the DEST-EXISTS guard still stops the rename.
     for v in "${variants[@]}"; do am_add_record CASE-VARIANT "$d" "$v"; done
     [[ $hasCL -eq 1 ]] && am_add_record LOCAL "$d" "$d/CLAUDE.local.md"
 
@@ -5826,7 +5830,7 @@ case "$COMMAND" in
                 continue
             fi
             if [[ "$DRY_RUN" == "true" ]]; then
-                log "Would start '$_ss' in $_start_dir${FRESH_START:+ (fresh start)}"
+                log "Would start '$_ss' in $_start_dir$([[ "$FRESH_START" == "true" ]] && echo " (fresh start)")"
                 continue
             fi
             restore_state_clear "$_ss"   # user-initiated bring-up un-trips crash-loop history
@@ -5881,7 +5885,7 @@ case "$COMMAND" in
                     continue
                 fi
                 if [[ "$DRY_RUN" == "true" ]]; then
-                    log "Would restart session '$_rs' in $_restart_dir${FRESH_START:+ (fresh start)}"
+                    log "Would restart session '$_rs' in $_restart_dir$([[ "$FRESH_START" == "true" ]] && echo " (fresh start)")"
                 elif [[ -n "$_restart_caller" && "$_rs" == "$_restart_caller" ]]; then
                     # The caller is restarting itself → in place (can't SIGHUP our own
                     # pane). The looped wrapper relaunches + handshakes; no recreate here.
