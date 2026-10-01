@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.4.2"
+VERSION="2.4.3"
 
 # Minimum Claude Code version that falls back to AGENTS.md when no CLAUDE.md is present.
 # A constant, not a config var.
@@ -158,10 +158,11 @@ claude-mux conversational commands:
   list active sessions
   list all sessions
   start session [SESSION]
-  stop this session / stop session [NAME]
-  stop all sessions
+  stop / kill / shut down this session / stop session [NAME]
+  stop all sessions / shut down all sessions
   restart this session / restart session [NAME]
-  restart this session fresh / restart [NAME] fresh / kill this session
+  restart this session fresh / restart [NAME] fresh
+  end this session (save state, then restart fresh)
   restart all sessions
   start new session in [FOLDER] [with model MODEL] [with mode MODE]
   switch this session to [MODE] mode / switch session [NAME] to [MODE] mode
@@ -1693,10 +1694,11 @@ ${config_rule}${agents_md_rule}- When asked to shut down sessions, run the comma
 - When user says: list <STATUS> sessions (where STATUS is idle, stopped, running, protected, queued, failed, or hidden) — run claude-mux -L --status <STATUS>
 - When user says: start session SESSION — resolve SESSION per the NAME-resolution rule below, then run claude-mux --start SESSION (resolves by name, no path; starts it if stopped, no-op if already running). Confirm with the session name only (e.g. Started. SESSION is now running. / SESSION is already running.) — do not include the directory path, sessions appear by name in Remote Control
 - Resolving a session/project NAME in the rules below: \"this session\" / \"this project\" / \"the current session\" (explicit) always means the session you are running in — act on it directly (you know your own name from the tmux session name in this prompt's header). For any OTHER phrasing that names a target (\"the X session\", \"session X\", \"restart X\", \"compact X\"), resolve X against the appropriate list: use claude-mux -l for commands that act on a RUNNING session (stop, restart, restart-fresh, switch mode/model, compact, clear, get-mode); use claude-mux -L for project-level commands that can target an idle, stopped, or hidden project (hide, show/unhide, protect, unprotect, delete); hidden projects appear only under claude-mux -L --hidden, so if X is not in -L, check there. Act ONLY on an exact single match; if X matches zero or is ambiguous, ASK the user which one and offer the closest matches — NEVER fall back to the current session. Number references (e.g. \"restart 5\") already resolve via the list and are safe.
-- When user says: stop this session — run claude-mux --shutdown CURRENT_SESSION. When user says: stop session NAME — resolve NAME per the rule above and run claude-mux --shutdown NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
-- When user says: stop all sessions — run claude-mux --shutdown
+- When user says: stop / kill / shut down / shutdown this session — run claude-mux --shutdown CURRENT_SESSION. When user says: stop / kill / shut down session NAME — resolve NAME per the rule above and run claude-mux --shutdown NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
+- When user says: stop all sessions / shut down all sessions — run claude-mux --shutdown
 - When user says: restart this session — run claude-mux --restart CURRENT_SESSION. When user says: restart session NAME / restart the NAME session — resolve NAME per the rule above and run claude-mux --restart NAME; if NAME does not resolve to exactly one session, ask which session — do not default to the current session
-- When user says: restart this session fresh / kill this session — run claude-mux --restart CURRENT_SESSION --fresh. When user says: restart SESSION fresh — resolve SESSION per the rule above and run claude-mux --restart SESSION --fresh; if it does not resolve to exactly one session, ask which session — do not default to the current session. In all cases warn the user that the conversation history will not be resumed
+- When user says: restart this session fresh — run claude-mux --restart CURRENT_SESSION --fresh. When user says: restart SESSION fresh — resolve SESSION per the rule above and run claude-mux --restart SESSION --fresh; if it does not resolve to exactly one session, ask which session — do not default to the current session. In all cases warn the user that the conversation history will not be resumed
+- When user says: end this session — prepare to start over, then restart fresh. First save what would otherwise be lost: check for uncommitted work and unanswered questions, record unfinished todos and the next step in the project's own files (feature doc, issue list or memory), and tell the user what was saved. If something is unsaved or a question is waiting, ask before going on. Then give your closing summary and, as the last action of the turn, run claude-mux --restart CURRENT_SESSION --fresh (this discards the conversation)
 - When user says: restart all sessions — run claude-mux --restart
 - When user says: start new session in FOLDER — run claude-mux -n FOLDER --no-attach; append --template NAME if provided, use -p if parents needed; model and mode set after via switch commands; confirm with the session name only, not the directory path
 - When user says: what mode is this session / what permission mode — run claude-mux --get-mode CURRENT_SESSION and report the result. When user says: what mode is session NAME — resolve NAME per the rule above and run claude-mux --get-mode NAME; if NAME does not resolve to exactly one session, ask which session
@@ -4684,7 +4686,8 @@ tip_of_day() {
         "Say \"clear this session\" to wipe context and start fresh without restarting. Say \"compact this session\" to summarize and reduce context usage instead."
         "Say \"send /model opus to the api-server session\" to run any slash command in another session from where you are."
         "Say \"disable tips\" to turn off tip-of-the-day across all sessions. Say \"enable tips\" to turn it back on. Both update every project at once."
-        "Say \"restart this session fresh\" or \"kill this session\" after installing a new MCP. The session restarts without resuming — new MCPs and config changes are picked up immediately."
+        "Say \"restart this session fresh\" after installing a new MCP. The session restarts without resuming — new MCPs and config changes are picked up immediately."
+        "Say \"end this session\" when you are done for now. The session saves unfinished work and the next step first, then restarts with a clean conversation. \"Stop this session\" just shuts it down and keeps the conversation."
         "claude-mux checks for new releases in the background and tells you right in the conversation when an update is available. Say \"update claude-mux\" when you see the notice."
         "Say \"start the api-server session\" to bring an idle project back online by name. Only brand-new projects need a path."
         "Say \"check agents migration\" from the home session to see whether your projects can move from CLAUDE.md to AGENTS.md. It reports first and changes nothing until you confirm."

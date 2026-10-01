@@ -4,6 +4,14 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.4.3] - 2026-09-30
+
+### Added
+- **"End this session".** Saves what would otherwise be lost (uncommitted work, unanswered questions, unfinished todos and the next step) and then runs `claude-mux --restart CURRENT_SESSION --fresh`, so the session starts over with a clean conversation. It asks first if something is unsaved.
+
+### Changed
+- **"Kill this session" and "shut down this session" mean stop** (`--shutdown`, conversation kept) instead of a fresh restart. A non-saving fresh restart is still "restart this session fresh".
+
 ## [2.4.2] - 2026-09-30
 
 ### Fixed

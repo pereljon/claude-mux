@@ -86,6 +86,9 @@ Shuts down and relaunches the session, preserving conversation context
 Say: "restart this session fresh"
 Restarts with a new conversation - no resume, no prior context
 
+Say: "end this session"
+Saves unfinished work and the next step first (asks if something is unsaved), then restarts fresh
+
 Say: "switch the api-server session to plan mode"
 Restarts the session with plan permission mode
 

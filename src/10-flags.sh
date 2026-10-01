@@ -49,10 +49,11 @@ claude-mux conversational commands:
   list active sessions
   list all sessions
   start session [SESSION]
-  stop this session / stop session [NAME]
-  stop all sessions
+  stop / kill / shut down this session / stop session [NAME]
+  stop all sessions / shut down all sessions
   restart this session / restart session [NAME]
-  restart this session fresh / restart [NAME] fresh / kill this session
+  restart this session fresh / restart [NAME] fresh
+  end this session (save state, then restart fresh)
   restart all sessions
   start new session in [FOLDER] [with model MODEL] [with mode MODE]
   switch this session to [MODE] mode / switch session [NAME] to [MODE] mode

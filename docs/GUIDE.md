@@ -114,6 +114,18 @@ Under the hood, claude-mux handles:
 
 > **Note:** This is different from `claude --worktree --tmux`, which creates a tmux session for an isolated git worktree. claude-mux manages persistent sessions for your actual project directories, with Remote Control and system prompt injection.
 
+## Ending, clearing and restarting a session
+
+Say any of these in a session. Stop, clear, restart and restart fresh can also target another session by name; "end" applies to the current session only.
+
+| You say | What happens |
+|---|---|
+| **stop** / **kill** / **shut down** / **shutdown** | Ends the process (`claude-mux --shutdown`). The conversation is kept: starting the session again resumes it. Nothing is saved first. |
+| **clear** | Keeps the process and clears the context (`/clear`). Does not reload the injection or settings. |
+| **restart** | Stops the process and starts a new one, resuming the conversation. Reloads the injection, settings and MCP servers. |
+| **restart fresh** | Stops the process and starts a new one with a clean context. |
+| **end** | Saves context first (uncommitted work, open questions, unfinished todos, the next step; asks if something is unsaved), then stops and starts a new process with a clean context. |
+
 ## Session System Prompt
 
 Each Claude session is launched with `--append-system-prompt` containing context about its environment:
@@ -154,9 +166,10 @@ Rules:
 - When user says: list all sessions - run claude-mux -L
 - When user says: list hidden projects - run claude-mux -L --hidden
 - When user says: start session SESSION - run claude-mux --start SESSION (by name; starts if stopped, no-op if already running)
-- When user says: stop this session / stop session NAME - run claude-mux --shutdown SESSION (always pass the session name; bare --shutdown targets ALL sessions)
-- When user says: stop all sessions - run claude-mux --shutdown
+- When user says: stop / kill / shut down this session / stop / kill / shut down session NAME - run claude-mux --shutdown SESSION (always pass the session name; bare --shutdown targets ALL sessions)
+- When user says: stop all sessions / shut down all sessions - run claude-mux --shutdown
 - When user says: restart this session / restart session NAME - run claude-mux --restart SESSION (also starts the session if it is stopped; bare --restart targets ALL sessions)
+- When user says: end this session - save unfinished work and the next step (ask first if something is unsaved), then run claude-mux --restart CURRENT_SESSION --fresh as the last action of the turn
 - When user says: restart all sessions - run claude-mux --restart
 - When user says: start new session in FOLDER - run claude-mux -n FOLDER --no-attach
 - When user says: switch this session to MODE mode / switch session NAME to MODE mode
