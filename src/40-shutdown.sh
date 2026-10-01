@@ -95,28 +95,36 @@ clear_session_for_fresh() {
     fi
     log "Sending /clear to session '$session'"
     "$TMUX_BIN" send-keys -t "$session" -l "/clear" && "$TMUX_BIN" send-keys -t "$session" Enter
-    # Phase 1: wait for the screen to repaint (any earlier handshake text gone).
+    # The handshake reply's wording varies ("Session ready!", "Ready. What's the task?"),
+    # so key on our own "Ready?" turn plus an idle pane, never on the reply text.
+    # Phase 1: wait for the screen to repaint (any earlier "Ready?" turn gone).
     _w=0
     while [[ $_w -lt 30 ]]; do
         sleep 0.5
         _pane=$("$TMUX_BIN" capture-pane -t "$session" -p 2>/dev/null)
-        echo "$_pane" | grep -qi "session ready" || break
+        echo "$_pane" | grep -qE '^❯ Ready\?[[:space:]]*$' || break
         (( _w++ ))
     done
-    # Old text still on screen: /clear hasn't landed, and phase 2 would match it.
+    # Old turn still on screen: /clear hasn't landed, and phase 2 would match it.
     [[ $_w -ge 30 ]] && { log "WARN: screen did not repaint in '$session' after /clear"; return 1; }
-    # Phase 2: wait for the post-clear handshake reply and an idle prompt (max 60s).
-    _w=0
+    # Phase 2: wait for the post-clear "Ready?" turn, then 3 consecutive idle polls
+    # (reply finished; the busy footer can lag the turn by a moment). Max 60s.
+    _w=0; local _idle=0
     while [[ $_w -lt 120 ]]; do
         sleep 0.5
         _pane=$("$TMUX_BIN" capture-pane -t "$session" -p 2>/dev/null) || return 1
-        if echo "$_pane" | grep -qi "session ready" && ! echo "$_pane" | tail -4 | grep -q "esc to interrupt"; then
-            sleep 1
-            return 0
+        # Submitted turn in history + empty input box + no busy footer; the empty
+        # box rules out "Ready?" typed but not yet submitted.
+        if echo "$_pane" | grep -qE '^❯ Ready\?[[:space:]]*$' && echo "$_pane" | grep -qE '^❯[[:space:]]*$' \
+            && ! echo "$_pane" | tail -4 | grep -q "esc to interrupt"; then
+            (( ++_idle >= 3 )) && return 0
+        else
+            _idle=0
         fi
         (( _w++ ))
     done
-    log "WARN: no ready handshake seen in '$session' after /clear"
+    # Footer only (status text, no conversation content) for diagnosis.
+    log "WARN: no post-clear handshake turn seen in '$session'; footer: $(echo "$_pane" | grep -v '^[[:space:]]*$' | tail -1)"
     return 1
 }
 
