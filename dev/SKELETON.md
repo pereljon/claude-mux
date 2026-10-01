@@ -743,9 +743,12 @@ if SHUTDOWN_SESSIONS not empty:
         remove_running_marker BEFORE the clear (intent to stop; tick can't resurrect mid-kill)
         clear_session_for_fresh(session):
           busy ("esc to interrupt") → Escape, wait ≤10s, else fail
-          send /clear; wait for screen repaint, then for the --on-clear handshake reply
-          ("session ready") + idle, ≤60s; the handshake turn writes the post-clear
-          transcript that the next resume picks up, so /exit must not race it
+          send /clear; wait for the old "Ready?" turn to leave the screen, then for our
+          post-clear "Ready?" turn + empty input box + 3 idle polls (no "esc to interrupt"
+          in the bottom 4 lines), ≤60s. Keyed on our own turn, NOT the reply wording (the
+          model sometimes answers "Ready. What's the task?"). The handshake turn writes the
+          post-clear transcript the next resume picks up, so /exit must not race it.
+          Needs the --on-clear hook; without it this times out (WARN, plain stop)
       clear failed → WARN, fall through to a plain stop (next start resumes old conversation)
     shutdown_single_session(session)
   return

@@ -73,9 +73,9 @@ _(no function definitions)_
 | `is_claude_mux_session` | 14 |
 | `shutdown_single_session` | 21 |
 | `clear_session_for_fresh` | 72 |
-| `fresh_prepare_session` | 127 |
-| `shutdown_claude_sessions` | 138 |
-| `status_claude_sessions` | 240 |
+| `fresh_prepare_session` | 135 |
+| `shutdown_claude_sessions` | 146 |
+| `status_claude_sessions` | 248 |
 
 ### `src/50-restore-state.sh`
 
@@ -270,7 +270,7 @@ _(no function definitions)_
 | `ensure_base_dir` | `src/60-discovery.sh:92` |
 | `ensure_git_repo` | `src/50-restore-state.sh:3` |
 | `ensure_gitignore_entry` | `src/50-restore-state.sh:69` |
-| `fresh_prepare_session` | `src/40-shutdown.sh:127` |
+| `fresh_prepare_session` | `src/40-shutdown.sh:135` |
 | `generate_plist` | `src/30-helpers.sh:234` |
 | `get_managed_session_names` | `src/35-validate-deps.sh:112` |
 | `get_session_mode` | `src/30-helpers.sh:661` |
@@ -317,11 +317,11 @@ _(no function definitions)_
 | `setup_gitignore` | `src/50-restore-state.sh:13` |
 | `should_be_alive` | `src/50-restore-state.sh:165` |
 | `show_command` | `src/50-restore-state.sh:473` |
-| `shutdown_claude_sessions` | `src/40-shutdown.sh:138` |
+| `shutdown_claude_sessions` | `src/40-shutdown.sh:146` |
 | `shutdown_single_session` | `src/40-shutdown.sh:21` |
 | `spawn_ready_handshake_monitor` | `src/75-tip-notices.sh:244` |
 | `start_sessions` | `src/70-start-launch.sh:3` |
-| `status_claude_sessions` | `src/40-shutdown.sh:240` |
+| `status_claude_sessions` | `src/40-shutdown.sh:248` |
 | `tip_of_day` | `src/75-tip-notices.sh:4` |
 | `unprotect_command` | `src/50-restore-state.sh:326` |
 | `update_all_project_hooks` | `src/75-tip-notices.sh:361` |
