@@ -4,6 +4,13 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+### Added
+- **`--shutdown SESSION --fresh`: "kill".** Clears the conversation (`/clear`, waiting for the ready handshake), then stops the session, so the next start is a new conversation instead of a resume. A busy session is interrupted first; if the clear fails it falls back to a plain stop with a warning. A session cannot kill itself (use "end this session"). `--fresh` is now valid with `--shutdown`.
+- **Confirmation before discarding context.** "Kill", "end this session", "restart fresh" and "clear" now state what will happen and ask yes/no first. Stop, restart and compact are unchanged.
+
+### Changed
+- **"Kill" no longer means stop** (reverses the 2.4.3 wording). "Stop" and "shut down" keep the conversation; "kill" clears it.
+
 ## [2.4.3] - 2026-09-30
 
 ### Added

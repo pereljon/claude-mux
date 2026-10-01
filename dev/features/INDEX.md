@@ -14,6 +14,12 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 |---|---|---|---|---|---|
 | `session-identity-reply` | ready | 2.5.0 (minor; was 2.4.0, which shipped agents-md-canonica... | READY 2026-08-17. Architect-reviewed twice; second pass APPROVE-WITH-CHANGES, all chang... | N/A (enhancement) — orientation-on-reconnect UX; the current handshake gives no session... | [session-identity-reply.md](session-identity-reply.md) |
 
+## building
+
+| Feature | Lifecycle | Target | Status | Severity | Doc |
+|---|---|---|---|---|---|
+| `shutdown-fresh` | building | 2.5.0 (minor): new flag on --shutdown + injection vocabulary | BUILT on branch shutdown-fresh, live-tested 2026-10-01 (kill, busy, protected, self-ref... | N/A (enhancement) | [shutdown-fresh.md](shutdown-fresh.md) |
+
 ## designing
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |

@@ -109,7 +109,7 @@ while args remain:
     -p, --no-template, --no-git only valid with -n
     --no-attach only valid with -d or -n
     --force only valid with --shutdown, --delete, --save-template, --rename, --move
-    --fresh only valid with --start, --restart, or -d
+    --fresh only valid with --start, --restart, --shutdown, or -d
 
 # 6. Legacy no-op: tipotd
     if COMMAND == "tipotd":
@@ -736,6 +736,17 @@ if SHUTDOWN_SESSIONS not empty:
   get_managed_session_names()
   for each named session:
     validate: is managed session
+    if FRESH_START (--shutdown --fresh, "kill"):
+      fresh_prepare_session(session):
+        caller (our own tmux session) → error, skip   # /exit would SIGHUP this script
+        protected and not force → no clear (shutdown_single_session errors)
+        remove_running_marker BEFORE the clear (intent to stop; tick can't resurrect mid-kill)
+        clear_session_for_fresh(session):
+          busy ("esc to interrupt") → Escape, wait ≤10s, else fail
+          send /clear; wait for screen repaint, then for the --on-clear handshake reply
+          ("session ready") + idle, ≤60s; the handshake turn writes the post-clear
+          transcript that the next resume picks up, so /exit must not race it
+      clear failed → WARN, fall through to a plain stop (next start resumes old conversation)
     shutdown_single_session(session)
   return
 
@@ -744,6 +755,9 @@ get_managed_session_names()
 for each running tmux session:
   if not managed → skip
   if protected and FORCE != true → skip with log
+  if FRESH_START: fresh_prepare_session(session)   # same gate as the named path; clears run
+                                                    # serially (≤~75s each); caller → WARN + skip;
+                                                    # clear failed → WARN, plain stop
   collect in managed_list
   remove_running_marker(session_marker_dir(session))   # intent to stop, before kill
   send /exit if claude is running

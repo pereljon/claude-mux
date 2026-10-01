@@ -43,6 +43,7 @@ tip_of_day() {
         "Say \"disable tips\" to turn off tip-of-the-day across all sessions. Say \"enable tips\" to turn it back on. Both update every project at once."
         "Say \"restart this session fresh\" after installing a new MCP. The session restarts without resuming — new MCPs and config changes are picked up immediately."
         "Say \"end this session\" when you are done for now. The session saves unfinished work and the next step first, then restarts with a clean conversation. \"Stop this session\" just shuts it down and keeps the conversation."
+        "Say \"kill the api-server session\" to clear its conversation and stop it, so the next start is new. \"Stop the api-server session\" just shuts it down and keeps the conversation."
         "claude-mux checks for new releases in the background and tells you right in the conversation when an update is available. Say \"update claude-mux\" when you see the notice."
         "Say \"start the api-server session\" to bring an idle project back online by name. Only brand-new projects need a path."
         "Say \"check agents migration\" from the home session to see whether your projects can move from CLAUDE.md to AGENTS.md. It reports first and changes nothing until you confirm."

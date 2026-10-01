@@ -49,7 +49,8 @@ claude-mux conversational commands:
   list active sessions
   list all sessions
   start session [SESSION]
-  stop / kill / shut down this session / stop session [NAME]
+  stop / shut down this session / stop session [NAME]
+  kill this session / kill session [NAME] (stop; next start is a new conversation)
   stop all sessions / shut down all sessions
   restart this session / restart session [NAME]
   restart this session fresh / restart [NAME] fresh
@@ -108,6 +109,7 @@ Self-targeting (works inside sessions):
   --save-template NAME [SESSION]  Save AGENTS.md/CLAUDE.md as a template (default: current session)
   --shutdown SESSION...    Shut down sessions (omit SESSION for all)
   --shutdown ... --force   Override protection
+  --shutdown SESSION... --fresh  Clear the conversation, then stop (kill): next start is new, not resumed
   --start SESSION...       Start sessions by name (start if stopped; no-op if already running)
   --restart SESSION...     Restart sessions (resumes prior conversation; also starts a stopped session)
   --restart SESSION... --fresh  Restart fresh — new conversation, no resume (use after installing MCPs)
@@ -297,7 +299,8 @@ Commands:
                           Honors protection unless --force; prompts unless --yes.
   --shutdown [SESSION...]  Shut down all managed sessions, or specific session(s)
   --restart [SESSION...]   Restart specific session(s), or all that were running
-    --fresh                  With --start, --restart, or -d: start new conversation instead of resuming
+    --fresh                  With --start, --restart, or -d: start new conversation instead of resuming.
+                             With --shutdown: clear the conversation, then stop (next start is new)
   --permission-mode MODE [SESSION...]  Restart session(s) with the given permission mode
   --autolaunch             Invoked by LaunchAgent; dispatches based on LAUNCHAGENT_MODE
   --enable-tips            Enable daily tips (registers the on-prompt hook)
@@ -581,8 +584,8 @@ if [[ "$FORCE" == "true" && "$COMMAND" != "shutdown" && "$COMMAND" != "delete" &
     echo "ERROR: --force can only be used with --shutdown, --delete, --save-template, --rename, or --move" >&2
     exit 1
 fi
-if [[ "$FRESH_START" == "true" && "$COMMAND" != "restart" && "$COMMAND" != "launch" && "$COMMAND" != "start-session" ]]; then
-    echo "ERROR: --fresh can only be used with --start, --restart, or -d" >&2
+if [[ "$FRESH_START" == "true" && "$COMMAND" != "restart" && "$COMMAND" != "launch" && "$COMMAND" != "start-session" && "$COMMAND" != "shutdown" ]]; then
+    echo "ERROR: --fresh can only be used with --start, --restart, --shutdown, or -d" >&2
     exit 1
 fi
 
