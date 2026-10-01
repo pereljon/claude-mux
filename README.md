@@ -84,10 +84,13 @@ Say: "restart the web-dashboard session"
 Shuts down and relaunches the session, preserving conversation context
 
 Say: "restart this session fresh"
-Restarts with a new conversation - no resume, no prior context
+Asks to confirm, then restarts with a new conversation - no resume, no prior context
+
+Say: "kill the api-server session"
+Asks to confirm, then clears the conversation and stops it; the next start is a new conversation, not a resume
 
 Say: "end this session"
-Saves unfinished work and the next step first (asks if something is unsaved), then restarts fresh
+Saves unfinished work and the next step first, asks to confirm (and whether anything is unsaved), then restarts fresh
 
 Say: "switch the api-server session to plan mode"
 Restarts the session with plan permission mode
@@ -102,7 +105,7 @@ Say: "switch this session to Opus"
 Resolves the family to the latest concrete ID and sends /model claude-opus-4-8 to itself
 
 Say: "clear this session"
-Sends /clear to itself, resetting the conversation
+Asks to confirm, then sends /clear to itself, resetting the conversation
 
 Say: "hide this project"
 Writes .claudemux-ignore so the project is excluded from -L listings

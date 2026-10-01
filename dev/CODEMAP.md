@@ -126,6 +126,8 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `is_protected_session` | `(session_name)` | Return 0 if `@claude-mux-protected=1` in tmux |
 | `is_claude_mux_session` | `(session_name)` | Return 0 if `@claude-mux-managed=1` in tmux |
 | `shutdown_single_session` | `(session_name, [force], [preserve_marker])` | Remove `.claudemux-running` marker first (via `session_marker_dir`) unless `preserve_marker=true`, then send /exit, wait, kill-session. Restart callers pass `preserve_marker=true` so a crashed restart stays recoverable |
+| `clear_session_for_fresh` | `(session)` | `--shutdown --fresh` step 1: interrupt if busy, send `/clear`, wait for the `--on-clear` handshake reply + idle (≤60s). Returns 1 on failure (caller falls back to plain stop) |
+| `fresh_prepare_session` | `(session)` | Gate for `--shutdown --fresh`: returns 2 for the calling session, 0 if protected-without-force (no clear) or cleared, 1 if the clear failed |
 | `shutdown_claude_sessions` | `()` | Shut down all managed sessions (removing each marker first); skip protected unless FORCE=true |
 | `status_claude_sessions` | `([show_all] [status_filter])` | Print session list (`-l` / `-L`) incl. `queued`/`failed` auto-restore statuses; wraps in `<assistant-must-display>` when not TTY; `status_filter` limits rows to a single status value |
 | `ensure_git_repo` | `(dir)` | Run `git init` if dir is not already a git repo |

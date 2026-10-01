@@ -116,11 +116,12 @@ Under the hood, claude-mux handles:
 
 ## Ending, clearing and restarting a session
 
-Say any of these in a session. Stop, clear, restart and restart fresh can also target another session by name; "end" applies to the current session only.
+Say any of these in a session. Stop, clear, restart and restart fresh can also target another session by name; "end" applies to the current session only. Kill, clear, restart fresh and end ask for a yes/no first, because they discard the conversation. Stop, restart and compact do not.
 
 | You say | What happens |
 |---|---|
-| **stop** / **kill** / **shut down** / **shutdown** | Ends the process (`claude-mux --shutdown`). The conversation is kept: starting the session again resumes it. Nothing is saved first. |
+| **stop** / **shut down** / **shutdown** | Ends the process (`claude-mux --shutdown`). The conversation is kept: starting the session again resumes it. Nothing is saved first. |
+| **kill** | Clears the conversation, then ends the process (`claude-mux --shutdown SESSION --fresh`). The next start is a new conversation. Works on other sessions only; a session cannot kill itself (use "end"). |
 | **clear** | Keeps the process and clears the context (`/clear`). Does not reload the injection or settings. |
 | **restart** | Stops the process and starts a new one, resuming the conversation. Reloads the injection, settings and MCP servers. |
 | **restart fresh** | Stops the process and starts a new one with a clean context. |
@@ -166,7 +167,9 @@ Rules:
 - When user says: list all sessions - run claude-mux -L
 - When user says: list hidden projects - run claude-mux -L --hidden
 - When user says: start session SESSION - run claude-mux --start SESSION (by name; starts if stopped, no-op if already running)
-- When user says: stop / kill / shut down this session / stop / kill / shut down session NAME - run claude-mux --shutdown SESSION (always pass the session name; bare --shutdown targets ALL sessions)
+- When user says: stop / shut down this session / stop / shut down session NAME - run claude-mux --shutdown SESSION (always pass the session name; bare --shutdown targets ALL sessions)
+- When user says: kill session NAME - confirm, then run claude-mux --shutdown NAME --fresh (clears the conversation, then stops; next start is new). Cannot target the current session: offer "end this session"
+- Confirmation rule: before kill, end this session, restart fresh or clear, state in one line what will happen and ask yes/no; run nothing on no. Stop, restart and compact need no confirmation
 - When user says: stop all sessions / shut down all sessions - run claude-mux --shutdown
 - When user says: restart this session / restart session NAME - run claude-mux --restart SESSION (also starts the session if it is stopped; bare --restart targets ALL sessions)
 - When user says: end this session - save unfinished work and the next step (ask first if something is unsaved), then run claude-mux --restart CURRENT_SESSION --fresh as the last action of the turn

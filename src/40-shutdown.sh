@@ -63,6 +63,78 @@ shutdown_single_session() {
     fi
 }
 
+# Clear a running session's conversation so its next start resumes an empty one
+# (the `--shutdown --fresh` "kill"). Sends /clear, then waits for the --on-clear
+# ready handshake to finish: the handshake turn is what writes the post-clear
+# transcript that a later resume picks up, and /exit must not race it. A busy
+# session is interrupted first. Returns 1 (caller falls back to a plain stop)
+# if the session can't be made idle or the handshake isn't seen.
+clear_session_for_fresh() {
+    local session="$1"
+    # Nothing to clear (shell prompt, dialog, crashed Claude): report failure so the
+    # caller warns instead of claiming a fresh stop.
+    claude_running_in_session "$session" || { log "WARN: Claude not running in '$session'; nothing to clear"; return 1; }
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log "[dry-run] Would /clear '$session' before shutdown"
+        return 0
+    fi
+    local _pane _w
+    _pane=$("$TMUX_BIN" capture-pane -t "$session" -p 2>/dev/null)
+    # Scope busy scans to the bottom 4 lines so transcript text can't match.
+    if echo "$_pane" | tail -4 | grep -q "esc to interrupt"; then
+        log "Session '$session' is busy; interrupting before /clear"
+        "$TMUX_BIN" send-keys -t "$session" Escape
+        _w=0
+        while [[ $_w -lt 20 ]]; do
+            sleep 0.5
+            _pane=$("$TMUX_BIN" capture-pane -t "$session" -p 2>/dev/null)
+            echo "$_pane" | tail -4 | grep -q "esc to interrupt" || break
+            (( _w++ ))
+        done
+        [[ $_w -ge 20 ]] && { log "WARN: '$session' still busy after interrupt"; return 1; }
+    fi
+    log "Sending /clear to session '$session'"
+    "$TMUX_BIN" send-keys -t "$session" -l "/clear" && "$TMUX_BIN" send-keys -t "$session" Enter
+    # Phase 1: wait for the screen to repaint (any earlier handshake text gone).
+    _w=0
+    while [[ $_w -lt 30 ]]; do
+        sleep 0.5
+        _pane=$("$TMUX_BIN" capture-pane -t "$session" -p 2>/dev/null)
+        echo "$_pane" | grep -qi "session ready" || break
+        (( _w++ ))
+    done
+    # Old text still on screen: /clear hasn't landed, and phase 2 would match it.
+    [[ $_w -ge 30 ]] && { log "WARN: screen did not repaint in '$session' after /clear"; return 1; }
+    # Phase 2: wait for the post-clear handshake reply and an idle prompt (max 60s).
+    _w=0
+    while [[ $_w -lt 120 ]]; do
+        sleep 0.5
+        _pane=$("$TMUX_BIN" capture-pane -t "$session" -p 2>/dev/null) || return 1
+        if echo "$_pane" | grep -qi "session ready" && ! echo "$_pane" | tail -4 | grep -q "esc to interrupt"; then
+            sleep 1
+            return 0
+        fi
+        (( _w++ ))
+    done
+    log "WARN: no ready handshake seen in '$session' after /clear"
+    return 1
+}
+
+# --shutdown --fresh preparation for one session. Returns 2 for the calling
+# session (its /exit would SIGHUP this script), 0 when cleared or skipped
+# (protected; shutdown_single_session reports that), 1 when the clear failed
+# (the caller warns and falls back to a plain stop).
+fresh_prepare_session() {
+    local session="$1" caller=""
+    [[ -n "${TMUX_PANE:-}" ]] && caller=$("$TMUX_BIN" display-message -p '#{session_name}' 2>/dev/null)
+    [[ -n "$caller" && "$session" == "$caller" ]] && return 2
+    is_protected_session "$session" && [[ "$FORCE" != "true" ]] && return 0
+    # Intent to stop is recorded before the (long) clear so the restore tick can't
+    # resurrect the session mid-kill.
+    remove_running_marker "$(session_marker_dir "$session")"
+    clear_session_for_fresh "$session"
+}
+
 shutdown_claude_sessions() {
     log "=== claude-mux shutdown starting (dry-run=${DRY_RUN}) ==="
 
@@ -76,6 +148,14 @@ shutdown_claude_sessions() {
                 echo "Run 'claude-mux -l' to see managed sessions." >&2
                 (( _shutdown_errors++ ))
                 continue
+            fi
+            if [[ "$FRESH_START" == "true" ]]; then
+                fresh_prepare_session "$_sess"
+                case $? in
+                    2) echo "ERROR: '$_sess' is the session you are running in; --fresh would end this command. Use 'end this session' instead." >&2
+                       (( _shutdown_errors++ )); continue ;;
+                    1) echo "WARN: could not confirm the clear of '$_sess'; it was stopped normally and its next start may resume the old conversation." >&2 ;;
+                esac
             fi
             shutdown_single_session "$_sess" || (( _shutdown_errors++ ))
         done
@@ -104,6 +184,14 @@ shutdown_claude_sessions() {
             log "Skipping protected session '$session' (use --force to override)"
             (( protected_skipped++ ))
             continue
+        fi
+        if [[ "$FRESH_START" == "true" ]]; then
+            fresh_prepare_session "$session"
+            case $? in
+                2) echo "WARN: skipping '$session' (the session you are running in); use 'end this session' to start fresh." >&2
+                   continue ;;
+                1) echo "WARN: could not confirm the clear of '$session'; it was stopped normally and its next start may resume the old conversation." >&2 ;;
+            esac
         fi
         managed_list+=("$session")
         # Remove the auto-restore marker first (intent to stop).
