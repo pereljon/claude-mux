@@ -66,7 +66,7 @@ Current markers (`.claudemux-ignore`, `-protected`, `-running`, `-restarting/`, 
 
 ## Security Context
 
-Single-user tool on the user's own account. Threat model: accidental footguns (path traversal, injection via user-supplied args), not multi-user or adversarial scenarios.
+Single-user tool on the user's own account. Threat model: accidental self-inflicted mistakes (path traversal, injection via user-supplied args), not multi-user or adversarial scenarios.
 
 ## Known Issues / Hypotheses
 
