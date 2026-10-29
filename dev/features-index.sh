@@ -10,6 +10,11 @@
 
 set -euo pipefail
 
+# Bash substring offsets (${var:0:N}) count characters in a UTF-8 locale but bytes
+# under C/POSIX; multibyte cells (em dashes) then truncate at different widths and
+# the drift guard fails in CI. Pin the locale so output is environment-independent.
+export LC_ALL=C
+
 DIR="dev/features"
 # Controlled vocab — display order is the build-priority order.
 LIFECYCLE_ORDER="ready building designing idea shelved superseded shipped"
