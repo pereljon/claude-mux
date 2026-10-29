@@ -12,12 +12,13 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
-| `session-identity-reply` | ready | 2.5.0 (minor; was 2.4.0, which shipped agents-md-canonica... | READY 2026-08-17. Architect-reviewed twice; second pass APPROVE-WITH-CHANGES, all chang... | N/A (enhancement) — orientation-on-reconnect UX; the current handshake gives no session... | [session-identity-reply.md](session-identity-reply.md) |
+| `session-identity-reply` | ready | 2.5.0 (minor; was 2.4.0, which shipped agents-md-canonica... | READY 2026-08-17. Architect-reviewed twice; second pass APPROVE-WITH-CHANGES, all chang... | N/A (enhancement) — orientation-on-reconnect UX; the current handshake gives no sessi... | [session-identity-reply.md](session-identity-reply.md) |
 
 ## building
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
+| `hook-session-guard` | building | 2.5.0 (minor), alongside --shutdown --fresh | BUILT 2026-10-28 on branch hook-session-guard; tests pass (see -tests.md); awaiting cod... | Medium (a compaction or clear outside claude-mux types "Ready?" into an unrelated live ... | [hook-session-guard.md](hook-session-guard.md) |
 | `shutdown-fresh` | building | 2.5.0 (minor): new flag on --shutdown + injection vocabulary | BUILT on branch shutdown-fresh, live-tested 2026-10-01 (kill, busy, protected, self-ref... | N/A (enhancement) | [shutdown-fresh.md](shutdown-fresh.md) |
 
 ## designing
@@ -26,16 +27,16 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 |---|---|---|---|---|---|
 | `cross-cli-coders` | designing | — | planned (REVISED 2026-09-04: Codex 0.153.2 now has a native hook system, close in shape... | — | [cross-cli-coders.md](cross-cli-coders.md) |
 | `external-prompt-routing` | designing | unscheduled minor (new capability, not a bug fix) | DESIGNED via brainstorm 2026-09-11, verified against live `claude -p` behavior and prim... | N/A (new capability) | [external-prompt-routing.md](external-prompt-routing.md) |
-| `inter-agent-messaging` | designing | UNSCHEDULED — parked behind 3 gates (close exfiltration-e... | REOPENED (was SHELVED) — discussion-log #15 narrowed the obstacle: a worker boots in th... | N/A (new capability) — but ships a prompt-injection attack surface; see Threat Model | [inter-agent-messaging.md](inter-agent-messaging.md) |
+| `inter-agent-messaging` | designing | UNSCHEDULED — parked behind 3 gates (close exfiltration... | REOPENED (was SHELVED) — discussion-log #15 narrowed the obstacle: a worker boots in ... | N/A (new capability) — but ships a prompt-injection attack surface; see Threat Model | [inter-agent-messaging.md](inter-agent-messaging.md) |
 | `launched-version-detection` | designing | 2.x (minor; notify-only behavior) | REVISED 2026-06-24 (bare-home incident exposed that a truly stale wrapper does NOT re-b... | LOW for the version nudge; HIGH for the degraded-launch case (a stale | [launched-version-detection.md](launched-version-detection.md) |
-| `session-activity-timestamps` | designing | 2.1.0 (minor) — new capability, new hook, new per-project... | DESIGNING 2026-07-15 (decisions captured from live brainstorm; pre-architect-review). H... | N/A (enhancement) — feeds v2.0 situational-awareness + v2.1 context-discipline | [session-activity-timestamps.md](session-activity-timestamps.md) |
-| `terminate-session` | designing | unscheduled | DESIGNING 2026-07-24 (promoted from idea; concept + pre-termination behavior + concurre... | N/A (enhancement) — gives a "destructive stop" (next start is fresh) distinct from toda... | [terminate-session.md](terminate-session.md) |
+| `session-activity-timestamps` | designing | 2.1.0 (minor) — new capability, new hook, new per-proje... | DESIGNING 2026-07-15 (decisions captured from live brainstorm; pre-architect-review). H... | N/A (enhancement) — feeds v2.0 situational-awareness + v2.1 context-discipline | [session-activity-timestamps.md](session-activity-timestamps.md) |
+| `terminate-session` | designing | unscheduled | DESIGNING 2026-07-24 (promoted from idea; concept + pre-termination behavior + concurre... | N/A (enhancement) — gives a "destructive stop" (next start is fresh) distinct from to... | [terminate-session.md](terminate-session.md) |
 
 ## idea
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
-| `context-cost-awareness` | idea | unscheduled | IDEA 2026-06-21 (concept + feasibility sketched; not yet designed/architect-reviewed). ... | N/A (enhancement) — addresses the observation that claude-mux's persistence biases towa... | [context-cost-awareness.md](context-cost-awareness.md) |
+| `context-cost-awareness` | idea | unscheduled | IDEA 2026-06-21 (concept + feasibility sketched; not yet designed/architect-reviewed). ... | N/A (enhancement) — addresses the observation that claude-mux's persistence biases to... | [context-cost-awareness.md](context-cost-awareness.md) |
 
 ## shelved
 
@@ -56,13 +57,13 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `agents-md-canonical` | shipped | 2.4.0 (minor), released 2026-09-30 | SHIPPED 2026-09-30 in v2.4.0 (commits 64b8afd, a94e778; tag v2.4.0). Architect-reviewed... | N/A (enhancement); a wrong migration silently drops project instructions | [agents-md-canonical.md](agents-md-canonical.md) |
 | `auto-restore` | shipped | — | — | — | [auto-restore.md](auto-restore.md) |
 | `claude-code-upgrade-detection` | shipped | — | — | — | [claude-code-upgrade-detection.md](claude-code-upgrade-detection.md) |
-| `clear-ready-handshake` | shipped | 2.2.0 (minor) — new always-on hook + new capability (clea... | SHIPPED in v2.2.0 (committed 3542d98, RELEASED 2026-07-23, deployed to ~/bin). Code rev... | N/A (enhancement) — UX parity with compact; clear currently gives no confirmation and n... | [clear-ready-handshake.md](clear-ready-handshake.md) |
-| `home-prompt-split` | shipped | 2.1.0 (minor — changes session-visible injection behavior... | SHIPPED in v2.1.0 (committed aa6627c, RELEASED 2026-07-23, deployed to ~/bin). Architec... | — | [home-prompt-split.md](home-prompt-split.md) |
-| `make-codemap` | shipped | 2.0.x (patch; dev-tooling, no runtime change) | IMPLEMENTED 2026-06-19 (dev-tooling; claude-mux artifact byte-identical, no release) | N/A (developer-tooling) — but it closes the structural-doc-drift class that produced a ... | [make-codemap.md](make-codemap.md) |
-| `model-handling-derot` | shipped | 2.0.9 (patch; one real bug + drift removal) | IMPLEMENTED 2026-06-19 (v2.0.9; membership→format pass-through + de-versioned injection) | MEDIUM — claude-mux's closed model allowlist now REJECTS valid models (e.g. `fable`); p... | [model-handling-derot.md](model-handling-derot.md) |
-| `model-resolution-notice-cleanup` | shipped | 2.0.13 (patch; one real bug fix + one display regression ... | IMPLEMENTED 2026-06-21 (v2.0.13; expand-from-knowledge model resolution + notice-displa... | MEDIUM — "change model to <family>" silently no-ops (in-session model switch broken for... | [model-resolution-notice-cleanup.md](model-resolution-notice-cleanup.md) |
-| `model-switch-confirm` | shipped | 2.0.14 (patch) — a real bug: in-session model switch stal... | SHIPPED in v2.0.14 (committed 618128f 2026-07-22, deployed to ~/bin). Code-reviewed (0 ... | MEDIUM — a cached-conversation `/model` switch silently stalls the session on a confirm... | [model-switch-confirm.md](model-switch-confirm.md) |
-| `notice-delivery-reliability` | shipped | 2.0.10 (patch; the actionable-notice fix is a real bug fi... | IMPLEMENTED 2026-06-19 (v2.0.10; persist-while-relevant for update+upgrade notices, <as... | HIGH for the actionable notices (claude-mux update available, Claude binary upgraded) —... | [notice-delivery-reliability.md](notice-delivery-reliability.md) |
+| `clear-ready-handshake` | shipped | 2.2.0 (minor) — new always-on hook + new capability (cl... | SHIPPED in v2.2.0 (committed 3542d98, RELEASED 2026-07-23, deployed to ~/bin). Code rev... | N/A (enhancement) — UX parity with compact; clear currently gives no confirmation and... | [clear-ready-handshake.md](clear-ready-handshake.md) |
+| `home-prompt-split` | shipped | 2.1.0 (minor — changes session-visible injection behavi... | SHIPPED in v2.1.0 (committed aa6627c, RELEASED 2026-07-23, deployed to ~/bin). Architec... | — | [home-prompt-split.md](home-prompt-split.md) |
+| `make-codemap` | shipped | 2.0.x (patch; dev-tooling, no runtime change) | IMPLEMENTED 2026-06-19 (dev-tooling; claude-mux artifact byte-identical, no release) | N/A (developer-tooling) — but it closes the structural-doc-drift class that produced ... | [make-codemap.md](make-codemap.md) |
+| `model-handling-derot` | shipped | 2.0.9 (patch; one real bug + drift removal) | IMPLEMENTED 2026-06-19 (v2.0.9; membership→format pass-through + de-versioned injection) | MEDIUM — claude-mux's closed model allowlist now REJECTS valid models (e.g. `fable`);... | [model-handling-derot.md](model-handling-derot.md) |
+| `model-resolution-notice-cleanup` | shipped | 2.0.13 (patch; one real bug fix + one display regression ... | IMPLEMENTED 2026-06-21 (v2.0.13; expand-from-knowledge model resolution + notice-displa... | MEDIUM — "change model to <family>" silently no-ops (in-session model switch broken f... | [model-resolution-notice-cleanup.md](model-resolution-notice-cleanup.md) |
+| `model-switch-confirm` | shipped | 2.0.14 (patch) — a real bug: in-session model switch st... | SHIPPED in v2.0.14 (committed 618128f 2026-07-22, deployed to ~/bin). Code-reviewed (0 ... | MEDIUM — a cached-conversation `/model` switch silently stalls the session on a confi... | [model-switch-confirm.md](model-switch-confirm.md) |
+| `notice-delivery-reliability` | shipped | 2.0.10 (patch; the actionable-notice fix is a real bug fi... | IMPLEMENTED 2026-06-19 (v2.0.10; persist-while-relevant for update+upgrade notices, <as... | HIGH for the actionable notices (claude-mux update available, Claude binary upgraded) �... | [notice-delivery-reliability.md](notice-delivery-reliability.md) |
 | `precompact-hook-backfill` | shipped | — | shipped | — | [precompact-hook-backfill.md](precompact-hook-backfill.md) |
 | `ready-handshake` | shipped | — | — | — | [ready-handshake.md](ready-handshake.md) |
 | `restart-caller-shutdown-fix` | shipped | 2.0.4 | implemented (v2.0.4) | HIGH (correctness) | [restart-caller-shutdown-fix.md](restart-caller-shutdown-fix.md) |
@@ -71,5 +72,5 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `src-module-split` | shipped | 2.0.x (patch; no release - shipped artifact byte-identical) | IMPLEMENTED (2026-06-17) | N/A (developer-ergonomics refactor, zero runtime behavior change) | [src-module-split.md](src-module-split.md) |
 | `start-by-name` | shipped | 2.0.7 (patch) - user decision 2026-06-17 | IMPLEMENTED in v2.0.7 (2026-06-17); both open questions resolved 2026-06-17 | MEDIUM (UX gap + injection inconsistency) | [start-by-name.md](start-by-name.md) |
 | `status-filter` | shipped | — | shipped | — | [status-filter.md](status-filter.md) |
-| `tip-home-daily` | shipped | 2.0.15 (patch) — a real bug fix (2.0.14 shipped model-swi... | SHIPPED in v2.0.15 (committed d20f2c7 2026-07-22, deployed to ~/bin). Fable design-revi... | MEDIUM — the daily tip re-shows on every compact/clear/restart, defeating the once-per-... | [tip-home-daily.md](tip-home-daily.md) |
+| `tip-home-daily` | shipped | 2.0.15 (patch) — a real bug fix (2.0.14 shipped model-s... | SHIPPED in v2.0.15 (committed d20f2c7 2026-07-22, deployed to ~/bin). Fable design-revi... | MEDIUM — the daily tip re-shows on every compact/clear/restart, defeating the once-pe... | [tip-home-daily.md](tip-home-daily.md) |
 | `tip-ready-handshake` | shipped | 2.0.8 (patch) | IMPLEMENTED in v2.0.8 (complete version - handshake check precedes detect_claude_upgrade) | Medium (daily tip almost never reaches the user) | [tip-ready-handshake.md](tip-ready-handshake.md) |

@@ -4830,12 +4830,11 @@ claude_binary_id() {
 # Claude de-dups within the session via the once-per-session instruction in the standing
 # notice rule (build_system_prompt), not the notice text — the notice text is the clean
 # user-facing line only. Uses the tmux session (inherited $TMUX in the hook), not stdin, so it runs even
-# when tips/update notices are off. Silent no-op if not in tmux or the option is unset
-# (pre-feature session).
+# when tips/update notices are off. Silent no-op outside a managed pane or if the option
+# is unset (pre-feature session).
 detect_claude_upgrade() {
     local _sess
-    _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null) || return 0
-    [[ -z "$_sess" ]] && return 0
+    _sess=$(hook_session) || return 0
     local _id0
     _id0=$("$TMUX_BIN" show-options -t "$_sess" -v @claude-mux-claude-id 2>/dev/null)
     [[ -z "$_id0" ]] && return 0
@@ -4844,6 +4843,17 @@ detect_claude_upgrade() {
     if [[ "$_id_now" != "$_id0" ]]; then
         echo "<assistant-must-display>claude-mux: Claude Code was upgraded since this session started. Say \"restart this session\" to load the new binary.</assistant-must-display>"
     fi
+}
+
+# Prints the claude-mux session that owns the pane this hook runs in; fails outside
+# a managed pane. Resolves via $TMUX_PANE because a bare `display-message -p '#S'`
+# exits 0 even outside tmux and names whatever session tmux treats as current.
+hook_session() {
+    [[ -n "${TMUX:-}" && -n "${TMUX_PANE:-}" ]] || return 1
+    local _s
+    _s=$("$TMUX_BIN" display-message -p -t "$TMUX_PANE" '#S' 2>/dev/null) || return 1
+    [[ -n "$_s" ]] && is_claude_mux_session "$_s" || return 1
+    printf '%s\n' "$_s"
 }
 
 # UserPromptSubmit hook handler. Injects (via stdout) a daily tip and the two
@@ -4855,6 +4865,8 @@ detect_claude_upgrade() {
 # on the network: the GitHub API call is delegated to a disowned --update-check-bg process.
 on_prompt() {
     local _state_dir="$CLAUDE_MUX_DIR/tip-state"
+    local _sess
+    _sess=$(hook_session) || exit 0
 
     # Parse the hook's stdin JSON for just the synthetic "Ready?" handshake flag. The
     # tip is now gated on the home session + a global daily stamp (no session_id key),
@@ -4911,8 +4923,6 @@ print("1" if (obj.get("prompt", "") or "").strip() == "Ready?" else "0")' 2>/dev
     # vs a typed prompt in the same instant) can at worst print the tip twice — cosmetic,
     # accepted, not worth a lock.
     if [[ "${TIP_OF_DAY:-true}" == "true" ]]; then
-        local _sess
-        _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null)
         if [[ "$_sess" == "home" ]]; then
             local _tip_file="$_state_dir/tip.json" _tip_date
             _tip_date=$(/usr/bin/python3 -c '
@@ -5022,8 +5032,7 @@ spawn_ready_handshake_monitor() {
 # for the hook to exit before starting the compact.
 on_compact() {
     local _sess
-    _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null) || return 0
-    [[ -z "$_sess" ]] && return 0
+    _sess=$(hook_session) || return 0
     spawn_ready_handshake_monitor "$_sess" "Compact"
 }
 
@@ -5044,8 +5053,7 @@ except Exception: obj = {}
 print((obj.get("source", "") or "").strip())' 2>/dev/null)
     [[ "$_src" == "clear" ]] || return 0
     local _sess
-    _sess=$("$TMUX_BIN" display-message -p '#S' 2>/dev/null) || return 0
-    [[ -z "$_sess" ]] && return 0
+    _sess=$(hook_session) || return 0
     spawn_ready_handshake_monitor "$_sess" "Clear"
 }
 

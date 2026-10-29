@@ -8,6 +8,9 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - **`--shutdown SESSION --fresh`: "kill".** Clears the conversation (`/clear`, waiting for the post-clear `Ready?` turn and an idle pane, not the reply wording), then stops the session, so the next start is a new conversation instead of a resume. A busy session is interrupted first; if the clear fails it falls back to a plain stop with a warning. A session cannot kill itself (use "end this session"). `--fresh` is now valid with `--shutdown`.
 - **Confirmation before discarding context.** "Kill", "end this session", "restart fresh" and "clear" now state what will happen and ask yes/no first. Stop, restart and compact are unchanged.
 
+### Fixed
+- **Hooks no longer act on an unrelated session.** The compact, clear and prompt hooks now act only inside a claude-mux-managed tmux pane. Before, a `claude` outside claude-mux (a plain terminal, a `claude --bg` session, an unmanaged tmux pane) that compacted or cleared could type "Ready?" into another live session, and could show claude-mux notices where nothing relays them.
+
 ### Changed
 - **"Kill" no longer means stop** (reverses the 2.4.3 wording). "Stop" and "shut down" keep the conversation; "kill" clears it.
 
