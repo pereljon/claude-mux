@@ -28,7 +28,7 @@ Navigation reference for the `claude-mux` script. Use this to locate functions a
 | `src/60-discovery.sh` | 3456-3556 | migrate stray, discover projects, ensure base dir |
 | `src/65-agents-md-migration.sh` | 3557-4364 | `--migrate-agents-md`: scan/classify, report, lock, manifest, apply, verify, drift notice (`migrate_agents_md`, `am_*`, `agents_md_drift_notice`) |
 | `src/70-start-launch.sh` | 4365-4639 | `start_sessions`, `launch_single_session` (both *call* `build_system_prompt`, defined in `30-helpers`) |
-| `src/75-tip-notices.sh` | 4640-5411 | `tip_of_day`, `detect_claude_upgrade`, `on_prompt`, `spawn_ready_handshake_monitor`, `on_compact`, `on_clear`, update machinery |
+| `src/75-tip-notices.sh` | 4640-5411 | `tip_of_day`, `hook_session`, `detect_claude_upgrade`, `on_prompt`, `spawn_ready_handshake_monitor`, `on_compact`, `on_clear`, update machinery |
 | `src/80-templates-restore.sh` | 5412-5696 | `list_templates`, `apply_template`, `autorestore_walk`, `autolaunch_dispatch` |
 | `src/90-dispatch.sh` | 5697-6035 | `check_for_update` call (defined in `30-helpers`), first-run guard `case`, dispatch `case` |
 
@@ -167,6 +167,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `encode_claude_path` | `(path)` | URL-encode a path for Claude's project directory naming |
 | `tip_of_day` | `()` | Select and print one tip (no gating; used by `--tip` and `on_prompt`) |
 | `claude_binary_id` | `()` | Identity of the `claude` executable: `realpath:mtime` (cask realpath or in-place mtime changes on upgrade) |
+| `hook_session` | `()` | Print the claude-mux session that owns the hook's pane (via `$TMUX_PANE` + `@claude-mux-managed`); fail outside a managed pane, so hooks never act on an unrelated session |
 | `detect_claude_upgrade` | `()` | Compare `@claude-mux-claude-id` vs current; echo upgrade notice (wrapped in `<assistant-must-display>`) while they differ. persist-while-relevant: NO ack-on-emit — re-injects every prompt until a restart re-captures the id (so a missed relay can't lose it) |
 | `spawn_ready_handshake_monitor` | `(session, [label])` | Shared: spawn a disowned poller that waits for the prompt to return in `session`, then sends `Ready?`+Enter to trigger the two-line ready handshake. Used by both `on_compact` and `on_clear` so the paths can't drift |
 | `on_compact` | `()` | PreCompact hook: call `spawn_ready_handshake_monitor` to reconnect RC after compact (`--on-compact`) |

@@ -4,6 +4,11 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.4.4] - 2026-10-28
+
+### Fixed
+- **Hooks no longer act on an unrelated session.** The compact, clear and prompt hooks now act only inside a claude-mux-managed tmux pane. Before, a `claude` outside claude-mux (a plain terminal, a `claude --bg` session, an unmanaged tmux pane) that compacted or cleared could type "Ready?" into another live session, and could show claude-mux notices where nothing relays them.
+
 ## [2.4.3] - 2026-09-30
 
 ### Added

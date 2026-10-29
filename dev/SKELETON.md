@@ -864,6 +864,7 @@ restart_sessions_in(AM_RUN_IN, "to load AGENTS.md instructions") || print failed
 #   is_handshake: prompt.strip() == "Ready?"
 #   session_id is no longer read (v2.0.15): the tip gate is home-only + a global
 #   tip.json stamp, and the actionable notices keep no per-session state.
+# Managed-pane guard (v2.5.0): sess = hook_session() or exit 0 (see hook_session below).
 read stdin JSON → is_handshake
 
 # Handshake no-op (v2.0.8): the synthetic "Ready?" claude-mux sends itself after a
@@ -876,8 +877,8 @@ if is_handshake → exit 0
 # Claude Code upgrade detection (always-on; needs no session_id; runs AFTER the
 # handshake check so a "Ready?" turn never consumes the notice).
 # detect_claude_upgrade():  (persist-while-relevant, v2.0.10)
-#   sess = tmux display-message -p '#S'        (needs $TMUX, inherited by the hook)
-#   id0  = tmux show-options -v @claude-mux-claude-id   (empty → skip: not in tmux / pre-feature)
+#   sess = hook_session() or return           (managed pane only)
+#   id0  = tmux show-options -v @claude-mux-claude-id   (empty → skip: pre-feature session)
 #   id_now = claude_binary_id()  (= realpath(claude):mtime)
 #   if id_now != id0:
 #     echo "<assistant-must-display>claude-mux: Claude Code was upgraded … restart this session</assistant-must-display>"
@@ -893,8 +894,7 @@ if TIP_OF_DAY != true AND UPDATE_CHECK != true:   # cheap guard
 # <assistant-must-display>, clean text only. No session_id key: the old per-session
 # gate rotated its UUID on every /clear/restart and re-showed the tip constantly.
 if TIP_OF_DAY:
-  sess = tmux display-message -p '#S'
-  if sess == "home":
+  if sess == "home":                         # sess from hook_session() at the top
     tip_date = read ~/.claude-mux/tip-state/tip.json (.tip_date, "_" if missing)
     if tip_date != today:
       out += "<assistant-must-display>claude-mux tip: " + tip_of_day() + "</assistant-must-display>"
@@ -934,6 +934,15 @@ exit 0
 ## spawn_ready_handshake_monitor(session, label) / on_compact() / on_clear()
 
 ```
+hook_session():                               # shared guard for every hook handler
+  # A bare `display-message -p '#S'` exits 0 even outside tmux and names whatever
+  # session tmux treats as current, so a hook in a plain terminal, a `claude --bg`
+  # session or an unmanaged tmux pane would act on an unrelated session.
+  require $TMUX and $TMUX_PANE
+  sess = tmux display-message -p -t $TMUX_PANE '#S'
+  require is_claude_mux_session(sess)          # @claude-mux-managed == 1
+  print sess
+
 spawn_ready_handshake_monitor(sess, label):
   # Shared by both hooks so the compact and clear paths cannot drift.
   spawn disowned:
@@ -944,7 +953,7 @@ spawn_ready_handshake_monitor(sess, label):
     tmux send-keys sess "Ready?" + Enter      # triggers the two-line ready reply
 
 on_compact():                                 # PreCompact hook (--on-compact)
-  sess = tmux display-message -p '#S' (needs $TMUX); exit if empty
+  sess = hook_session() or return
   spawn_ready_handshake_monitor(sess, "Compact")
 
 on_clear():                                   # SessionStart hook (--on-clear)
@@ -953,7 +962,7 @@ on_clear():                                   # SessionStart hook (--on-clear)
                                               # startup/resume/compact, where the launch
                                               # path already handshakes; a duplicate Ready?
                                               # would race it. matcher "clear" also scopes it.
-  sess = tmux display-message -p '#S'; exit if empty
+  sess = hook_session() or return
   spawn_ready_handshake_monitor(sess, "Clear")
 ```
 
