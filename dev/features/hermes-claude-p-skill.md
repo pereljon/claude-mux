@@ -2,7 +2,10 @@
 kind: investigation
 feature: hermes-claude-p-skill
 status: DRAFTED 2026-09-11, REVISED 2026-09-11 (incoming/ + atomic marker-file async
-  delivery). Instruction content for an EXTERNAL, non-claude-mux tool (Hermes) to build its
+  delivery; then again same day - Hermes independently confirmed `--append-system-prompt-file`
+  does not compose across invocations, reproduced here, Rule 3 + Open Question 1 updated
+  from fact rather than a hedge). Instruction content for an EXTERNAL, non-claude-mux tool
+  (Hermes) to build its
   own skill for calling `claude -p` directly. No claude-mux code required or touched.
   Companion/interim path alongside the still-designed, unbuilt `external-prompt-routing`
   (`--route`) feature - not a replacement for it. **This file is an EXAMPLE / reference
@@ -53,14 +56,14 @@ You can delegate a discrete task or question to a Claude Code session by invokin
    version). This tells the worker to treat your prompt as external, untrusted input rather
    than blindly-trusted instructions - a real safety property, not a formality.
 
-3. **Optionally pass a handoff file for extra context.** If you have more context to supply
-   than fits naturally in the prompt string itself (background, prior state, structured
-   data), write it to a file and pass it as a SECOND, separate
-   `--append-system-prompt-file <handoff-file>` argument (or merge it into one file with the
-   framing content, in that order, if your invocation only supports one instance of the
-   flag - verify which before relying on it; this was not confirmed either way during
-   design). Keep the framing content's protection intact regardless of how you merge -
-   don't let handoff content dilute or precede it.
+3. **Optionally pass a handoff file for extra context - merge it into the SAME file as the
+   framing content.** `--append-system-prompt-file` does **not** compose across two
+   invocations: confirmed empirically (two calls, two files, distinct probe strings) - only
+   the LAST flag's content reaches the model; the first is silently dropped, no error, no
+   warning. If you pass the framing file and then a separate handoff file, the framing is
+   silently lost. Concatenate framing content first, then your handoff content, into ONE
+   file, and pass that single file via `--append-system-prompt-file`. Keep the framing
+   content first in that merged file - don't let handoff content precede or dilute it.
 
 4. **Run in the target project's directory.** `cd` (or otherwise set the working directory)
    to the specific Claude Code project you're targeting before invoking `claude`. CLAUDE.md
@@ -116,11 +119,11 @@ You can delegate a discrete task or question to a Claude Code session by invokin
   live testing during this feature's design: `claude -p` does NOT load any framing on its
   own - if Hermes doesn't apply this itself, nothing does, since no claude-mux code sits in
   this path.
-- **Rule 3 (handoff file)** was the user's original idea. Whether `--append-system-prompt-file`
-  genuinely composes across two separate invocations of the flag (vs. the later one silently
-  winning) was being tested empirically during design and was interrupted before a
-  conclusive result landed - **this is unverified, flagged explicitly in the rule text
-  rather than asserted as fact.** Re-verify before relying on it; see Open Questions.
+- **Rule 3 (handoff file)** was the user's original idea. **CONFIRMED 2026-09-11** (first
+  independently reported by Hermes, then reproduced here with a fresh probe - two files,
+  two distinct secret strings, one per `--append-system-prompt-file` invocation): the later
+  flag wins outright; the earlier one's content never reaches the model, no error or
+  warning. Rule 3 now states this as fact and instructs merging into one file.
 - **Rule 4 (CLAUDE.md loads automatically)** confirmed live during design - `claude -p` in a
   project directory correctly reflected that project's own CLAUDE.md content with no extra
   flags.
@@ -148,9 +151,9 @@ You can delegate a discrete task or question to a Claude Code session by invokin
 
 ## Open questions (resolve before treating this as final)
 
-1. **Does `--append-system-prompt-file` actually compose across two invocations**, or does
-   the second one win/overwrite? Testing this was interrupted mid-design. Rule 3 is written
-   defensively (verify first) rather than asserting an unconfirmed behavior.
+1. ~~Does `--append-system-prompt-file` compose across two invocations?~~ - **RESOLVED
+   2026-09-11**: no. The second invocation wins outright; the first is silently dropped.
+   Confirmed independently by Hermes and reproduced here. Rule 3 updated accordingly.
 2. **Distribution mechanism**: how does Hermes actually obtain a current copy of
    `external-agent-untrusted-framing.txt`? Not yet decided - options include: a stable URL,
    a file Hermes is given once at setup, or something else. Left open.
