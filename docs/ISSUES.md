@@ -5,7 +5,8 @@
 ### Self-rename and self-move stop the session and rename nothing (in progress)
 **Severity:** Medium. Design and status: `dev/features/self-rename.md` (branch `self-rename-via-home`).
 - [ ] Next: the user picks between the wrapper design with the architect fixes and the tmux-server build (`320ae28`); then revise the docs, get test-plan approval, build, and live-test.
-- [ ] Cleanup, with the user's OK: the throwaway sessions `zz-renamed` and `zzrenamed`, their folders and `~/.claude/projects` history; restart home normally (it runs the dev-build injection and holds old rename requests).
+- [x] Throwaway cleanup (resolved 2026-10-28): `zz-renamed` moved to the trash; `zzrenamed` and both history folders were already gone.
+- [ ] Restart home normally if it still runs the dev-build injection and holds old rename requests.
 
 ### `--help` omits several working flags that `--commands` documents
 **Severity:** Low (documentation completeness, not a functional bug - every flag below works; `--help` just doesn't mention it)
