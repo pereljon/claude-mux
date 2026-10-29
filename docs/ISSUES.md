@@ -2,8 +2,28 @@
 
 ## Open
 
+### Self-rename and self-move stop the session and rename nothing (in progress)
+**Severity:** Medium. Design and status: `dev/features/self-rename.md` (branch `self-rename-via-home`).
+- [ ] Next: the user picks between the wrapper design with the architect fixes and the tmux-server build (`320ae28`); then revise the docs, get test-plan approval, build, and live-test.
+- [ ] Cleanup, with the user's OK: the throwaway sessions `zz-renamed` and `zzrenamed`, their folders and `~/.claude/projects` history; restart home normally (it runs the dev-build injection and holds old rename requests).
+
+### `--help` omits several working flags that `--commands` documents
+**Severity:** Low (documentation completeness, not a functional bug - every flag below works; `--help` just doesn't mention it)
+**Status:** Open - found 2026-09-11 via cross-agent verification (reported by an external agent, Hermes, running as jP's coordination layer above the claude-mux fleet; independently confirmed here against the live `--help`/`--commands` output).
+**Findings:** `--help` has no entry for `--rename`, `--move`, `--commands`, `--get-mode`, `--save-template`, or `--tip` - all six are documented in `--commands` and confirmed working (spot-checked `--tip` and `--get-mode` directly). **`--start` is a narrower case, precisely characterized on verification:** it does appear in `--help`, but only as a passing mention inside `--fresh`'s description line ("With --start, --restart, or -d: ...") - it has no dedicated entry of its own, unlike `--shutdown` and `--restart`, which each get a clear, standalone line. So `--start`'s gap is incomplete documentation, not total absence.
+**Fix direction (not yet built, deliberately deferred):** add dedicated `--help` entries for the fully-missing flags and give `--start` its own line rather than only an incidental mention inside `--fresh`. Left for jP to decide whether/how to make this change to `src/10-flags.sh` - not touched here, per this project's own working rule against unprompted coding changes.
+
+### Claude Code's "Teach auto mode about your environment?" dialog stalls a session after `/compact`
+**Severity:** Medium (the session sits at a live interactive dialog until a human answers it; over Remote Control nobody is looking at the terminal)
+**Status:** Open - observed 2026-09-30 on `medical-case-compiler` (Claude Code 2.1.283). A `/compact` sent from the Claude app over Remote Control was followed by this dialog. Options shown: "How you use Claude here" (Mixed), "Also scan shell history" (true), "Also scan your other repos" (false), Continue. The claude process is alive at the dialog, so this is a live prompt, not a crash.
+**Findings:** `poll_until_ready` (`src/50-restore-state.sh`) and the `on_compact` ready-handshake monitor (`spawn_ready_handshake_monitor`) do not recognize this dialog, so the `Ready?` handshake never completes and nothing dismisses it. Unverified: what triggers it (first `/compact` in auto mode? a Claude Code upgrade?) and whether a setting or flag suppresses it (the settings schema has `skipAutoPermissionPrompt` and `autoMode.environment`; neither is confirmed to relate).
+**Design tension:** unlike the folder-trust dialog (v2.3.1), the default answer here consents to scanning shell history, so it must not be auto-accepted. Options: (a) detect it and surface a notice so a human answers; (b) dismiss with Escape (no consent given, unverified that Escape leaves the session usable); (c) navigate to the scan-off values and confirm. Leaning (a) or (b); needs jP's call.
+**Immediate relief:** Escape at the dialog (unconfirmed for that session).
+
 ### `on_compact`/`on_clear`/`on_prompt` hook handlers don't verify they're running under a claude-mux-managed Claude Code session
-**Severity:** Low (no destructive risk found; correctness/UX-noise only)
+**Severity:** Medium (raised 2026-10-28 from Low). Outside tmux, the handlers act on an unrelated live session; a compaction or clear types "Ready?" into it.
+**Update 2026-10-28:** the development session reported a second trigger. Outside tmux, `tmux display-message -p '#S'` exits 0 and prints the session tmux treats as current (reproduced: it printed `financial-planner`), so the `|| return 0` guards never fire. Affected: a plain-terminal `claude` in a project, `claude --bg` background sessions, sessions in `.claude/worktrees/`, and claude in unmanaged tmux sessions. `detect_claude_upgrade` has the same lookup. Fix designed in `dev/features/hook-session-guard.md`. The development session asked to be told the version once it ships.
+- [x] Fixed (resolved 2026-10-28): `hook_session` guard merged to `main` as `03a893f`; not yet released. Codex-imported hooks run outside a managed pane, so the same guard covers the 2026-09-04 case.
 **Status:** Open — found 2026-09-04 while researching Codex CLI cross-CLI compatibility (see `dev/features/cross-cli-coders.md`, "Hazard: claude-mux's own hook commands, reused blindly by the official Codex migrator").
 **Context:** OpenAI's Codex CLI (0.153.2+, confirmed via four independent sources including Codex's own database-level import ledger) ships a native `/import` feature that copies a project's `.claude/settings.json` hooks into `.codex/hooks.json` **verbatim, by command string** — including claude-mux's own `claude-mux --on-compact` / `--on-clear` / `--on-prompt` invocations. Observed live in a real project (`dynavlan`), generated by Codex's native `/import` command (confirmed via `~/.codex/state_5.sqlite`'s `external_agent_config_imports` table, not just timestamps), unprompted by and unknown to claude-mux (confirmed: zero `codex`/`.codex` references anywhere in claude-mux's own `src/`).
 **Problem:** none of the three handler functions (`src/75-tip-notices.sh`) check *which* CLI is actually running in the pane, or that the invoking session was ever launched/is managed by claude-mux — they act purely on the tmux session name (`#S`) plus whatever JSON shape the hook happens to receive. If these fire inside a Codex turn instead of a Claude Code one: `on_compact`/`on_clear` call a monitor that scrapes Claude Code's own TUI busy/idle text to reconnect Claude Code's Remote Control — under Codex the pattern won't match (likely silent no-op) or could type a stray literal `Ready?` into the Codex pane, producing a confusing unwanted turn. `on_prompt`'s tip-of-day/update-available notices are emitted as `<assistant-must-display>...</assistant-must-display>`-tagged stdout, a convention taught only by claude-mux's Claude-Code-only system-prompt injection — a Codex session never receives that instruction, so the raw tags would most likely leak into the visible chat as garbled text (same class as the existing "notice relay can print the literal tags" issue above, but guaranteed rather than occasional, since Codex has zero training on the convention at all).
@@ -381,6 +401,16 @@ In-place sanity checks: tmux/claude versions and paths, hooks installed across p
 ### "Compacting…" notice at compact start (idea, not yet built)
 
 `on_compact()` (`src/75-tip-notices.sh:265`) only spawns the RC-reconnect monitor and returns — nothing tells the user compact has started. Claude Code hooks can return `{"systemMessage": "..."}` on stdout to show text immediately; PreCompact must exit before compaction proceeds, so this can only announce the *start*, not narrate progress during it (no hook fires mid-compact). Proposed: `echo '{"systemMessage": "🔄 Compacting…"}'` as the first line of `on_compact()`. Needs a worktree per the Worktree Policy (session-behavior change) and testing on a throwaway session, since triggering a real `/compact` ends the current session's context.
+
+### `-s` delivery hardening (planned, not built; recorded 2026-10-10)
+
+`-s` (`src/90-dispatch.sh`, `send)` case) sends with `send-keys -l` + `Enter` and does not check the pane state first. If a dialog is open, including a permission prompt, the keystrokes go to the dialog and the Enter confirms whatever option is highlighted. Hermes will switch from raw tmux to `claude-mux -s` once item 1 exists.
+- [ ] 1. Before sending, wait until the session is idle and no dialog is open, with a timeout, and fail loudly on timeout. Reuse the idle/busy wait in `clear_session_for_fresh` (`src/40-shutdown.sh`). Unlike kill, `-s` should wait rather than interrupt with Escape. That function also does not detect dialogs, so dialog detection needs new code.
+- [ ] 2. Strip C0 control characters from the text (an ESC can cancel a turn; ^C/^D act on the pane).
+- [ ] 3. Cap the message length and fail loudly when the text is over the cap.
+- [ ] 4. Optional: a `--paste` mode that uses bracketed paste (`load-buffer` + `paste-buffer -p`) for multi-line text. Before building it, test how Claude Code's `[Pasted text #N]` placeholder interacts with skill arguments.
+
+**Decision (2026-10-10):** no `--agent-message` flag. Fleet message formats (for example `[HERMES:ROLE]` tags) stay out of claude-mux; any fleet-side wrapper calls `-s`. Rejected: a dedicated flag that builds the tag and the `/external-agents` slash command. It would couple claude-mux to an external fleet's protocol, and it could not verify the sender, because claude-mux runs as the same user as every other local process.
 
 ## v2.0 Milestone
 
