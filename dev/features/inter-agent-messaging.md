@@ -23,6 +23,8 @@ persistent, project-bound agent; this turns the fleet into a lightweight network
 where agents can find each other (`--agents`) and message each other (`--message`),
 gated by a per-project authorization marker.
 
+Claude-to-Codex delivery tests (2026-10-31), including the finding that typing into a pane can approve an open permission prompt: `cross-cli-coders.md`, "Claude-to-Codex messaging tests".
+
 ## Scope (locked 2026-06-17, split per review M7)
 
 **Control model (decided 2026-06-17).** Two layers:

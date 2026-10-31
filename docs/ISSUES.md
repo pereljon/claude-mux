@@ -8,6 +8,11 @@
 - [x] Throwaway cleanup (resolved 2026-10-28): `zz-renamed` moved to the trash; `zzrenamed` and both history folders were already gone.
 - [ ] Restart home normally if it still runs the dev-build injection and holds old rename requests.
 
+### Keys that claude-mux types into a pane may approve an open permission prompt (unchecked)
+**Severity:** Unknown until checked; High if confirmed (a pending command runs with no user action).
+**Found:** 2026-10-31 by the development session. With a permission prompt open in manual mode, `tmux send-keys` of text plus Enter accepted the highlighted "Yes"; the text never appeared as a message. Details: `dev/features/cross-cli-coders.md`, "Claude-to-Codex messaging tests".
+- [ ] Check whether each path that sends Enter first confirms that no prompt is open: `-s` (`src/40-shutdown.sh` `/clear`, dispatch path), the `Ready?` handshake (`src/55-session-launch.sh`, `src/70-start-launch.sh`, `src/75-tip-notices.sh`), and the home message (`src/80-templates-restore.sh`).
+
 ### `--help` omits several working flags that `--commands` documents
 **Severity:** Low (documentation completeness, not a functional bug - every flag below works; `--help` just doesn't mention it)
 **Status:** Open - found 2026-09-11 via cross-agent verification (reported by an external agent, Hermes, running as jP's coordination layer above the claude-mux fleet; independently confirmed here against the live `--help`/`--commands` output).

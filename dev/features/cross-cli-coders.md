@@ -199,6 +199,29 @@ Both have direct analogues that make Tier-1 reachable (verify exact flag names a
 
 If the inbox is file-based (it is - `~/.claude-mux/inbox/<name>/`, delete-on-read), a Gemini/Codex session whose static context file (`GEMINI.md`/`AGENTS.md` → `CLAUDE.md`) teaches it to poll the inbox joins the network **by pull** for free. Only the push-nudge (send-keys to an idle session) needs per-CLI prompt detection (Tier 2). Build the inbox format CLI-agnostic from the start. See ISSUES.md "Inter-agent messaging."
 
+## Claude-to-Codex messaging tests (2026-10-31)
+
+The development session ran these tests, and the user approved recording them here. They record no decision; the design choices remain open. Versions: Codex CLI 0.165.0, Codex daemon 0.166.0, and Claude Code on the user's Mac. Delivery time was not measured precisely.
+
+**Correction to an earlier claude-mux answer.** `claude-mux -s` does not type plain text into a pane. On a managed session it fails with "ERROR: -s only accepts slash commands (must start with /)" (`src/90-dispatch.sh`). On an unmanaged tmux session it fails with "is not a claude-mux managed session". A session that `claude-mux -n` created outside the base folder was not managed and did not appear in `-l`.
+
+**Verified:**
+- `codex --remote unix://` in tmux runs a TUI session on the shared daemon.
+- The daemon lists that session through `thread/loaded/list`. Access is JSON-RPC over WebSocket framing on `~/.codex/app-server-control/app-server-control.sock`. `codex app-server proxy` with plain line JSON failed with a broken pipe.
+- `codex queue --thread <uuid> --message <text>` woke the idle TUI session with nobody typing. The reply showed on screen within about 10 seconds. It also woke an idle headless thread loaded with `thread/resume`.
+- A queued message for a thread that is not loaded stays in `queue_1.sqlite` and runs when the thread loads. Queued messages carry no sender, so a sender tag must be in the text.
+- The daemon listed no loaded threads while Codex Desktop was running. Desktop runs a separate app-server, inferred to be private to the app. Delivery to Desktop threads is untested.
+- Inside `codex exec --sandbox workspace-write`, `claude-mux -l` reported 0 sessions (16 outside it), and `-s` reported no active tmux session. The cause is inferred: the sandbox blocks the tmux socket.
+- Typing into a pane is unsafe. With a permission prompt open on a throwaway session in manual mode, `tmux send-keys` of a tagged message plus Enter accepted the highlighted "Yes". The command ran with no user action, and the text never appeared as a message. Any route that types into a pane can therefore approve a pending prompt, including tmux bridge tools. The claude-mux paths that send Enter are tracked in `docs/ISSUES.md`.
+
+**Not tested:** approval behavior inside Codex for sends that leave the sandbox; whether `codex queue` can answer an open Codex approval prompt; remote connection to a tmux Codex session started with `--remote`.
+
+**Other inputs (not tested here):**
+- Source review only: MCP Agent Mail and agentbus do not wake idle Codex sessions. agentbus forges `from-mode` to match the receiver, which defeats the default hold on bypass sessions. Agent Mail's license rider denies rights to OpenAI, Anthropic, and those acting for them, so that repo gets no further analysis.
+- `hermes-manager` prefers a shared drop folder, with a watcher outside the sandbox that delivers only a fixed "file arrived" notice. Typing cannot deliver that notice safely, for the reason above, so that part is unsolved.
+- Per `hermes-manager`: Codex's `hooks.json` is empty, so peer-guard does not run under Codex. Codex's first session did not load parent `AGENTS.md` files on its own.
+- Per `hermes-manager`: the user holds any Codex channel for that project until after its blind pilot.
+
 ## Out of scope
 
 - Tier-2 runtime control for non-Claude CLIs (slash routing, Claude-style ready-handshake/permission cycle, RC reconnect).
