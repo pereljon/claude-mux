@@ -185,6 +185,7 @@ shutdown_claude_sessions() {
 
     # Send /exit to managed sessions where Claude is running
     local exit_count=0
+    local exit_sent=()
     local protected_skipped=0
     local managed_list=()
     while IFS= read -r session; do
@@ -213,6 +214,7 @@ shutdown_claude_sessions() {
             elif dismiss_dialog_for_exit "$session" \
                 && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter; then
                 (( exit_count++ ))
+                exit_sent+=("$session")
             fi
         fi
     done <<< "$sessions"
@@ -223,7 +225,7 @@ shutdown_claude_sessions() {
             _wait=0
             while [[ $_wait -lt 20 ]]; do
                 _still_running=false
-                for _s in "${managed_list[@]}"; do
+                for _s in "${exit_sent[@]}"; do
                     if "$TMUX_BIN" has-session -t "$_s" 2>/dev/null && claude_running_in_session "$_s"; then
                         _still_running=true
                         break
