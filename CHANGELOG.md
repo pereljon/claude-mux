@@ -15,10 +15,12 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ### Changed
 - **`-s` refuses a session with a dialog open.** It exits 1 and sends nothing.
-- **Shutdown and restart dismiss a dialog first.** They send Escape, which denies a pending permission prompt, before `/exit`.
+- **Stopping or restarting another session dismisses a dialog first.** claude-mux sends Escape, which denies a pending permission prompt, and then `/exit`. If the dialog does not clear within 2 seconds, it kills the session without `/exit`.
+- **A session restarting itself refuses while a dialog is open.** It prints an error and keeps running.
+- **`Ready?` is no longer sent blindly after a launch timeout.** With a dialog open, the handshake waits for the dialog to clear, for up to about 2 more minutes.
 
 ### Fixed
-- **claude-mux could approve a permission prompt.** `-s`, shutdown, restart, the `Ready?` handshake and the home notice pressed Enter without checking for an open dialog, so a pending command could run with no user action. Each now checks that the input prompt is showing, and sends nothing otherwise.
+- **claude-mux could approve a permission prompt.** `-s`, shutdown, restart, the `Ready?` handshake and the home notice pressed Enter without checking for an open dialog, so a pending command could run with no user action. Each now checks that the input prompt is showing before it presses Enter.
 
 ## [2.4.4] - 2026-10-28
 

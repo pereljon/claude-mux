@@ -227,6 +227,16 @@ The rollout log and `state_5.sqlite` are internal formats, and the queue API is 
 - Per `hermes-manager`: Codex's `hooks.json` is empty, so peer-guard does not run under Codex. Codex's first session did not load parent `AGENTS.md` files on its own.
 - Per `hermes-manager`: the user holds any Codex channel for that project until after its blind pilot.
 
+**Codex-to-Claude drop-folder test (2026-10-31).** The development session ran this, and the user approved recording it. It records no decision.
+
+- A background Bash Python watch polled a drop folder in the session scratchpad. `run_in_background` re-invokes Claude when the job exits.
+- `codex exec --sandbox workspace-write` wrote `outbox/001.msg` by temp file plus `mv`. No sandbox change was needed.
+- The watch fired at 17:14:11, 39 seconds after it started and about 9 seconds after a 30-second delay ended. An idle Claude session woke and read `from codex: CODEX-INITIATED-1` with no user action.
+- Claude read the message as tool output, not as a user turn, so it could not answer a permission prompt.
+- Verified limits: a watch must already be running, or the message sits in the folder. The test watch exited after one message and does not survive a session restart.
+- Not tested: a live Codex thread writing the file, and reaching Claude with no watch running.
+- Inferred, not tested: the drop folder has to sit inside each Codex session's writable paths. The folder proves little about the sender, because anything that can write there can pose as Codex. Per-sender folders help a little.
+
 **Decisions (2026-10-31):**
 - A plain-text `--send` command stays out of claude-mux. Rejected because it duplicates native cross-session messaging, and because typed text arrives with the user's authority. The readiness check for claude-mux's own paths that send Enter is tracked in `docs/ISSUES.md`.
 - The Codex-to-Claude bridge is planned as a separate tool outside claude-mux, delivering through Claude Code's inbox socket. A spike on the socket's undocumented message format comes first, after the `hermes-manager` pilot hold ends. It has no project home yet.

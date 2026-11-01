@@ -45,7 +45,7 @@ Busy sessions pass on purpose. A session sends itself `/clear` or `/model` durin
 On failure:
 - `-s` prints an error and exits 1. It sends nothing.
 - `/exit` on shutdown sends Escape once, rechecks for up to 2 seconds, and sends `/exit` if the input row is back. Otherwise it logs a warning and kills the session with no Enter.
-- In-place restart prints an error, counts it in the exit code, and leaves the session running.
+- In-place restart prints an error and leaves the session running. `--restart NAME` exits 1; bare `--restart` still exits 0 (tracked in `docs/ISSUES.md`).
 - The `/clear` of a fresh stop returns failure, so the caller warns and stops the session normally.
 - The compact and clear `Ready?` paths log and skip. A launch hands the skipped handshake to `spawn_ready_handshake_monitor`, which sends it once the dialog clears, for up to about 2 minutes more.
 - The home message returns silently, as it does today when home is not idle.

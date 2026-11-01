@@ -73,12 +73,21 @@ A pending `touch marker.txt` showed whether a send approved a prompt. The marker
 
 Review 2026-10-31 (sonnet, high effort, static read plus awk and bash 3.2 runs). No Critical findings.
 
-- Important, fixed: a skipped in-place restart was silent with exit 0. It now prints an error and counts in the exit code.
+- Important, partly fixed: a skipped in-place restart was silent with exit 0. It now prints an error, and `--restart NAME` exits 1. Bare `--restart` still exits 0; see the second review.
 - Important, fixed: a launch with a dialog open at timeout never got `Ready?`. The skip now hands off to the ready monitor. A dialog left open past that window still gets none; recorded in the design doc's limits.
-- Minor, fixed: shutdown waited 10 seconds after a skipped `/exit`.
+- Minor, partly fixed: shutdown waited 10 seconds after a skipped `/exit`. A mixed bulk shutdown still waits; see the second review.
 - Minor, fixed: the `poll_until_ready` header comment was separated from its function.
-- Minor, fixed: `dev/SKELETON.md` described the removed send-anyway fallback.
+- Minor, fixed on `main` only: `dev/SKELETON.md` described the removed send-anyway fallback. The v2.4.5 tag's `dev/SKELETON.md` and `dev/CODEMAP.md` still describe the old behavior.
 - Minor, accepted: the 8-line window can give a false refusal. It fails closed; recorded in the design doc's limits.
 - Minor, resolved by test: other cursor lists could look like the input row. The pickers in case 8 are refused.
 - Minor, deferred: the loose `yes.*accept` match in `poll_until_ready` is outside this diff; recorded in `docs/ISSUES.md`.
 - Not checked: awk on mawk or gawk (not installed; standard syntax).
+
+Second review 2026-10-31 (opus, high effort), after the release, covering `v2.4.4..v2.4.5`. It used a stub tmux and static reads, not a real Claude Code session or launchd. The first review had not seen the review fixes or the release conflict resolution. No Critical findings. The conflict resolution was correct, and no 2.5.0 code reached the release.
+
+- Important, open: bare `--restart` exits 0 when the caller's in-place restart is refused.
+- Minor, open: a mixed bulk shutdown waits the full 10 seconds.
+- Minor, fixed: the 2.4.5 `CHANGELOG.md` entry was inaccurate.
+- Minor, open: the ready monitor keeps the caller's stdout and stderr open. Whether Claude Code's Bash tool blocks on it is untested.
+- Minor, uncertain, deferred: the launch hand-off under the LaunchAgent, and Shift+Tab with no gate. Both are in `docs/ISSUES.md`.
+- Minor, uncertain, deferred: the `yes.*accept` match can reach a dialog. The `docs/ISSUES.md` entry now names that case.

@@ -14,7 +14,15 @@
 - [x] Fixed (resolved 2026-10-31): `pane_accepts_input` gates every send; merged as `9a6da64` and released in v2.4.5. On `main`, the `/clear` of a fresh stop is gated too; that path is not in 2.4.5.
 
 ### `poll_until_ready` bypass-warning match is loose
-**Severity:** Low, unverified. Found 2026-10-31 in the `readiness-gate` review. `grep -qi "yes.*accept"` on the bottom 6 lines (`src/50-restore-state.sh`) could match transcript text such as "Yes, and auto-accept edits", and then it sends Down and Enter without the gate. Not reproduced.
+**Severity:** Low, unverified. Found 2026-10-31 in the `readiness-gate` review. `grep -qi "yes.*accept"` on the bottom 6 lines (`src/50-restore-state.sh`) could match transcript text such as "Yes, and auto-accept edits", or an open plan-approval dialog with that option (option text unverified on 2.1.312), and then it sends Down and Enter without the gate. It can only happen if a dialog opens during the poll. Not reproduced.
+
+### Readiness gate follow-ups from the v2.4.5 review
+**Severity:** Low. Found 2026-10-31. Findings: `dev/features/pane-readiness-gate-tests.md`.
+- [ ] Bare `--restart` exits 0 when the caller's in-place restart is refused; the error does print. Fix in progress.
+- [ ] A mixed bulk shutdown waits the full 10 seconds for a session that got no `/exit`. Fix in progress.
+- [ ] The ready monitor keeps the caller's stdout and stderr open, so a caller capturing output can block for up to about 2 minutes. Fix in progress.
+- [ ] Uncertain, not tested under launchd: the launch hand-off to the ready monitor is probably killed when `--autolaunch` exits, because the plist has no `AbandonProcessGroup`. The effect is a lost `Ready?`. The home launch subshell has the same exposure.
+- [ ] Uncertain: `--permission-mode bypassPermissions` sends Shift+Tab with no gate. Whether an open prompt acts on that key is unverified. The user asked for bypass on this path.
 
 ### `--help` omits several working flags that `--commands` documents
 **Severity:** Low (documentation completeness, not a functional bug - every flag below works; `--help` just doesn't mention it)
