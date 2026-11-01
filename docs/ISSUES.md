@@ -8,10 +8,13 @@
 - [x] Throwaway cleanup (resolved 2026-10-28): `zz-renamed` moved to the trash; `zzrenamed` and both history folders were already gone.
 - [ ] Restart home normally if it still runs the dev-build injection and holds old rename requests.
 
-### Keys that claude-mux types into a pane may approve an open permission prompt (unchecked)
-**Severity:** Unknown until checked; High if confirmed (a pending command runs with no user action).
-**Found:** 2026-10-31 by the development session. With a permission prompt open in manual mode, `tmux send-keys` of text plus Enter accepted the highlighted "Yes"; the text never appeared as a message. Details: `dev/features/cross-cli-coders.md`, "Claude-to-Codex messaging tests".
-- [ ] Check whether each path that sends Enter first confirms that no prompt is open: `-s` (`src/40-shutdown.sh` `/clear`, dispatch path), the `Ready?` handshake (`src/55-session-launch.sh`, `src/70-start-launch.sh`, `src/75-tip-notices.sh`), and the home message (`src/80-templates-restore.sh`).
+### Keys that claude-mux types into a pane can approve an open permission prompt
+**Severity:** High. A pending command runs with no user action. Design and test plan: `dev/features/pane-readiness-gate.md` (branch `readiness-gate`).
+**Confirmed:** 2026-10-31. With a prompt open in manual mode, `claude-mux -s zz-gate-test '/status'` returned 0 and the pending `touch` ran. `/exit`, `/clear`, the `Ready?` paths and the home message send Enter the same way; only `-s` was run live. Whole-pane `^❯` matches read an open dialog as idle, because the echoed user turn matches.
+- [x] Fixed on branch `readiness-gate` (resolved 2026-10-31): `pane_accepts_input` gates every send. Awaiting merge.
+
+### `poll_until_ready` bypass-warning match is loose
+**Severity:** Low, unverified. Found 2026-10-31 in the `readiness-gate` review. `grep -qi "yes.*accept"` on the bottom 6 lines (`src/50-restore-state.sh`) could match transcript text such as "Yes, and auto-accept edits", and then it sends Down and Enter without the gate. Not reproduced.
 
 ### `--help` omits several working flags that `--commands` documents
 **Severity:** Low (documentation completeness, not a functional bug - every flag below works; `--help` just doesn't mention it)

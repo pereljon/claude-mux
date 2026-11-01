@@ -90,6 +90,10 @@ case "$COMMAND" in
             echo "ERROR: -s command cannot contain newlines" >&2
             exit 1
         fi
+        if ! pane_accepts_input "$SEND_SESSION"; then
+            echo "ERROR: '$SEND_SESSION' shows no input prompt (a dialog may be open); nothing sent" >&2
+            exit 1
+        fi
         "$TMUX_BIN" send-keys -t "$SEND_SESSION" -l "$SEND_COMMAND" && "$TMUX_BIN" send-keys -t "$SEND_SESSION" Enter
         # A cached `/model <id>` switch pops a blocking "Switch model?" confirmation
         # dialog that nothing answers (fire-and-forget send), stalling the session.
@@ -189,7 +193,7 @@ case "$COMMAND" in
                 elif [[ -n "$_restart_caller" && "$_rs" == "$_restart_caller" ]]; then
                     # The caller is restarting itself → in place (can't SIGHUP our own
                     # pane). The looped wrapper relaunches + handshakes; no recreate here.
-                    restart_caller_in_place "$_rs" "$FRESH_START"
+                    restart_caller_in_place "$_rs" "$FRESH_START" || (( _restart_errors++ ))
                 elif claude_running_in_session "$_rs"; then
                     restore_state_clear "$_rs"   # user restart un-trips a crash-looped session
                     # Restart marker + preserve_marker: a crash between shutdown and

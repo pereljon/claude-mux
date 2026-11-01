@@ -205,6 +205,7 @@ case COMMAND:
 
   send:
     validate: session is managed, session is running, command starts with /
+    pane_accepts_input(session) or error + exit 1   # a dialog would take the Enter
     tmux send-keys session command + Enter
     # RC reconnect after /compact is handled universally by the PreCompact hook (on_compact),
     # not by a special case here. The hook fires for all /compact triggers (manual, auto, -s).
@@ -412,7 +413,8 @@ tmux send-keys name "bash launch_script" + Enter
 poll_until_ready(name)        # returns 0 ready / 1 timeout (~120s); logs WARN on timeout
 # prompt file NOT deleted here — the wrapper re-reads/regenerates it on in-place
 # relaunch and removes it on teardown.
-send "Ready?" + Enter         # sent whether ready or timeout (fallback preserved)
+send_ready_handshake(name) || spawn_ready_handshake_monitor(name, "Launch")
+                              # no input row: nothing sent; the monitor sends after the dialog clears
 
 # (Tips are no longer sent here. As of v1.15.0 the daily tip and update notice
 #  are injected per-prompt by the on_prompt UserPromptSubmit hook.)
@@ -481,7 +483,7 @@ if .claudemux-protected exists in dir:
   set @claude-mux-protected = 1
 
 # Backgrounded ready handshake (does not block attach):
-( poll_until_ready(LAUNCH_SESSION_NAME) || true ; rm -f prompt_file ; send "Ready?" + Enter ) &
+( poll_until_ready(LAUNCH_SESSION_NAME) || true ; send_ready_handshake(LAUNCH_SESSION_NAME) || spawn_ready_handshake_monitor(LAUNCH_SESSION_NAME, "Launch") ) &
 ```
 
 ---
@@ -495,7 +497,7 @@ can run ~50s).
 ```
 start = now
 loop:
-  if now - start >= timeout: return 1            # caller still sends Ready? (fallback)
+  if now - start >= timeout: return 1            # caller still tries Ready? through the gate
   sleep 0.5
   pane = capture-pane(session)  (continue on failure)
   if pane has "Yes, I trust this folder": send Down; sleep 1; send Enter; sleep 2; continue   # pre-ready.
@@ -503,7 +505,7 @@ loop:
     # trust, which cleanly exits Claude and looks like a launch failure with no error output.
   if pane has /yes.*accept/i:              send Down; sleep 1; send Enter; sleep 2; continue
   if bottom-4(pane) has "esc to interrupt": continue          # BUSY (turn or compaction)
-  if pane lacks ^❯ / "^> ":                continue           # no prompt yet
+  if not pane_accepts_input(session):      continue           # no input row yet, or a dialog
   snap1 = trailing-ws-normalize(pane)
   sleep 1.2
   snap2 = capture-pane(session) (continue on failure); normalize
@@ -719,7 +721,8 @@ if preserve_marker != true:                          # restart paths pass true s
                                                       # to stop) BEFORE kill so the tick can't
                                                       # resurrect mid-shutdown
 
-send-keys name "/exit" + Enter
+dismiss_dialog_for_exit(name)   # no input row: Escape once, wait up to 2s
+if the input row is back: send-keys name "/exit" + Enter, then
 wait up to 10s (20 × 0.5s):
   if claude no longer running → break
 
@@ -763,7 +766,7 @@ for each running tmux session:
                                                     # clear failed → WARN, plain stop
   collect in managed_list
   remove_running_marker(session_marker_dir(session))   # intent to stop, before kill
-  send /exit if claude is running
+  if claude is running: dismiss_dialog_for_exit, then send /exit if the input row is back
 
 wait up to 10s (20 × 0.5s) for all claude processes to exit
 
@@ -1007,7 +1010,8 @@ exit 0
 - Protected sessions (`@claude-mux-protected=1`) are skipped by `shutdown_claude_sessions()` unless `FORCE=true`. Restart-all does NOT use that blanket path; it calls `shutdown_single_session(name, force=true, ...)` per non-caller, so it recycles protected sessions too (restart ≠ permanent kill). Single-named `--restart SESSION` honors `$FORCE` (protected needs `--force`).
 - Restart-all must never call `shutdown_claude_sessions()`: that blanket walk includes the caller, whose `/exit` SIGHUPs the script mid-loop and strands the rest. The caller is partitioned out and restarted last, in place (`restart_caller_in_place`); non-callers are shut-down+recreated individually in a loop, each wrapped in a `.claudemux-restarting` lock (mkdir/rmdir) with `preserve_marker=true`. All of this lives in `restart_sessions_in`, shared by `--restart` and `--migrate-agents-md --apply`.
 - Caller-last ordering in full restart: the session running the restart script cannot kill itself mid-execution; it separates itself from the list and restarts last via `restart_caller_in_place` (set `@claude-mux-restart` + `/exit`; its looped wrapper relaunches in-pane). No background subshell or `disown` is involved. Output after that `/exit` is lost, so summaries and warnings print before it.
-- `poll_until_ready` keys readiness on the `esc to interrupt` busy signal + quiescence, not the mere presence of the `❯` prompt (which is drawn during a resume-time compaction). It still sends `Ready?` on timeout (~120s) so a slow session eventually gets the handshake.
+- Never send Enter to a Claude pane without `pane_accepts_input` first. Enter into an open dialog accepts its highlighted option, so a pending command runs with no user action. The check requires the input row directly under a `─` rule in the bottom 8 lines, and rejects a numbered cursor. A whole-pane `^❯` match is wrong: the echoed user turn matches it, and an `AskUserQuestion` cursor sits at column 0. The check fails closed. Enforced by `pane_accepts_input`, `dismiss_dialog_for_exit` and `send_ready_handshake`; tests in `dev/features/pane-readiness-gate-tests.md`.
+- `poll_until_ready` keys readiness on the `esc to interrupt` busy signal + quiescence, not the mere presence of the `❯` prompt (which is drawn during a resume-time compaction). On timeout it still tries `Ready?`, through `send_ready_handshake` (~120s) so a slow session eventually gets the handshake.
 - Temp launch scripts clean themselves up via `trap ... EXIT` — no orphaned files even if claude crashes.
 - Auto-restore marker presence ⇒ session should be alive. The marker is cleared exactly two ways, both = intent to stop: `--shutdown` (`remove_running_marker` before kill) or a clean in-pane exit (rc 0, the launch wrapper removes it). A crash/`kill-session`/reboot leaves it, so the tick restores it. A `--restart` deliberately preserves it (`preserve_marker=true`), so a restart that crashes between shutdown and recreate is still recovered by the tick.
 - A `.claudemux-restarting` lock (mkdir) means a restart is in flight; the tick consumes it on sight (rmdir + skip one tick) so auto-restore never races the sub-second window between `kill-session` and `new-session`. Self-healing: a stale lock is cleared by the next tick regardless.

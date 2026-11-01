@@ -19,6 +19,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
 | `hook-session-guard` | building | 2.5.0 (minor), alongside --shutdown --fresh | BUILT 2026-10-28 on branch hook-session-guard; tests pass (see -tests.md); awaiting cod... | Medium (a compaction or clear outside claude-mux types "Ready?" into an unrelated live ... | [hook-session-guard.md](hook-session-guard.md) |
+| `pane-readiness-gate` | building | — | BUILT 2026-10-31 on branch readiness-gate; tested and reviewed (see -tests.md); awaitin... | High (a claude-mux send can run a pending command with no user action) | [pane-readiness-gate.md](pane-readiness-gate.md) |
 | `shutdown-fresh` | building | 2.5.0 (minor): new flag on --shutdown + injection vocabulary | BUILT on branch shutdown-fresh, live-tested 2026-10-01 (kill, busy, protected, self-ref... | N/A (enhancement) | [shutdown-fresh.md](shutdown-fresh.md) |
 
 ## designing

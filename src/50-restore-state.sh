@@ -767,6 +767,45 @@ detect_github_ssh_accounts() {
     GITHUB_SSH_INFO=" GitHub SSH accounts configured in ~/.ssh/config: ${joined}. Use the host alias as the git remote, e.g. git clone git@github.com-${accounts[0]}:org/repo.git. For gh CLI operations (repo create, PR create, etc.), prefix each command with \`GH_TOKEN=\$(gh auth token --user <account>)\` to target the correct GitHub account, e.g. \`GH_TOKEN=\$(gh auth token --user <account>) gh pr create\`. Never run \`gh auth switch\`: the active gh account is one machine-wide setting, so switching it changes the account for every running session. Use the account that owns the repo's remote."
 }
 
+# Return 0 if the pane's input row is on screen. It shows both idle and busy, and
+# an open dialog hides it. Enter into a dialog accepts its highlighted option, so
+# every send to a Claude pane checks this first. Three lookalikes shape the match:
+# the echoed user turn matches ^❯ (so: bottom of the pane, directly under a rule),
+# and an AskUserQuestion cursor draws `❯ 1.` at column 0, sometimes under a rule
+# (so: not a numbered option).
+pane_accepts_input() {
+    local _pane
+    _pane=$("$TMUX_BIN" capture-pane -t "$1" -p 2>/dev/null) || return 1
+    echo "$_pane" | tail -8 | awk '_r && /^(❯|> )/ && !/^(❯|>) [0-9]+\./ { _f = 1 } { _r = /^─/ } END { exit !_f }'
+}
+
+# Clear a dialog before /exit: Escape once, then wait up to 2s for the input row.
+# Returns 1 if it stays hidden; the caller then kills the session without sending
+# Enter, so a pending command is never approved.
+dismiss_dialog_for_exit() {
+    local session="$1" _w=0
+    pane_accepts_input "$session" && return 0
+    log "Session '$session' has no input row; sending Escape before /exit"
+    "$TMUX_BIN" send-keys -t "$session" Escape 2>/dev/null
+    while [[ $_w -lt 4 ]]; do
+        sleep 0.5
+        pane_accepts_input "$session" && return 0
+        (( _w++ ))
+    done
+    log "WARN: '$session' still shows no input row; skipping /exit"
+    return 1
+}
+
+# Send the synthetic Ready? turn, unless a dialog would take the Enter.
+send_ready_handshake() {
+    local session="$1"
+    if ! pane_accepts_input "$session"; then
+        log "WARN: '$session' has no input row; not sending Ready?"
+        return 1
+    fi
+    "$TMUX_BIN" send-keys -t "$session" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session" Enter 2>/dev/null
+}
+
 # Wait until a session is genuinely ready for input, not merely showing the ❯
 # prompt. A session is BUSY whenever the bottom status lines contain "esc to
 # interrupt" — present for a full turn AND a resume-time auto-compaction (which
@@ -813,8 +852,8 @@ poll_until_ready() {
         fi
         # Busy? Scope the scan to the bottom 4 lines so transcript body can't match.
         echo "$pane" | tail -4 | grep -q "esc to interrupt" && continue
-        # Prompt drawn at line start?
-        echo "$pane" | grep -qE '^❯|^> ' || continue
+        # Input row drawn? A dialog hides it.
+        pane_accepts_input "$session" || continue
         # Quiescence: confirm with a second capture ≥1.1s later, both normalized.
         snap1=$(printf '%s' "$pane" | sed 's/[[:space:]]*$//')
         sleep 1.2
