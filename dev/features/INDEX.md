@@ -19,6 +19,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
 | `hook-session-guard` | building | 2.5.0 (minor), alongside --shutdown --fresh | BUILT 2026-10-28 on branch hook-session-guard; tests pass (see -tests.md); awaiting cod... | Medium (a compaction or clear outside claude-mux types "Ready?" into an unrelated live ... | [hook-session-guard.md](hook-session-guard.md) |
+| `pane-readiness-gate` | building | — | BUILT 2026-10-31 on branch readiness-gate; tested and reviewed (see -tests.md); awaitin... | High (a claude-mux send can run a pending command with no user action) | [pane-readiness-gate.md](pane-readiness-gate.md) |
 | `shutdown-fresh` | building | 2.5.0 (minor): new flag on --shutdown + injection vocabulary | BUILT on branch shutdown-fresh, live-tested 2026-10-01 (kill, busy, protected, self-ref... | N/A (enhancement) | [shutdown-fresh.md](shutdown-fresh.md) |
 
 ## designing
@@ -29,7 +30,6 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `external-prompt-routing` | designing | unscheduled minor (new capability, not a bug fix) | DESIGNED via brainstorm 2026-09-11, verified against live `claude -p` behavior and prim... | N/A (new capability) | [external-prompt-routing.md](external-prompt-routing.md) |
 | `inter-agent-messaging` | designing | UNSCHEDULED — parked behind 3 gates (close exfiltration... | REOPENED (was SHELVED) — discussion-log #15 narrowed the obstacle: a worker boots in ... | N/A (new capability) — but ships a prompt-injection attack surface; see Threat Model | [inter-agent-messaging.md](inter-agent-messaging.md) |
 | `launched-version-detection` | designing | 2.x (minor; notify-only behavior) | REVISED 2026-06-24 (bare-home incident exposed that a truly stale wrapper does NOT re-b... | LOW for the version nudge; HIGH for the degraded-launch case (a stale | [launched-version-detection.md](launched-version-detection.md) |
-| `pane-readiness-gate` | designing | — | DESIGN DRAFT 2026-10-31 on branch readiness-gate; live test confirmed the bug; test pla... | High (a claude-mux send can run a pending command with no user action) | [pane-readiness-gate.md](pane-readiness-gate.md) |
 | `session-activity-timestamps` | designing | 2.1.0 (minor) — new capability, new hook, new per-proje... | DESIGNING 2026-07-15 (decisions captured from live brainstorm; pre-architect-review). H... | N/A (enhancement) — feeds v2.0 situational-awareness + v2.1 context-discipline | [session-activity-timestamps.md](session-activity-timestamps.md) |
 | `terminate-session` | designing | unscheduled | DESIGNING 2026-07-24 (promoted from idea; concept + pre-termination behavior + concurre... | N/A (enhancement) — gives a "destructive stop" (next start is fresh) distinct from to... | [terminate-session.md](terminate-session.md) |
 

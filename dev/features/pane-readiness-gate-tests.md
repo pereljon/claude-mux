@@ -1,7 +1,7 @@
 ---
 kind: investigation
 feature: pane-readiness-gate-tests
-status: test plan draft 2026-10-31; awaits user review
+status: test plan approved 2026-10-31; run 2026-10-31
 related: pane-readiness-gate.md
 ---
 
@@ -45,3 +45,40 @@ Use a throwaway managed session under `~/Claude/development/zz-*` in manual mode
 ## Regression
 
 17. `make check` is clean, and `--commands` is unchanged apart from any new `-s` error text.
+
+## Results (2026-10-31, branch build, Claude Code 2.1.312)
+
+A pending `touch marker.txt` showed whether a send approved a prompt. The marker stayed absent in every "must not send" case.
+
+| Case | Result |
+|------|--------|
+| 1 | Pass. `-s` exits 1 and prints the error. |
+| 2 | Pass. Escape, then shutdown. |
+| 3 | Pass from another session. From inside, in-place restart printed the error and left the prompt open; the exit code was not captured. |
+| 4 | Pass. `/clear` refused, the stop warned, Escape dismissed the prompt. |
+| 5 | Pass for compact. The monitor timed out and logged. `--on-clear` shares the monitor and was not run with a dialog open. |
+| 6 | Pass. `--await-ready` logged the skip, and the monitor sent `Ready?` after the dialog cleared (from the log; the turn was not seen on screen). |
+| 7 | Not run. Home was not given a dialog; `notify_home` calls the same helper. |
+| 8 | Pass. `AskUserQuestion` at all four cursor positions, plan approval, and the `/resume`, `/config`, `/permissions`, `/model` and `/mcp` pickers are refused. The `/model` confirmation is still auto-confirmed. `/agents` passes because the input row stays on screen. |
+| 9 | Pass. |
+| 10 | Pass. Busy and self-sent `-s`, using `/status`. `/clear`, `/compact` and `/model` were not sent from inside a tool call. |
+| 11 | Partial. Compact monitor sent `Ready?`; launch and restart completed; a successful in-place restart was not run. A full real `/compact` was not run on this build. |
+| 12 | Not run. The trust and bypass code is unchanged. |
+| 13 | Not run. Bulk shutdown would stop every session; the changed lines are reviewed only. |
+| 14 | Pass at 45x14. |
+| 15, 16 | Not run. Case 16 fails closed by construction. |
+| 17 | Pass. `make check` is clean; no injection or `--commands` change. |
+
+## Review findings
+
+Review 2026-10-31 (sonnet, high effort, static read plus awk and bash 3.2 runs). No Critical findings.
+
+- Important, fixed: a skipped in-place restart was silent with exit 0. It now prints an error and counts in the exit code.
+- Important, fixed: a launch with a dialog open at timeout never got `Ready?`. The skip now hands off to the ready monitor. A dialog left open past that window still gets none; recorded in the design doc's limits.
+- Minor, fixed: shutdown waited 10 seconds after a skipped `/exit`.
+- Minor, fixed: the `poll_until_ready` header comment was separated from its function.
+- Minor, fixed: `dev/SKELETON.md` described the removed send-anyway fallback.
+- Minor, accepted: the 8-line window can give a false refusal. It fails closed; recorded in the design doc's limits.
+- Minor, resolved by test: other cursor lists could look like the input row. The pickers in case 8 are refused.
+- Minor, deferred: the loose `yes.*accept` match in `poll_until_ready` is outside this diff; recorded in `docs/ISSUES.md`.
+- Not checked: awk on mawk or gawk (not installed; standard syntax).
