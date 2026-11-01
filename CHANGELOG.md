@@ -4,6 +4,15 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 
 ## [Unreleased]
 
+## [2.4.5] - 2026-10-31
+
+### Changed
+- **`-s` refuses a session with a dialog open.** It exits 1 and sends nothing.
+- **Shutdown and restart dismiss a dialog first.** They send Escape, which denies a pending permission prompt, before `/exit`.
+
+### Fixed
+- **claude-mux could approve a permission prompt.** `-s`, shutdown, restart, the `Ready?` handshake and the home notice pressed Enter without checking for an open dialog, so a pending command could run with no user action. Each now checks that the input prompt is showing, and sends nothing otherwise.
+
 ## [2.4.4] - 2026-10-28
 
 ### Fixed
