@@ -100,4 +100,10 @@ Run on a stub tmux with an isolated HOME, because bare `--restart` and bulk `--s
 |-----|--------|
 | Bare `--restart` exit code | Pass. With a dialog open, exit 1 and no keys sent; v2.4.5 exits 0. |
 | Ready monitor keeps no caller fds | Pass. `$(claude-mux --on-compact)` returned in 0s and `Ready?` was still sent; v2.4.5 took 8s. |
-| Mixed bulk shutdown wait | Not tested. The two-session stub exposed no managed sessions, so neither build sent keys. |
+| Mixed bulk shutdown wait | Pass at function level in the third review: 0 sleeps on the branch, 20 on `main`. Not run through the CLI; the two-session CLI stub exposed no managed sessions. |
+
+Third review 2026-10-31 (opus, high effort), covering `main..gate-review-fixes`. It read the code and ran the real functions on a stub tmux under bash 3.2. No Critical or Important findings.
+
+- Minor, deferred: the `launch_single_session` background subshell also keeps caller fds, so a captured `-d DIR --no-attach` can wait up to about 120 seconds. Whether Claude Code's Bash tool blocks on this is untested. In `docs/ISSUES.md`.
+- Minor, deferred: two of the three `restart_caller_in_place` failure branches print nothing outside a TTY. They need tmux to fail on the caller's own session. In `docs/ISSUES.md`.
+- Minor, deferred, existed before: a failed `/exit` send leaves `@claude-mux-restart` set, so the next clean exit relaunches. In `docs/ISSUES.md`.
