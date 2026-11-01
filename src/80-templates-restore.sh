@@ -152,9 +152,7 @@ notify_home() {
     log "NOTICE (home): $msg"
     [[ "$DRY_RUN" == "true" ]] && return 0
     "$TMUX_BIN" has-session -t home 2>/dev/null || return 0
-    local _pane
-    _pane=$("$TMUX_BIN" capture-pane -t home -p 2>/dev/null | tail -5)
-    echo "$_pane" | grep -qE '^❯|^> ' || return 0   # only if home looks idle
+    pane_accepts_input home || return 0
     "$TMUX_BIN" send-keys -t home -l "[claude-mux] $msg" 2>/dev/null \
         && "$TMUX_BIN" send-keys -t home Enter 2>/dev/null
 }
