@@ -15,7 +15,7 @@ await_ready_handshake() {
     [[ -z "$session" ]] && return 1
     "$TMUX_BIN" set-option -t "$session" @claude-mux-claude-id "$(claude_binary_id)" 2>/dev/null
     poll_until_ready "$session" || true
-    "$TMUX_BIN" send-keys -t "$session" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session" Enter 2>/dev/null
+    send_ready_handshake "$session"
 }
 
 # Auto-confirm Claude Code's cached "Switch model?" dialog after an in-session
@@ -92,6 +92,10 @@ restart_caller_in_place() {
     local session="$1" fresh="${2:-false}"
     local _val="resume"; [[ "$fresh" == "true" ]] && _val="fresh"
     restore_state_clear "$session"   # user restart un-trips crash-loop history
+    if ! pane_accepts_input "$session"; then
+        log "WARN: '$session' has no input row; skipping in-place restart"
+        return 1
+    fi
     if ! "$TMUX_BIN" set-option -t "$session" @claude-mux-restart "$_val" 2>/dev/null; then
         log "WARN: could not set @claude-mux-restart on caller '$session'; skipping in-place restart"
         return 1
@@ -395,13 +399,13 @@ LAUNCH_EOF
     # mere presence of the ❯ prompt (which is drawn during compaction).
     log "Waiting for Claude to be ready in '$session_name'..."
     if ! poll_until_ready "$session_name"; then
-        log "WARN: '$session_name' not confirmed ready within timeout, sending Ready? anyway"
+        log "WARN: '$session_name' not confirmed ready within timeout"
     fi
     # The prompt file (.claudemux-prompt in the project folder) is NOT deleted here:
     # the wrapper re-reads it on every in-place restart relaunch and regenerates it
     # with the current injection. The wrapper removes it on final teardown (clean
     # /exit with no restart pending).
-    "$TMUX_BIN" send-keys -t "$session_name" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session_name" Enter 2>/dev/null
+    send_ready_handshake "$session_name"
 
     # Protect at launch if .claudemux-protected marker exists in working dir
     if [[ -f "$working_dir/.claudemux-protected" ]]; then

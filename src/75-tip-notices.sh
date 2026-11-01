@@ -258,11 +258,11 @@ spawn_ready_handshake_monitor() {
         # Lead-in: wait for the triggering command to clear the prompt before polling.
         sleep 5
         # Poll every 0.5s, up to 120s (240 iterations) for prompt to return.
-        _hpoll=0; _found=false; _hpane=""
+        _hpoll=0; _found=false
         while [[ $_hpoll -lt 240 ]]; do
             sleep 0.5
-            _hpane=$("$TMUX_BIN" capture-pane -t "$_sess" -p 2>/dev/null) || break
-            echo "$_hpane" | grep -qE '^❯|^> ' && { _found=true; break; }
+            "$TMUX_BIN" has-session -t "$_sess" 2>/dev/null || break
+            pane_accepts_input "$_sess" && { _found=true; break; }
             (( _hpoll++ ))
         done
         if [[ "$_found" != "true" ]]; then
@@ -273,8 +273,7 @@ spawn_ready_handshake_monitor() {
         "$TMUX_BIN" has-session -t "$_sess" 2>/dev/null || exit 0
         sleep 2
         log "$_label complete in '$_sess'; sending Ready? to trigger handshake"
-        "$TMUX_BIN" send-keys -t "$_sess" -l "Ready?" 2>/dev/null \
-            && "$TMUX_BIN" send-keys -t "$_sess" Enter 2>/dev/null
+        send_ready_handshake "$_sess"
     ) &
     disown
 }

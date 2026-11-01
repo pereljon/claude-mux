@@ -45,7 +45,7 @@ shutdown_single_session() {
     fi
     if claude_running_in_session "$session"; then
         log "Sending /exit to session '$session'"
-        [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
+        [[ "$DRY_RUN" != "true" ]] && dismiss_dialog_for_exit "$session" && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
         # Poll until Claude exits (max 10s, check every 0.5s)
         if [[ "$DRY_RUN" != "true" ]]; then
             _wait=0
@@ -93,6 +93,7 @@ clear_session_for_fresh() {
         done
         [[ $_w -ge 20 ]] && { log "WARN: '$session' still busy after interrupt"; return 1; }
     fi
+    pane_accepts_input "$session" || { log "WARN: '$session' has no input row; not sending /clear"; return 1; }
     log "Sending /clear to session '$session'"
     "$TMUX_BIN" send-keys -t "$session" -l "/clear" && "$TMUX_BIN" send-keys -t "$session" Enter
     # The handshake reply's wording varies ("Session ready!", "Ready. What's the task?"),
@@ -206,7 +207,7 @@ shutdown_claude_sessions() {
         remove_running_marker "$(session_marker_dir "$session")"
         if claude_running_in_session "$session"; then
             log "Sending /exit to session '$session'"
-            [[ "$DRY_RUN" != "true" ]] && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
+            [[ "$DRY_RUN" != "true" ]] && dismiss_dialog_for_exit "$session" && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
             (( exit_count++ ))
         fi
     done <<< "$sessions"
