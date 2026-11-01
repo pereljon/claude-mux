@@ -45,9 +45,10 @@ shutdown_single_session() {
     fi
     if claude_running_in_session "$session"; then
         log "Sending /exit to session '$session'"
-        [[ "$DRY_RUN" != "true" ]] && dismiss_dialog_for_exit "$session" && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
-        # Poll until Claude exits (max 10s, check every 0.5s)
-        if [[ "$DRY_RUN" != "true" ]]; then
+        # No /exit sent means nothing to wait for: fall through to the kill.
+        if [[ "$DRY_RUN" != "true" ]] && dismiss_dialog_for_exit "$session" \
+            && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter; then
+            # Poll until Claude exits (max 10s, check every 0.5s)
             _wait=0
             while [[ $_wait -lt 20 ]]; do
                 "$TMUX_BIN" has-session -t "$session" 2>/dev/null && claude_running_in_session "$session" || break
@@ -207,8 +208,12 @@ shutdown_claude_sessions() {
         remove_running_marker "$(session_marker_dir "$session")"
         if claude_running_in_session "$session"; then
             log "Sending /exit to session '$session'"
-            [[ "$DRY_RUN" != "true" ]] && dismiss_dialog_for_exit "$session" && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
-            (( exit_count++ ))
+            if [[ "$DRY_RUN" == "true" ]]; then
+                (( exit_count++ ))
+            elif dismiss_dialog_for_exit "$session" \
+                && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter; then
+                (( exit_count++ ))
+            fi
         fi
     done <<< "$sessions"
 

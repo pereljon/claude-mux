@@ -767,15 +767,6 @@ detect_github_ssh_accounts() {
     GITHUB_SSH_INFO=" GitHub SSH accounts configured in ~/.ssh/config: ${joined}. Use the host alias as the git remote, e.g. git clone git@github.com-${accounts[0]}:org/repo.git. For gh CLI operations (repo create, PR create, etc.), prefix each command with \`GH_TOKEN=\$(gh auth token --user <account>)\` to target the correct GitHub account, e.g. \`GH_TOKEN=\$(gh auth token --user <account>) gh pr create\`. Never run \`gh auth switch\`: the active gh account is one machine-wide setting, so switching it changes the account for every running session. Use the account that owns the repo's remote."
 }
 
-# Wait until a session is genuinely ready for input, not merely showing the ❯
-# prompt. A session is BUSY whenever the bottom status lines contain "esc to
-# interrupt" — present for a full turn AND a resume-time auto-compaction (which
-# can run ~50s with the ❯ already drawn). Ready = not busy, prompt present, and
-# quiescent (two captures ≥1.1s apart identical after trailing-whitespace
-# normalize). Quiescence is the version-proof backstop: a working screen animates
-# (glyph + timer + token counter), so snapshots differ even if the string check
-# is ever defeated. Auto-accepts the trust / bypassPermissions prompts, gated to
-# before ready. Returns 0 when ready, 1 on timeout (~120s; compaction measured ~50s).
 # Return 0 if the pane's input row is on screen. It shows both idle and busy, and
 # an open dialog hides it. Enter into a dialog accepts its highlighted option, so
 # every send to a Claude pane checks this first. Three lookalikes shape the match:
@@ -815,6 +806,15 @@ send_ready_handshake() {
     "$TMUX_BIN" send-keys -t "$session" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session" Enter 2>/dev/null
 }
 
+# Wait until a session is genuinely ready for input, not merely showing the ❯
+# prompt. A session is BUSY whenever the bottom status lines contain "esc to
+# interrupt" — present for a full turn AND a resume-time auto-compaction (which
+# can run ~50s with the ❯ already drawn). Ready = not busy, prompt present, and
+# quiescent (two captures ≥1.1s apart identical after trailing-whitespace
+# normalize). Quiescence is the version-proof backstop: a working screen animates
+# (glyph + timer + token counter), so snapshots differ even if the string check
+# is ever defeated. Auto-accepts the trust / bypassPermissions prompts, gated to
+# before ready. Returns 0 when ready, 1 on timeout (~120s; compaction measured ~50s).
 poll_until_ready() {
     local session="$1" timeout="${2:-120}"
     local start pane snap1 snap2
