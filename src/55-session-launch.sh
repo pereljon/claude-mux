@@ -183,9 +183,11 @@ restart_sessions_in() {
             echo "WARN: failed to restart: $(printf '%s' "$RESTART_FAILED_SESSIONS" | tr '\n' ' ' | sed 's/ *$//')"
         fi
         IFS='|' read -r _caller_name _caller_dir <<< "$_caller_entry"
-        restart_caller_in_place "$_caller_name" "$FRESH_START" \
-            || RESTART_FAILED_SESSIONS="${RESTART_FAILED_SESSIONS}${_caller_name}
+        if ! restart_caller_in_place "$_caller_name" "$FRESH_START"; then
+            RESTART_FAILED_SESSIONS="${RESTART_FAILED_SESSIONS}${_caller_name}
 "
+            RESTART_CALLER_REFUSED=true
+        fi
     fi
 
     [[ -z "$RESTART_FAILED_SESSIONS" ]]

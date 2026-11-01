@@ -18,9 +18,10 @@
 
 ### Readiness gate follow-ups from the v2.4.5 review
 **Severity:** Low. Found 2026-10-31. Findings: `dev/features/pane-readiness-gate-tests.md`.
-- [ ] Bare `--restart` exits 0 when the caller's in-place restart is refused; the error does print. Fix in progress.
-- [ ] A mixed bulk shutdown waits the full 10 seconds for a session that got no `/exit`. Fix in progress.
-- [ ] The ready monitor keeps the caller's stdout and stderr open, so a caller capturing output can block for up to about 2 minutes. Fix in progress.
+- [ ] Next: review branch `gate-review-fixes`, then ask the user to approve the merge. It fixes three items, tracked in the rows below until merged.
+- [ ] Bare `--restart` exits 0 when the caller's in-place restart is refused; the error does print.
+- [ ] A mixed bulk shutdown waits the full 10 seconds for a session that got no `/exit`.
+- [ ] The ready monitor keeps the caller's stdout and stderr open, so a caller capturing output can block for up to about 2 minutes.
 - [ ] Uncertain, not tested under launchd: the launch hand-off to the ready monitor is probably killed when `--autolaunch` exits, because the plist has no `AbandonProcessGroup`. The effect is a lost `Ready?`. The home launch subshell has the same exposure.
 - [ ] Uncertain: `--permission-mode bypassPermissions` sends Shift+Tab with no gate. Whether an open prompt acts on that key is unverified. The user asked for bypass on this path.
 

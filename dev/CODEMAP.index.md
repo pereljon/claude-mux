@@ -75,7 +75,7 @@ _(no function definitions)_
 | `clear_session_for_fresh` | 73 |
 | `fresh_prepare_session` | 137 |
 | `shutdown_claude_sessions` | 148 |
-| `status_claude_sessions` | 254 |
+| `status_claude_sessions` | 256 |
 
 ### `src/50-restore-state.sh`
 
@@ -118,8 +118,8 @@ _(no function definitions)_
 | `confirm_model_switch` | 29 |
 | `restart_caller_in_place` | 91 |
 | `restart_sessions_in` | 117 |
-| `launch_home_session` | 199 |
-| `create_claude_session` | 211 |
+| `launch_home_session` | 201 |
+| `create_claude_session` | 213 |
 
 ### `src/60-discovery.sh`
 
@@ -257,7 +257,7 @@ _(no function definitions)_
 | `commands_help` | `src/10-flags.sh:93` |
 | `config_help` | `src/10-flags.sh:161` |
 | `confirm_model_switch` | `src/55-session-launch.sh:29` |
-| `create_claude_session` | `src/55-session-launch.sh:211` |
+| `create_claude_session` | `src/55-session-launch.sh:213` |
 | `create_new_project` | `src/80-templates-restore.sh:92` |
 | `delete_command` | `src/50-restore-state.sh:390` |
 | `detect_claude_upgrade` | `src/75-tip-notices.sh:88` |
@@ -288,7 +288,7 @@ _(no function definitions)_
 | `is_managed_session` | `src/35-validate-deps.sh:124` |
 | `is_protected_session` | `src/40-shutdown.sh:4` |
 | `is_valid_model` | `src/20-config.sh:98` |
-| `launch_home_session` | `src/55-session-launch.sh:199` |
+| `launch_home_session` | `src/55-session-launch.sh:201` |
 | `launch_single_session` | `src/70-start-launch.sh:52` |
 | `list_templates` | `src/80-templates-restore.sh:1` |
 | `log` | `src/30-helpers.sh:3` |
@@ -329,7 +329,7 @@ _(no function definitions)_
 | `shutdown_single_session` | `src/40-shutdown.sh:21` |
 | `spawn_ready_handshake_monitor` | `src/75-tip-notices.sh:254` |
 | `start_sessions` | `src/70-start-launch.sh:3` |
-| `status_claude_sessions` | `src/40-shutdown.sh:254` |
+| `status_claude_sessions` | `src/40-shutdown.sh:256` |
 | `tip_of_day` | `src/75-tip-notices.sh:4` |
 | `unprotect_command` | `src/50-restore-state.sh:326` |
 | `update_all_project_hooks` | `src/75-tip-notices.sh:368` |

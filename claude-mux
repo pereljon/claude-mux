@@ -2074,6 +2074,7 @@ shutdown_claude_sessions() {
 
     # Send /exit to managed sessions where Claude is running
     local exit_count=0
+    local exit_sent=()
     local protected_skipped=0
     local managed_list=()
     while IFS= read -r session; do
@@ -2102,6 +2103,7 @@ shutdown_claude_sessions() {
             elif dismiss_dialog_for_exit "$session" \
                 && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter; then
                 (( exit_count++ ))
+                exit_sent+=("$session")
             fi
         fi
     done <<< "$sessions"
@@ -2112,7 +2114,7 @@ shutdown_claude_sessions() {
             _wait=0
             while [[ $_wait -lt 20 ]]; do
                 _still_running=false
-                for _s in "${managed_list[@]}"; do
+                for _s in "${exit_sent[@]}"; do
                     if "$TMUX_BIN" has-session -t "$_s" 2>/dev/null && claude_running_in_session "$_s"; then
                         _still_running=true
                         break
@@ -3371,9 +3373,11 @@ restart_sessions_in() {
             echo "WARN: failed to restart: $(printf '%s' "$RESTART_FAILED_SESSIONS" | tr '\n' ' ' | sed 's/ *$//')"
         fi
         IFS='|' read -r _caller_name _caller_dir <<< "$_caller_entry"
-        restart_caller_in_place "$_caller_name" "$FRESH_START" \
-            || RESTART_FAILED_SESSIONS="${RESTART_FAILED_SESSIONS}${_caller_name}
+        if ! restart_caller_in_place "$_caller_name" "$FRESH_START"; then
+            RESTART_FAILED_SESSIONS="${RESTART_FAILED_SESSIONS}${_caller_name}
 "
+            RESTART_CALLER_REFUSED=true
+        fi
     fi
 
     [[ -z "$RESTART_FAILED_SESSIONS" ]]
@@ -5071,7 +5075,7 @@ spawn_ready_handshake_monitor() {
         sleep 2
         log "$_label complete in '$_sess'; sending Ready? to trigger handshake"
         send_ready_handshake "$_sess"
-    ) &
+    ) >/dev/null 2>&1 &   # keep no caller fds: a caller capturing output would wait on this
     disown
 }
 
@@ -6108,8 +6112,10 @@ case "$COMMAND" in
                 log "Remembering $_count running session(s) for restart"
 
                 # Failures land in RESTART_FAILED_SESSIONS; --restart's own exit
-                # code is deliberately unchanged (return value ignored).
+                # code is deliberately unchanged (return value ignored), except when
+                # the caller refused: it is still running to report that.
                 restart_sessions_in "$_restart_list" "to apply updated injection" || true
+                [[ "${RESTART_CALLER_REFUSED:-}" == "true" ]] && (( _restart_errors++ ))
 
                 log "=== claude-mux restart complete ==="
             fi

@@ -274,7 +274,7 @@ spawn_ready_handshake_monitor() {
         sleep 2
         log "$_label complete in '$_sess'; sending Ready? to trigger handshake"
         send_ready_handshake "$_sess"
-    ) &
+    ) >/dev/null 2>&1 &   # keep no caller fds: a caller capturing output would wait on this
     disown
 }
 

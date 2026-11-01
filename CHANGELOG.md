@@ -9,6 +9,7 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - **Confirmation before discarding context.** "Kill", "end this session", "restart fresh" and "clear" now state what will happen and ask yes/no first. Stop, restart and compact are unchanged.
 
 ### Changed
+- **Bare `--restart` exits 1 when the calling session refuses to restart.**
 - **"Kill" no longer means stop** (reverses the 2.4.3 wording). "Stop" and "shut down" keep the conversation; "kill" clears it.
 
 ## [2.4.5] - 2026-10-31

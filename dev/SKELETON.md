@@ -768,7 +768,7 @@ for each running tmux session:
   remove_running_marker(session_marker_dir(session))   # intent to stop, before kill
   if claude is running: dismiss_dialog_for_exit, then send /exit if the input row is back
 
-wait up to 10s (20 × 0.5s) for all claude processes to exit
+wait up to 10s (20 × 0.5s) for each session that was sent /exit
 
 for each session in managed_list:
   tmux kill-session

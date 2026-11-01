@@ -91,3 +91,13 @@ Second review 2026-10-31 (opus, high effort), after the release, covering `v2.4.
 - Minor, open: the ready monitor keeps the caller's stdout and stderr open. Whether Claude Code's Bash tool blocks on it is untested.
 - Minor, uncertain, deferred: the launch hand-off under the LaunchAgent, and Shift+Tab with no gate. Both are in `docs/ISSUES.md`.
 - Minor, uncertain, deferred: the `yes.*accept` match can reach a dialog. The `docs/ISSUES.md` entry now names that case.
+
+## Results for the second review's fixes (2026-10-31, branch `gate-review-fixes`)
+
+Run on a stub tmux with an isolated HOME, because bare `--restart` and bulk `--shutdown` would stop every real session.
+
+| Fix | Result |
+|-----|--------|
+| Bare `--restart` exit code | Pass. With a dialog open, exit 1 and no keys sent; v2.4.5 exits 0. |
+| Ready monitor keeps no caller fds | Pass. `$(claude-mux --on-compact)` returned in 0s and `Ready?` was still sent; v2.4.5 took 8s. |
+| Mixed bulk shutdown wait | Not tested. The two-session stub exposed no managed sessions, so neither build sent keys. |

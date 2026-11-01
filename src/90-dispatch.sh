@@ -247,8 +247,10 @@ case "$COMMAND" in
                 log "Remembering $_count running session(s) for restart"
 
                 # Failures land in RESTART_FAILED_SESSIONS; --restart's own exit
-                # code is deliberately unchanged (return value ignored).
+                # code is deliberately unchanged (return value ignored), except when
+                # the caller refused: it is still running to report that.
                 restart_sessions_in "$_restart_list" "to apply updated injection" || true
+                [[ "${RESTART_CALLER_REFUSED:-}" == "true" ]] && (( _restart_errors++ ))
 
                 log "=== claude-mux restart complete ==="
             fi
