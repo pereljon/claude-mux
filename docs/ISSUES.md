@@ -18,10 +18,9 @@
 
 ### Readiness gate follow-ups from the v2.4.5 review
 **Severity:** Low. Found 2026-10-31. Findings: `dev/features/pane-readiness-gate-tests.md`.
-- [ ] Next: the user approves merging branch `gate-review-fixes` (reviewed, `make check` clean). It fixes the next three rows; mark them resolved on merge.
-- [ ] Bare `--restart` exits 0 when the caller's in-place restart is refused; the error does print.
-- [ ] A mixed bulk shutdown waits the full 10 seconds for a session that got no `/exit`.
-- [ ] The ready monitor keeps the caller's stdout and stderr open, so a caller capturing output can block for up to about 2 minutes.
+- [x] Fixed (resolved 2026-10-31): bare `--restart` exits 1 when the caller's in-place restart is refused. On `main`, for 2.5.0.
+- [x] Fixed (resolved 2026-10-31): bulk shutdown waits only for sessions that were sent `/exit`. On `main`, for 2.5.0.
+- [x] Fixed (resolved 2026-10-31): the ready monitor keeps no caller stdout or stderr. On `main`, for 2.5.0.
 - [ ] Uncertain, not tested under launchd: the launch hand-off to the ready monitor is probably killed when `--autolaunch` exits, because the plist has no `AbandonProcessGroup`. The effect is a lost `Ready?`. The home launch subshell has the same exposure.
 - [ ] `launch_single_session`'s background subshell keeps caller fds, so a captured `-d DIR --no-attach` can wait up to about 120 seconds. Whether Claude Code's Bash tool blocks on this is untested.
 - [ ] Two `restart_caller_in_place` failure branches print nothing outside a TTY, and a failed `/exit` send leaves `@claude-mux-restart` set. Both need tmux to fail on the caller's own session.
