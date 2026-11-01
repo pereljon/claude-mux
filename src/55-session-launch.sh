@@ -15,7 +15,7 @@ await_ready_handshake() {
     [[ -z "$session" ]] && return 1
     "$TMUX_BIN" set-option -t "$session" @claude-mux-claude-id "$(claude_binary_id)" 2>/dev/null
     poll_until_ready "$session" || true
-    send_ready_handshake "$session"
+    send_ready_handshake "$session" || spawn_ready_handshake_monitor "$session" "Launch"
 }
 
 # Auto-confirm Claude Code's cached "Switch model?" dialog after an in-session
@@ -93,6 +93,7 @@ restart_caller_in_place() {
     local _val="resume"; [[ "$fresh" == "true" ]] && _val="fresh"
     restore_state_clear "$session"   # user restart un-trips crash-loop history
     if ! pane_accepts_input "$session"; then
+        echo "ERROR: '$session' shows no input prompt (a dialog may be open); not restarted" >&2
         log "WARN: '$session' has no input row; skipping in-place restart"
         return 1
     fi
@@ -405,7 +406,7 @@ LAUNCH_EOF
     # the wrapper re-reads it on every in-place restart relaunch and regenerates it
     # with the current injection. The wrapper removes it on final teardown (clean
     # /exit with no restart pending).
-    send_ready_handshake "$session_name"
+    send_ready_handshake "$session_name" || spawn_ready_handshake_monitor "$session_name" "Launch"
 
     # Protect at launch if .claudemux-protected marker exists in working dir
     if [[ -f "$working_dir/.claudemux-protected" ]]; then

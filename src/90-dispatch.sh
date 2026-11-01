@@ -193,7 +193,7 @@ case "$COMMAND" in
                 elif [[ -n "$_restart_caller" && "$_rs" == "$_restart_caller" ]]; then
                     # The caller is restarting itself → in place (can't SIGHUP our own
                     # pane). The looped wrapper relaunches + handshakes; no recreate here.
-                    restart_caller_in_place "$_rs" "$FRESH_START"
+                    restart_caller_in_place "$_rs" "$FRESH_START" || (( _restart_errors++ ))
                 elif claude_running_in_session "$_rs"; then
                     restore_state_clear "$_rs"   # user restart un-trips a crash-looped session
                     # Restart marker + preserve_marker: a crash between shutdown and

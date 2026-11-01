@@ -1928,9 +1928,10 @@ shutdown_single_session() {
     fi
     if claude_running_in_session "$session"; then
         log "Sending /exit to session '$session'"
-        [[ "$DRY_RUN" != "true" ]] && dismiss_dialog_for_exit "$session" && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
-        # Poll until Claude exits (max 10s, check every 0.5s)
-        if [[ "$DRY_RUN" != "true" ]]; then
+        # No /exit sent means nothing to wait for: fall through to the kill.
+        if [[ "$DRY_RUN" != "true" ]] && dismiss_dialog_for_exit "$session" \
+            && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter; then
+            # Poll until Claude exits (max 10s, check every 0.5s)
             _wait=0
             while [[ $_wait -lt 20 ]]; do
                 "$TMUX_BIN" has-session -t "$session" 2>/dev/null && claude_running_in_session "$session" || break
@@ -1993,8 +1994,12 @@ shutdown_claude_sessions() {
         remove_running_marker "$(session_marker_dir "$session")"
         if claude_running_in_session "$session"; then
             log "Sending /exit to session '$session'"
-            [[ "$DRY_RUN" != "true" ]] && dismiss_dialog_for_exit "$session" && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter
-            (( exit_count++ ))
+            if [[ "$DRY_RUN" == "true" ]]; then
+                (( exit_count++ ))
+            elif dismiss_dialog_for_exit "$session" \
+                && "$TMUX_BIN" send-keys -t "$session" -l "/exit" && "$TMUX_BIN" send-keys -t "$session" Enter; then
+                (( exit_count++ ))
+            fi
         fi
     done <<< "$sessions"
 
@@ -2980,15 +2985,6 @@ detect_github_ssh_accounts() {
     GITHUB_SSH_INFO=" GitHub SSH accounts configured in ~/.ssh/config: ${joined}. Use the host alias as the git remote, e.g. git clone git@github.com-${accounts[0]}:org/repo.git. For gh CLI operations (repo create, PR create, etc.), prefix each command with \`GH_TOKEN=\$(gh auth token --user <account>)\` to target the correct GitHub account, e.g. \`GH_TOKEN=\$(gh auth token --user <account>) gh pr create\`. Never run \`gh auth switch\`: the active gh account is one machine-wide setting, so switching it changes the account for every running session. Use the account that owns the repo's remote."
 }
 
-# Wait until a session is genuinely ready for input, not merely showing the ❯
-# prompt. A session is BUSY whenever the bottom status lines contain "esc to
-# interrupt" — present for a full turn AND a resume-time auto-compaction (which
-# can run ~50s with the ❯ already drawn). Ready = not busy, prompt present, and
-# quiescent (two captures ≥1.1s apart identical after trailing-whitespace
-# normalize). Quiescence is the version-proof backstop: a working screen animates
-# (glyph + timer + token counter), so snapshots differ even if the string check
-# is ever defeated. Auto-accepts the trust / bypassPermissions prompts, gated to
-# before ready. Returns 0 when ready, 1 on timeout (~120s; compaction measured ~50s).
 # Return 0 if the pane's input row is on screen. It shows both idle and busy, and
 # an open dialog hides it. Enter into a dialog accepts its highlighted option, so
 # every send to a Claude pane checks this first. Three lookalikes shape the match:
@@ -3028,6 +3024,15 @@ send_ready_handshake() {
     "$TMUX_BIN" send-keys -t "$session" -l "Ready?" 2>/dev/null && "$TMUX_BIN" send-keys -t "$session" Enter 2>/dev/null
 }
 
+# Wait until a session is genuinely ready for input, not merely showing the ❯
+# prompt. A session is BUSY whenever the bottom status lines contain "esc to
+# interrupt" — present for a full turn AND a resume-time auto-compaction (which
+# can run ~50s with the ❯ already drawn). Ready = not busy, prompt present, and
+# quiescent (two captures ≥1.1s apart identical after trailing-whitespace
+# normalize). Quiescence is the version-proof backstop: a working screen animates
+# (glyph + timer + token counter), so snapshots differ even if the string check
+# is ever defeated. Auto-accepts the trust / bypassPermissions prompts, gated to
+# before ready. Returns 0 when ready, 1 on timeout (~120s; compaction measured ~50s).
 poll_until_ready() {
     local session="$1" timeout="${2:-120}"
     local start pane snap1 snap2
@@ -3095,7 +3100,7 @@ await_ready_handshake() {
     [[ -z "$session" ]] && return 1
     "$TMUX_BIN" set-option -t "$session" @claude-mux-claude-id "$(claude_binary_id)" 2>/dev/null
     poll_until_ready "$session" || true
-    send_ready_handshake "$session"
+    send_ready_handshake "$session" || spawn_ready_handshake_monitor "$session" "Launch"
 }
 
 # Auto-confirm Claude Code's cached "Switch model?" dialog after an in-session
@@ -3173,6 +3178,7 @@ restart_caller_in_place() {
     local _val="resume"; [[ "$fresh" == "true" ]] && _val="fresh"
     restore_state_clear "$session"   # user restart un-trips crash-loop history
     if ! pane_accepts_input "$session"; then
+        echo "ERROR: '$session' shows no input prompt (a dialog may be open); not restarted" >&2
         log "WARN: '$session' has no input row; skipping in-place restart"
         return 1
     fi
@@ -3485,7 +3491,7 @@ LAUNCH_EOF
     # the wrapper re-reads it on every in-place restart relaunch and regenerates it
     # with the current injection. The wrapper removes it on final teardown (clean
     # /exit with no restart pending).
-    send_ready_handshake "$session_name"
+    send_ready_handshake "$session_name" || spawn_ready_handshake_monitor "$session_name" "Launch"
 
     # Protect at launch if .claudemux-protected marker exists in working dir
     if [[ -f "$working_dir/.claudemux-protected" ]]; then
@@ -4668,7 +4674,7 @@ LAUNCH_EOF
         poll_until_ready "$LAUNCH_SESSION_NAME" || true
         # Prompt file (.claudemux-prompt) is NOT deleted here: the wrapper re-reads and
         # regenerates it on every in-place restart relaunch, and removes it on teardown.
-        send_ready_handshake "$LAUNCH_SESSION_NAME"
+        send_ready_handshake "$LAUNCH_SESSION_NAME" || spawn_ready_handshake_monitor "$LAUNCH_SESSION_NAME" "Launch"
     ) &
 
     if [[ "$NO_ATTACH" == "true" ]]; then
@@ -5944,7 +5950,7 @@ case "$COMMAND" in
                 elif [[ -n "$_restart_caller" && "$_rs" == "$_restart_caller" ]]; then
                     # The caller is restarting itself → in place (can't SIGHUP our own
                     # pane). The looped wrapper relaunches + handshakes; no recreate here.
-                    restart_caller_in_place "$_rs" "$FRESH_START"
+                    restart_caller_in_place "$_rs" "$FRESH_START" || (( _restart_errors++ ))
                 elif claude_running_in_session "$_rs"; then
                     restore_state_clear "$_rs"   # user restart un-trips a crash-looped session
                     # Restart marker + preserve_marker: a crash between shutdown and

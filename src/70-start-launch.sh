@@ -255,7 +255,7 @@ LAUNCH_EOF
         poll_until_ready "$LAUNCH_SESSION_NAME" || true
         # Prompt file (.claudemux-prompt) is NOT deleted here: the wrapper re-reads and
         # regenerates it on every in-place restart relaunch, and removes it on teardown.
-        send_ready_handshake "$LAUNCH_SESSION_NAME"
+        send_ready_handshake "$LAUNCH_SESSION_NAME" || spawn_ready_handshake_monitor "$LAUNCH_SESSION_NAME" "Launch"
     ) &
 
     if [[ "$NO_ATTACH" == "true" ]]; then
