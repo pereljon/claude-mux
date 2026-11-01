@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.4.4"
+VERSION="2.4.5"
 
 # Minimum Claude Code version that falls back to AGENTS.md when no CLAUDE.md is present.
 # A constant, not a config var.

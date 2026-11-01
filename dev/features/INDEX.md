@@ -19,7 +19,6 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
 | `hook-session-guard` | building | 2.5.0 (minor), alongside --shutdown --fresh | BUILT 2026-10-28 on branch hook-session-guard; tests pass (see -tests.md); awaiting cod... | Medium (a compaction or clear outside claude-mux types "Ready?" into an unrelated live ... | [hook-session-guard.md](hook-session-guard.md) |
-| `pane-readiness-gate` | building | — | BUILT 2026-10-31 on branch readiness-gate; tested and reviewed (see -tests.md); awaitin... | High (a claude-mux send can run a pending command with no user action) | [pane-readiness-gate.md](pane-readiness-gate.md) |
 | `shutdown-fresh` | building | 2.5.0 (minor): new flag on --shutdown + injection vocabulary | BUILT on branch shutdown-fresh, live-tested 2026-10-01 (kill, busy, protected, self-ref... | N/A (enhancement) | [shutdown-fresh.md](shutdown-fresh.md) |
 
 ## designing
@@ -65,6 +64,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `model-resolution-notice-cleanup` | shipped | 2.0.13 (patch; one real bug fix + one display regression ... | IMPLEMENTED 2026-06-21 (v2.0.13; expand-from-knowledge model resolution + notice-displa... | MEDIUM — "change model to <family>" silently no-ops (in-session model switch broken f... | [model-resolution-notice-cleanup.md](model-resolution-notice-cleanup.md) |
 | `model-switch-confirm` | shipped | 2.0.14 (patch) — a real bug: in-session model switch st... | SHIPPED in v2.0.14 (committed 618128f 2026-07-22, deployed to ~/bin). Code-reviewed (0 ... | MEDIUM — a cached-conversation `/model` switch silently stalls the session on a confi... | [model-switch-confirm.md](model-switch-confirm.md) |
 | `notice-delivery-reliability` | shipped | 2.0.10 (patch; the actionable-notice fix is a real bug fi... | IMPLEMENTED 2026-06-19 (v2.0.10; persist-while-relevant for update+upgrade notices, <as... | HIGH for the actionable notices (claude-mux update available, Claude binary upgraded) �... | [notice-delivery-reliability.md](notice-delivery-reliability.md) |
+| `pane-readiness-gate` | shipped | — | SHIPPED in v2.4.5 on 2026-10-31; tests and review in -tests.md | High (a claude-mux send can run a pending command with no user action) | [pane-readiness-gate.md](pane-readiness-gate.md) |
 | `precompact-hook-backfill` | shipped | — | shipped | — | [precompact-hook-backfill.md](precompact-hook-backfill.md) |
 | `ready-handshake` | shipped | — | — | — | [ready-handshake.md](ready-handshake.md) |
 | `restart-caller-shutdown-fix` | shipped | 2.0.4 | implemented (v2.0.4) | HIGH (correctness) | [restart-caller-shutdown-fix.md](restart-caller-shutdown-fix.md) |

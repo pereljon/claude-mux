@@ -1,8 +1,8 @@
 ---
 kind: feature
-lifecycle: building
+lifecycle: shipped
 feature: pane-readiness-gate
-status: BUILT 2026-10-31 on branch readiness-gate; tested and reviewed (see -tests.md); awaiting merge
+status: SHIPPED in v2.4.5 on 2026-10-31; tests and review in -tests.md
 severity: High (a claude-mux send can run a pending command with no user action)
 related: cross-cli-coders.md, clear-ready-handshake.md
 ---

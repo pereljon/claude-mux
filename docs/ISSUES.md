@@ -9,9 +9,9 @@
 - [ ] Restart home normally if it still runs the dev-build injection and holds old rename requests.
 
 ### Keys that claude-mux types into a pane can approve an open permission prompt
-**Severity:** High. A pending command runs with no user action. Design and test plan: `dev/features/pane-readiness-gate.md` (branch `readiness-gate`).
+**Severity:** High. A pending command runs with no user action. Design and test plan: `dev/features/pane-readiness-gate.md`.
 **Confirmed:** 2026-10-31. With a prompt open in manual mode, `claude-mux -s zz-gate-test '/status'` returned 0 and the pending `touch` ran. `/exit`, `/clear`, the `Ready?` paths and the home message send Enter the same way; only `-s` was run live. Whole-pane `^❯` matches read an open dialog as idle, because the echoed user turn matches.
-- [x] Fixed on branch `readiness-gate` (resolved 2026-10-31): `pane_accepts_input` gates every send. Awaiting merge.
+- [x] Fixed (resolved 2026-10-31): `pane_accepts_input` gates every send; merged as `9a6da64` and released in v2.4.5. On `main`, the `/clear` of a fresh stop is gated too; that path is not in 2.4.5.
 
 ### `poll_until_ready` bypass-warning match is loose
 **Severity:** Low, unverified. Found 2026-10-31 in the `readiness-gate` review. `grep -qi "yes.*accept"` on the bottom 6 lines (`src/50-restore-state.sh`) could match transcript text such as "Yes, and auto-accept edits", and then it sends Down and Enter without the gate. Not reproduced.
