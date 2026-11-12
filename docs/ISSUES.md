@@ -2,6 +2,11 @@
 
 ## Open
 
+### Release state: 2.5.0 is not cut, and the deployed build lacks kill
+**Status:** `main` is clean and pushed (`67f9fd7`) with `VERSION` 2.4.5. v2.4.4 and v2.4.5 were released from a line that branched at `4e182f5` (v2.4.3), so `v2.4.5` is not an ancestor of `main`, and `main` holds 28 commits that line lacks. The deployed `~/bin/claude-mux` is the 2.4.5 release build; it has no `--shutdown --fresh` and differs from `main`'s artifact.
+- [ ] Next: the user decides whether to release 2.5.0 from `main` (bump `VERSION`, `make check`, tag, push the tag, `gh release create`, deploy). It ships kill (`--shutdown --fresh`) and the readiness-gate follow-ups.
+- [ ] Remove the merged leftover branch `hook-session-guard` once the user agrees.
+
 ### Self-rename and self-move stop the session and rename nothing (in progress)
 **Severity:** Medium. Design and status: `dev/features/self-rename.md` (branch `self-rename-via-home`).
 - [ ] Next: the user picks between the wrapper design with the architect fixes and the tmux-server build (`320ae28`); then revise the docs, get test-plan approval, build, and live-test.
@@ -826,6 +831,16 @@ Trigger to re-evaluate: when any single bash function exceeds ~150 lines of bran
 **Conclusion:** if/when bash is left, the realistic drivers (distribution + cross-platform + hot-hook latency) point at **Go, not Python**. Python wins on dev ergonomics alone - which the `src/` split already buys without Python's runtime/startup tax. A pure rewrite is also unlikely: the tool shells out heavily (`tmux send-keys`/`capture-pane`), so a typed Go core with thin bash glue is the probable end-state, not a from-scratch port.
 
 **Intermediate step before any language rewrite: an `src/` module split with build-time concatenation.** Scoped and moved to **Planned Patches -> `src/` module split with build-time concatenation (v2.0.x)** on 2026-06-17 (it is a behavior-preserving refactor = patch, not a v2.1 minor). This is the deliberate "buy time before the rewrite" answer to the now-met line-count trigger. See that entry for the full plan and the "tests first" sequencing.
+
+---
+
+## Decisions
+
+### No shared `CLAUDE_CODE_OAUTH_TOKEN` for managed sessions (2026-11-12)
+**Decision:** claude-mux does not start sessions with a `claude setup-token` token in `CLAUDE_CODE_OAUTH_TOKEN`, and adds no credential layer of its own. Sessions keep the saved `/login`, which Claude Code shares and renews across parallel sessions.
+**Why:** the setup-token "can only make model requests, so it can't establish Remote Control sessions" (code.claude.com/docs/en/authentication, checked 2026-11-11), and every managed session runs `--remote-control`.
+**Rejected:** the shared token (breaks Remote Control); delaying launch until the Keychain unlocks (the LaunchAgent runs in the GUI domain after login, and the login Keychain is `no-timeout`).
+**Context:** raised by the home session on 2026-11-11 about repeated login prompts. Upstream leads, unverified: Claude Code 2.1.316 predates the v2.1.318 sign-in fix (errors doc, "Not logged in"); a stale `~/.claude/.credentials.json` suggests a process that could read but not write the Keychain.
 
 ---
 
