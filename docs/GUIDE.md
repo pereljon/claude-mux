@@ -15,6 +15,7 @@ The home session is **protected** by default - `--shutdown home` refuses to stop
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BASE_DIR` | `$HOME/Claude` | Root directory to scan for Claude projects (directories containing `.claude/`) |
+| `IGNORE_PATH_PREFIXES` | `-` | Folder-name prefix characters. A folder starting with one of them is skipped, with every folder below it, when finding projects and in the AGENTS.md migration. The value is the whole list: `"-_"` skips both, `""` skips none. Allowed: `- _ ~ @ # + = % ^ ,`. Folders starting with `.` are always skipped. |
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set Claude's `permissions.defaultMode` in each project. Valid: `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions`. Set to `""` to disable. |
 | `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing instructions-file template files (AGENTS.md when supported, else CLAUDE.md) |

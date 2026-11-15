@@ -226,10 +226,12 @@ am_set_exempt() {
     if _p="$(cd "$HOME/.claude" 2>/dev/null && pwd -P)"; then AM_EXEMPT_2="$_p/CLAUDE.md"; fi
 }
 
-# Scan BASE (physical path). Prunes .git, node_modules, -*, worktrees; does NOT
+# Scan BASE (physical path). Prunes .git, node_modules, worktrees, and the
+# IGNORE_PATH_PREFIXES folders; does NOT
 # prune .claude or other dot-dirs.
 am_scan() {
     local base="$1" p d
+    build_ignore_name_tests
     AM_CLASS=(); AM_DIR=(); AM_FILE=(); AM_DEST=(); AM_LT=(); AM_METHOD=(); AM_SHA=()
     AM_REPO=(); AM_GITJ=(); AM_TRK=(); AM_STATUS=()
     AM_DONE_COUNT=0
@@ -242,7 +244,7 @@ am_scan() {
     while IFS= read -r -d '' d; do
         dirs+=("$d")
     done < <(
-        find "$base" \( -type d \( -name .git -o -name node_modules -o -name '-*' -o -name worktrees \) -prune \) -o \
+        find "$base" -mindepth 1 \( -type d \( -name .git -o -name node_modules -o -name worktrees "${IGNORE_NAME_TESTS[@]}" \) -prune \) -o \
             \( -iname 'CLAUDE.md' -o -iname 'CLAUDE.local.md' -o -iname 'AGENTS.md' -o -iname 'GEMINI.md' \) -print0 2>/dev/null \
         | while IFS= read -r -d '' p; do printf '%s\0' "${p%/*}"; done \
         | LC_ALL=C sort -zu
@@ -341,10 +343,11 @@ am_signature() {
 # (same prune predicate) or in any ancestor. Prints offenders; returns 1 if any.
 am_verify_walkup() {
     local base="$1" p rc=0 d
+    build_ignore_name_tests
     while IFS= read -r -d '' p; do
         [[ "$p" == "$AM_EXEMPT_1" || "$p" == "$AM_EXEMPT_2" ]] && continue
         echo "$p"; rc=1
-    done < <(find "$base" \( -type d \( -name .git -o -name node_modules -o -name '-*' -o -name worktrees \) -prune \) -o \
+    done < <(find "$base" -mindepth 1 \( -type d \( -name .git -o -name node_modules -o -name worktrees "${IGNORE_NAME_TESTS[@]}" \) -prune \) -o \
         \( -iname 'CLAUDE.md' -o -iname 'CLAUDE.local.md' \) -print0 2>/dev/null)
     d="$(dirname "$base")"
     if [[ "$base" != "/" ]]; then

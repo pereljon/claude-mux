@@ -68,6 +68,10 @@ LAUNCHAGENT_MODE=home
 # Model for the home session. Set to "" to use the default model.
 HOME_SESSION_MODEL="sonnet"
 
+# Folder-name prefix characters that hide a folder and everything below it from
+# project discovery and the AGENTS.md migration. "" hides none.
+IGNORE_PATH_PREFIXES="-"
+
 # Legacy: LAUNCHAGENT_ENABLED=true is treated as LAUNCHAGENT_MODE=home (was
 # LAUNCHAGENT_MODE=batch before batch was removed).
 LAUNCHAGENT_ENABLED=false

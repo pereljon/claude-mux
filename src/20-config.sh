@@ -103,6 +103,14 @@ if ! is_valid_model "$HOME_SESSION_MODEL"; then
     exit 1
 fi
 
+# Validate IGNORE_PATH_PREFIXES. Each character becomes a `find -name 'c*'` test, so
+# glob characters, '/', '.', and whitespace are rejected.
+IGNORE_PREFIX_RE='^[-_~@#+=%^,]*$'
+if [[ ! "$IGNORE_PATH_PREFIXES" =~ $IGNORE_PREFIX_RE ]]; then
+    echo "ERROR: $CLAUDE_MUX_CONFIG: IGNORE_PATH_PREFIXES may contain only these characters: - _ ~ @ # + = % ^ , (got: '$IGNORE_PATH_PREFIXES')" >&2
+    exit 1
+fi
+
 # Validate numeric tmux config values
 for _var_name in SLEEP_BETWEEN TMUX_HISTORY_LIMIT TMUX_ESCAPE_TIME STAGGER_CONCURRENCY STARTING_WINDOW; do
     _var_val="${!_var_name}"

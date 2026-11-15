@@ -53,16 +53,29 @@ migrate_stray_sessions() {
     [[ "$found_any" == "true" ]] && sleep 2
 }
 
+# ── Ignored folder prefixes ───────────────────────────────────────────────────
+# Sets IGNORE_NAME_TESTS to `-o -name 'c*'` per IGNORE_PATH_PREFIXES character,
+# for appending inside a find \( ... \) -prune group. Empty when none are set.
+
+build_ignore_name_tests() {
+    IGNORE_NAME_TESTS=()
+    local i
+    for (( i = 0; i < ${#IGNORE_PATH_PREFIXES}; i++ )); do
+        IGNORE_NAME_TESTS+=(-o -name "${IGNORE_PATH_PREFIXES:$i:1}*")
+    done
+}
+
 # ── Discover Claude projects ──────────────────────────────────────────────────
 # Finds all directories under BASE_DIR that contain a .claude/ subdirectory.
-# Skips directories whose name starts with '-' and directories containing
-# .claudemux-ignore. Hidden directories (starting with '.') are pruned
-# from the search tree.
+# Skips directories whose name starts with an IGNORE_PATH_PREFIXES character,
+# with everything below them, and directories containing .claudemux-ignore.
+# Hidden directories (starting with '.') are pruned from the search tree.
 
 discover_projects() {
     PROJECT_DIRS=()
     HIDDEN_PROJECT_DIRS=()
     [[ ! -d "$BASE_DIR" ]] && return
+    build_ignore_name_tests
 
     while IFS= read -r claude_dir; do
         [[ -z "$claude_dir" ]] && continue
@@ -72,11 +85,6 @@ discover_projects() {
         # Skip BASE_DIR itself if it has .claude
         [[ "$project_dir" == "$BASE_DIR" ]] && continue
 
-        # Skip if directory name starts with -
-        local dir_name
-        dir_name="$(basename "$project_dir")"
-        [[ "$dir_name" == -* ]] && continue
-
         # Hidden via .claudemux-ignore: separated into HIDDEN_PROJECT_DIRS
         if [[ -f "$project_dir/.claudemux-ignore" ]]; then
             HIDDEN_PROJECT_DIRS+=("$project_dir")
@@ -84,7 +92,7 @@ discover_projects() {
         fi
 
         PROJECT_DIRS+=("$project_dir")
-    done < <(find "$BASE_DIR" -name ".*" -not -name ".claude" -prune -o -name "-*" -prune -o -name ".claude" -type d -print 2>/dev/null | sort)
+    done < <(find "$BASE_DIR" -mindepth 1 -name ".*" -not -name ".claude" -prune -o \( -false "${IGNORE_NAME_TESTS[@]}" \) -prune -o -name ".claude" -type d -print 2>/dev/null | sort)
 }
 
 # ── Ensure base directory exists ───────────────────────────────────────────────

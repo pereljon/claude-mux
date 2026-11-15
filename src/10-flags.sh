@@ -173,6 +173,14 @@ LOG_DIR                          default: "$HOME/Library/Logs"
   Type: directory path
   Description: Where claude-mux writes its log file (claude-mux.log).
 
+IGNORE_PATH_PREFIXES             default: "-"
+  Type: string of characters from - _ ~ @ # + = % ^ ,  | (empty)
+  Description: A folder whose name starts with one of these characters is
+               skipped, with every folder below it, when finding projects
+               and in the AGENTS.md migration. The value is the whole list:
+               "-_" skips both; "" skips none. Folders starting with "." are
+               always skipped.
+
 DEFAULT_PERMISSION_MODE          default: "auto"
   Type: "" | default | acceptEdits | plan | auto | dontAsk | bypassPermissions
   Description: Claude Code permission mode written to .claude/settings.local.json
