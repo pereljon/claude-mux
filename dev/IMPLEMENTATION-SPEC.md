@@ -50,7 +50,7 @@ Projects are discovered by the presence of a `.claude/` directory, at any depth 
     └── .claudemux-ignore
 ```
 
-Exclusion rules: hidden directories (`.`-prefixed) are pruned from search, directories starting with `-` are skipped, directories containing `.claudemux-ignore` are skipped. The legacy `.ignore-claudemux` filename is also respected for backwards compatibility.
+Exclusion rules: hidden directories (`.`-prefixed) are pruned from search. A directory whose name starts with an `IGNORE_PATH_PREFIXES` character (default `-`) is pruned with everything below it; the AGENTS.md migration scans use the same rule. The scan start (`BASE_DIR`) is never pruned by its own name. Directories containing `.claudemux-ignore` are skipped. The legacy `.ignore-claudemux` filename is also respected for backwards compatibility.
 
 ## Deliverables
 
@@ -112,6 +112,7 @@ The split is behavior-preserving by construction; it changes no feature, flag, c
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BASE_DIR` | `$HOME/Claude` | Root directory to scan for Claude projects (directories containing `.claude/`) |
+| `IGNORE_PATH_PREFIXES` | `-` | Folder-name prefix characters pruned, with their subtrees, from project discovery and the AGENTS.md migration scans. The value is the whole list; `""` prunes none. Validated at config load against `^[-_~@#+=%^,]*$`, because each character becomes a `find -name 'c*'` argument. |
 | `LOG_DIR` | `$HOME/Library/Logs` | Directory for the `claude-mux.log` file |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Set `permissions.defaultMode` in `.claude/settings.local.json` per project. Valid: `""` (disabled), `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
 | `TEMPLATES_DIR` | `$HOME/.claude-mux/templates` | Directory containing instructions-file template files (written as AGENTS.md when supported, else CLAUDE.md) |

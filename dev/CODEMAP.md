@@ -63,6 +63,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 |---|---|---|
 | `BASE_DIR` | `~/Claude` | Root directory scanned for Claude projects |
 | `LOG_DIR` | `~/Library/Logs` | Directory for `claude-mux.log` |
+| `IGNORE_PATH_PREFIXES` | `-` | Folder-name prefix characters skipped, with their subtrees, by `discover_projects`, `am_scan`, and `am_verify_walkup`. Validated in `src/20-config.sh` |
 | `DEFAULT_PERMISSION_MODE` | `auto` | Permission mode for new/restarted sessions. Valid: `""`, `default`, `acceptEdits`, `plan`, `auto`, `dontAsk`, `bypassPermissions` |
 | `ALLOW_CROSS_SESSION_CONTROL` | `false` | When true, sessions can send keystrokes to other managed sessions |
 | `TMUX_EXTENDED_KEYS` | `true` | Enable Shift+Enter and modified keys |
@@ -165,7 +166,8 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `launch_home_session` | `()` | Sets `LAUNCH_DIR=$BASE_DIR`/`HOME_LAUNCH=true`/`LAUNCH_SESSION_NAME=home` then calls `launch_single_session` (preserves `HOME_SESSION_MODEL`, which `create_claude_session` would drop). Callers set `NO_ATTACH=true` first for a non-attaching start. Refuses (returns 1) while `migration_lock_active`. Used by `autolaunch_dispatch` and the stopped-home branches of `--start`/`--restart` |
 | `create_claude_session` | `(session_name, working_dir, [mode_override], [fresh_start])` | Core launcher: refuses (returns 1) while `migration_lock_active`; no longer creates multi-coder symlinks; passes `working_dir` to `build_system_prompt`; tmux session, set `@claude-mux-dir`/`@claude-mux-claude-id`, write `.claudemux-running`, write LOOPED launch wrapper (prompt at `<dir>/.claudemux-prompt` via `--append-system-prompt-file`; clean exit with `@claude-mux-restart` set → regenerate prompt via `--print-system-prompt` + relaunch in-pane + background `--await-ready`; clean exit without it → remove marker+prompt and `kill-session`), `poll_until_ready`, send Ready? (prompt NOT deleted - wrapper owns its lifetime) |
 | `migrate_stray_sessions` | `()` | Claim existing tmux sessions that have Claude running but lack managed marker |
-| `discover_projects` | `()` | Scan BASE_DIR for directories with `.claude/`; return list |
+| `build_ignore_name_tests` | `()` | Set `IGNORE_NAME_TESTS` to `-o -name 'c*'` per `IGNORE_PATH_PREFIXES` character, for a `find` prune group |
+| `discover_projects` | `()` | Scan BASE_DIR for directories with `.claude/`, skipping `IGNORE_PATH_PREFIXES` subtrees; return list |
 | `ensure_base_dir` | `()` | Create BASE_DIR if it doesn't exist |
 | `start_sessions` | `()` | Launch all discovered projects (`-a`) |
 | `launch_single_session` | `()` | Home/LaunchAgent/`-d` path (does NOT check the migration lock: it is the wrapper's in-place relaunch entry; the lock is honored one level up in `launch_home_session`/`autolaunch_dispatch`): sets `@claude-mux-dir`/`@claude-mux-claude-id`, marker, LOOPED launch wrapper (prompt at `<dir>/.claudemux-prompt`; same restart-in-place loop as `create_claude_session`, regenerating with mode `auto`), backgrounded `poll_until_ready`+Ready? (prompt NOT deleted); uses LAUNCH_DIR, LAUNCH_SESSION_NAME, HOME_LAUNCH |
@@ -194,7 +196,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `autorestore_walk` | `()` | Restore tick (skips the whole tick while `migration_lock_active`): relaunch should-be-alive but dead sessions, staggered, with crash-loop guard. Consumes `.claudemux-restarting` on sight (rmdir + skip this tick) so it doesn't race an in-flight `--restart` |
 | `autolaunch_dispatch` | `()` | LaunchAgent entry point (launches nothing while `migration_lock_active`); starts home (via `launch_home_session`) then calls `autorestore_walk` (mode `home`) |
 | `migrate_agents_md` | `()` | `--migrate-agents-md [--apply] [--no-restart]` driver (`65-agents-md-migration`). Scan + report (read-only default); `--dry-run` = report + planned ops only. On `--apply`: gate/abort preflight, lock, post-lock rescan (TOCTOU signature compare), manifest, ops top-down, verify, release lock, marker, restart via `restart_sessions_in` unless `--no-restart`. Returns 1 on any abort/failure |
-| `am_scan` | `(base)` | Scan BASE (physical path; prunes `.git`/`node_modules`/`-*`/`worktrees`, not `.claude`), classify each directory in C-locale parent-first order, add UNWRITABLE and ABOVE findings. Fills the parallel `AM_*` record arrays |
+| `am_scan` | `(base)` | Scan BASE (physical path; prunes `.git`/`node_modules`/`worktrees` and `IGNORE_PATH_PREFIXES` folders, not `.claude`), classify each directory in C-locale parent-first order, add UNWRITABLE and ABOVE findings. Fills the parallel `AM_*` record arrays |
 | `am_classify_dir` | `(dir)` | Classify one directory from the names the directory listing returned (exact compare; case variants -> CASE-VARIANT); appends records |
 | `am_scan_above` | `(base)` | ABOVE findings: CLAUDE.md / CLAUDE.local.md in ancestors of BASE up to `/` |
 | `am_set_exempt` | `()` | Set the exempt paths for user-level `~/.claude/CLAUDE.md` (literal + physical) |

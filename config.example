@@ -11,6 +11,13 @@
 # Default: $HOME/Claude
 #BASE_DIR="$HOME/Claude"
 
+# Folder-name prefix characters to skip, with every folder below them, when finding
+# projects and in the AGENTS.md migration. The value is the whole list: "-_" skips
+# folders starting with - or _; "" skips none. Folders starting with "." are always skipped.
+# Allowed characters: - _ ~ @ # + = % ^ ,
+# Default: "-"
+#IGNORE_PATH_PREFIXES="-"
+
 # Directory for log files.
 # Default: $HOME/Library/Logs
 #LOG_DIR="$HOME/Library/Logs"

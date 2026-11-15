@@ -68,6 +68,10 @@ LAUNCHAGENT_MODE=home
 # Model for the home session. Set to "" to use the default model.
 HOME_SESSION_MODEL="sonnet"
 
+# Folder-name prefix characters that hide a folder and everything below it from
+# project discovery and the AGENTS.md migration. "" hides none.
+IGNORE_PATH_PREFIXES="-"
+
 # Legacy: LAUNCHAGENT_ENABLED=true is treated as LAUNCHAGENT_MODE=home (was
 # LAUNCHAGENT_MODE=batch before batch was removed).
 LAUNCHAGENT_ENABLED=false
@@ -281,6 +285,14 @@ BASE_DIR                         default: "$HOME/Claude"
 LOG_DIR                          default: "$HOME/Library/Logs"
   Type: directory path
   Description: Where claude-mux writes its log file (claude-mux.log).
+
+IGNORE_PATH_PREFIXES             default: "-"
+  Type: string of characters from - _ ~ @ # + = % ^ ,  | (empty)
+  Description: A folder whose name starts with one of these characters is
+               skipped, with every folder below it, when finding projects
+               and in the AGENTS.md migration. The value is the whole list:
+               "-_" skips both; "" skips none. Folders starting with "." are
+               always skipped.
 
 DEFAULT_PERMISSION_MODE          default: "auto"
   Type: "" | default | acceptEdits | plan | auto | dontAsk | bypassPermissions
@@ -800,6 +812,14 @@ is_valid_model() { [[ -z "$1" || "$1" =~ $MODEL_TOKEN_RE ]]; }
 # Validate HOME_SESSION_MODEL (format/pass-through, not membership)
 if ! is_valid_model "$HOME_SESSION_MODEL"; then
     echo "ERROR: Invalid HOME_SESSION_MODEL '$HOME_SESSION_MODEL' — must be a model name claude accepts (letters/digits/._-, no leading dash) or empty" >&2
+    exit 1
+fi
+
+# Validate IGNORE_PATH_PREFIXES. Each character becomes a `find -name 'c*'` test, so
+# glob characters, '/', '.', and whitespace are rejected.
+IGNORE_PREFIX_RE='^[-_~@#+=%^,]*$'
+if [[ ! "$IGNORE_PATH_PREFIXES" =~ $IGNORE_PREFIX_RE ]]; then
+    echo "ERROR: $CLAUDE_MUX_CONFIG: IGNORE_PATH_PREFIXES may contain only these characters: - _ ~ @ # + = % ^ , (got: '$IGNORE_PATH_PREFIXES')" >&2
     exit 1
 fi
 
@@ -3666,16 +3686,29 @@ migrate_stray_sessions() {
     [[ "$found_any" == "true" ]] && sleep 2
 }
 
+# ── Ignored folder prefixes ───────────────────────────────────────────────────
+# Sets IGNORE_NAME_TESTS to `-o -name 'c*'` per IGNORE_PATH_PREFIXES character,
+# for appending inside a find \( ... \) -prune group. Empty when none are set.
+
+build_ignore_name_tests() {
+    IGNORE_NAME_TESTS=()
+    local i
+    for (( i = 0; i < ${#IGNORE_PATH_PREFIXES}; i++ )); do
+        IGNORE_NAME_TESTS+=(-o -name "${IGNORE_PATH_PREFIXES:$i:1}*")
+    done
+}
+
 # ── Discover Claude projects ──────────────────────────────────────────────────
 # Finds all directories under BASE_DIR that contain a .claude/ subdirectory.
-# Skips directories whose name starts with '-' and directories containing
-# .claudemux-ignore. Hidden directories (starting with '.') are pruned
-# from the search tree.
+# Skips directories whose name starts with an IGNORE_PATH_PREFIXES character,
+# with everything below them, and directories containing .claudemux-ignore.
+# Hidden directories (starting with '.') are pruned from the search tree.
 
 discover_projects() {
     PROJECT_DIRS=()
     HIDDEN_PROJECT_DIRS=()
     [[ ! -d "$BASE_DIR" ]] && return
+    build_ignore_name_tests
 
     while IFS= read -r claude_dir; do
         [[ -z "$claude_dir" ]] && continue
@@ -3685,11 +3718,6 @@ discover_projects() {
         # Skip BASE_DIR itself if it has .claude
         [[ "$project_dir" == "$BASE_DIR" ]] && continue
 
-        # Skip if directory name starts with -
-        local dir_name
-        dir_name="$(basename "$project_dir")"
-        [[ "$dir_name" == -* ]] && continue
-
         # Hidden via .claudemux-ignore: separated into HIDDEN_PROJECT_DIRS
         if [[ -f "$project_dir/.claudemux-ignore" ]]; then
             HIDDEN_PROJECT_DIRS+=("$project_dir")
@@ -3697,7 +3725,7 @@ discover_projects() {
         fi
 
         PROJECT_DIRS+=("$project_dir")
-    done < <(find "$BASE_DIR" -name ".*" -not -name ".claude" -prune -o -name "-*" -prune -o -name ".claude" -type d -print 2>/dev/null | sort)
+    done < <(find "$BASE_DIR" -mindepth 1 -name ".*" -not -name ".claude" -prune -o \( -false "${IGNORE_NAME_TESTS[@]}" \) -prune -o -name ".claude" -type d -print 2>/dev/null | sort)
 }
 
 # ── Ensure base directory exists ───────────────────────────────────────────────
@@ -3940,10 +3968,12 @@ am_set_exempt() {
     if _p="$(cd "$HOME/.claude" 2>/dev/null && pwd -P)"; then AM_EXEMPT_2="$_p/CLAUDE.md"; fi
 }
 
-# Scan BASE (physical path). Prunes .git, node_modules, -*, worktrees; does NOT
+# Scan BASE (physical path). Prunes .git, node_modules, worktrees, and the
+# IGNORE_PATH_PREFIXES folders; does NOT
 # prune .claude or other dot-dirs.
 am_scan() {
     local base="$1" p d
+    build_ignore_name_tests
     AM_CLASS=(); AM_DIR=(); AM_FILE=(); AM_DEST=(); AM_LT=(); AM_METHOD=(); AM_SHA=()
     AM_REPO=(); AM_GITJ=(); AM_TRK=(); AM_STATUS=()
     AM_DONE_COUNT=0
@@ -3956,7 +3986,7 @@ am_scan() {
     while IFS= read -r -d '' d; do
         dirs+=("$d")
     done < <(
-        find "$base" \( -type d \( -name .git -o -name node_modules -o -name '-*' -o -name worktrees \) -prune \) -o \
+        find "$base" -mindepth 1 \( -type d \( -name .git -o -name node_modules -o -name worktrees "${IGNORE_NAME_TESTS[@]}" \) -prune \) -o \
             \( -iname 'CLAUDE.md' -o -iname 'CLAUDE.local.md' -o -iname 'AGENTS.md' -o -iname 'GEMINI.md' \) -print0 2>/dev/null \
         | while IFS= read -r -d '' p; do printf '%s\0' "${p%/*}"; done \
         | LC_ALL=C sort -zu
@@ -4055,10 +4085,11 @@ am_signature() {
 # (same prune predicate) or in any ancestor. Prints offenders; returns 1 if any.
 am_verify_walkup() {
     local base="$1" p rc=0 d
+    build_ignore_name_tests
     while IFS= read -r -d '' p; do
         [[ "$p" == "$AM_EXEMPT_1" || "$p" == "$AM_EXEMPT_2" ]] && continue
         echo "$p"; rc=1
-    done < <(find "$base" \( -type d \( -name .git -o -name node_modules -o -name '-*' -o -name worktrees \) -prune \) -o \
+    done < <(find "$base" -mindepth 1 \( -type d \( -name .git -o -name node_modules -o -name worktrees "${IGNORE_NAME_TESTS[@]}" \) -prune \) -o \
         \( -iname 'CLAUDE.md' -o -iname 'CLAUDE.local.md' \) -print0 2>/dev/null)
     d="$(dirname "$base")"
     if [[ "$base" != "/" ]]; then

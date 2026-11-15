@@ -25,8 +25,8 @@ _(no function definitions)_
 | `echo_hint_end` | 85 |
 | `commands_help` | 93 |
 | `config_help` | 161 |
-| `usage` | 269 |
-| `set_command` | 339 |
+| `usage` | 277 |
+| `set_command` | 347 |
 
 ### `src/20-config.sh`
 
@@ -126,8 +126,9 @@ _(no function definitions)_
 | Function | Line |
 |---|---|
 | `migrate_stray_sessions` | 6 |
-| `discover_projects` | 62 |
-| `ensure_base_dir` | 92 |
+| `build_ignore_name_tests` | 60 |
+| `discover_projects` | 74 |
+| `ensure_base_dir` | 100 |
 
 ### `src/65-agents-md-migration.sh`
 
@@ -145,22 +146,22 @@ _(no function definitions)_
 | `am_classify_dir` | 113 |
 | `am_scan_above` | 206 |
 | `am_set_exempt` | 222 |
-| `am_scan` | 231 |
-| `am_enrich` | 269 |
-| `am_preflight_extra` | 311 |
-| `am_signature` | 333 |
-| `am_verify_walkup` | 342 |
-| `am_running_sessions` | 365 |
-| `am_lock_state` | 388 |
-| `am_release_lock` | 396 |
-| `am_on_signal` | 405 |
-| `am_take_lock` | 415 |
-| `am_write_manifest` | 437 |
-| `am_run_op` | 468 |
-| `am_print_report` | 512 |
-| `am_failure_block` | 595 |
-| `migrate_agents_md` | 623 |
-| `agents_md_drift_notice` | 794 |
+| `am_scan` | 232 |
+| `am_enrich` | 271 |
+| `am_preflight_extra` | 313 |
+| `am_signature` | 335 |
+| `am_verify_walkup` | 344 |
+| `am_running_sessions` | 368 |
+| `am_lock_state` | 391 |
+| `am_release_lock` | 399 |
+| `am_on_signal` | 408 |
+| `am_take_lock` | 418 |
+| `am_write_manifest` | 440 |
+| `am_run_op` | 471 |
+| `am_print_report` | 515 |
+| `am_failure_block` | 598 |
+| `migrate_agents_md` | 626 |
+| `agents_md_drift_notice` | 797 |
 
 ### `src/70-start-launch.sh`
 
@@ -211,14 +212,14 @@ _(no function definitions)_
 
 | Function | Location |
 |---|---|
-| `agents_md_drift_notice` | `src/65-agents-md-migration.sh:794` |
+| `agents_md_drift_notice` | `src/65-agents-md-migration.sh:797` |
 | `agents_md_in_walkup` | `src/30-helpers.sh:743` |
 | `agents_md_path_clear` | `src/30-helpers.sh:724` |
 | `agents_md_supported` | `src/30-helpers.sh:704` |
 | `am_add_record` | `src/65-agents-md-migration.sh:94` |
 | `am_classify_dir` | `src/65-agents-md-migration.sh:113` |
-| `am_enrich` | `src/65-agents-md-migration.sh:269` |
-| `am_failure_block` | `src/65-agents-md-migration.sh:595` |
+| `am_enrich` | `src/65-agents-md-migration.sh:271` |
+| `am_failure_block` | `src/65-agents-md-migration.sh:598` |
 | `am_git_file_json` | `src/65-agents-md-migration.sh:80` |
 | `am_git_tracked` | `src/65-agents-md-migration.sh:62` |
 | `am_is_class` | `src/65-agents-md-migration.sh:102` |
@@ -226,21 +227,21 @@ _(no function definitions)_
 | `am_json_str` | `src/65-agents-md-migration.sh:24` |
 | `am_kind` | `src/65-agents-md-migration.sh:67` |
 | `am_list_names` | `src/65-agents-md-migration.sh:107` |
-| `am_lock_state` | `src/65-agents-md-migration.sh:388` |
-| `am_on_signal` | `src/65-agents-md-migration.sh:405` |
-| `am_preflight_extra` | `src/65-agents-md-migration.sh:311` |
-| `am_print_report` | `src/65-agents-md-migration.sh:512` |
-| `am_release_lock` | `src/65-agents-md-migration.sh:396` |
-| `am_run_op` | `src/65-agents-md-migration.sh:468` |
-| `am_running_sessions` | `src/65-agents-md-migration.sh:365` |
+| `am_lock_state` | `src/65-agents-md-migration.sh:391` |
+| `am_on_signal` | `src/65-agents-md-migration.sh:408` |
+| `am_preflight_extra` | `src/65-agents-md-migration.sh:313` |
+| `am_print_report` | `src/65-agents-md-migration.sh:515` |
+| `am_release_lock` | `src/65-agents-md-migration.sh:399` |
+| `am_run_op` | `src/65-agents-md-migration.sh:471` |
+| `am_running_sessions` | `src/65-agents-md-migration.sh:368` |
 | `am_scan_above` | `src/65-agents-md-migration.sh:206` |
-| `am_scan` | `src/65-agents-md-migration.sh:231` |
+| `am_scan` | `src/65-agents-md-migration.sh:232` |
 | `am_set_exempt` | `src/65-agents-md-migration.sh:222` |
 | `am_sha256` | `src/65-agents-md-migration.sh:53` |
-| `am_signature` | `src/65-agents-md-migration.sh:333` |
-| `am_take_lock` | `src/65-agents-md-migration.sh:415` |
-| `am_verify_walkup` | `src/65-agents-md-migration.sh:342` |
-| `am_write_manifest` | `src/65-agents-md-migration.sh:437` |
+| `am_signature` | `src/65-agents-md-migration.sh:335` |
+| `am_take_lock` | `src/65-agents-md-migration.sh:418` |
+| `am_verify_walkup` | `src/65-agents-md-migration.sh:344` |
+| `am_write_manifest` | `src/65-agents-md-migration.sh:440` |
 | `apply_template` | `src/80-templates-restore.sh:26` |
 | `apply_tmux_options` | `src/30-helpers.sh:607` |
 | `attach_to_session` | `src/35-validate-deps.sh:3` |
@@ -248,6 +249,7 @@ _(no function definitions)_
 | `autorestore_status` | `src/50-restore-state.sh:180` |
 | `autorestore_walk` | `src/80-templates-restore.sh:164` |
 | `await_ready_handshake` | `src/55-session-launch.sh:13` |
+| `build_ignore_name_tests` | `src/60-discovery.sh:60` |
 | `build_system_prompt` | `src/30-helpers.sh:755` |
 | `check_for_update` | `src/30-helpers.sh:83` |
 | `claude_binary_id` | `src/75-tip-notices.sh:69` |
@@ -263,7 +265,7 @@ _(no function definitions)_
 | `detect_claude_upgrade` | `src/75-tip-notices.sh:88` |
 | `detect_github_ssh_accounts` | `src/50-restore-state.sh:741` |
 | `disable_tips` | `src/75-tip-notices.sh:410` |
-| `discover_projects` | `src/60-discovery.sh:62` |
+| `discover_projects` | `src/60-discovery.sh:74` |
 | `dismiss_dialog_for_exit` | `src/50-restore-state.sh:785` |
 | `do_install` | `src/30-helpers.sh:335` |
 | `do_uninstall` | `src/75-tip-notices.sh:422` |
@@ -272,7 +274,7 @@ _(no function definitions)_
 | `echo_hint` | `src/10-flags.sh:79` |
 | `enable_tips` | `src/75-tip-notices.sh:403` |
 | `encode_claude_path` | `src/70-start-launch.sh:271` |
-| `ensure_base_dir` | `src/60-discovery.sh:92` |
+| `ensure_base_dir` | `src/60-discovery.sh:100` |
 | `ensure_git_repo` | `src/50-restore-state.sh:3` |
 | `ensure_gitignore_entry` | `src/50-restore-state.sh:69` |
 | `fresh_prepare_session` | `src/40-shutdown.sh:137` |
@@ -292,7 +294,7 @@ _(no function definitions)_
 | `launch_single_session` | `src/70-start-launch.sh:52` |
 | `list_templates` | `src/80-templates-restore.sh:1` |
 | `log` | `src/30-helpers.sh:3` |
-| `migrate_agents_md` | `src/65-agents-md-migration.sh:623` |
+| `migrate_agents_md` | `src/65-agents-md-migration.sh:626` |
 | `migrate_stray_sessions` | `src/60-discovery.sh:6` |
 | `migration_lock_active` | `src/30-helpers.sh:36` |
 | `move_to_trash` | `src/50-restore-state.sh:365` |
@@ -318,7 +320,7 @@ _(no function definitions)_
 | `send_ready_handshake` | `src/50-restore-state.sh:800` |
 | `session_marker_dir` | `src/50-restore-state.sh:154` |
 | `session_name_for_dir` | `src/50-restore-state.sh:272` |
-| `set_command` | `src/10-flags.sh:339` |
+| `set_command` | `src/10-flags.sh:347` |
 | `set_tip_config` | `src/75-tip-notices.sh:345` |
 | `setup_claude_mux_permissions` | `src/50-restore-state.sh:549` |
 | `setup_default_mode` | `src/50-restore-state.sh:498` |
@@ -334,7 +336,7 @@ _(no function definitions)_
 | `unprotect_command` | `src/50-restore-state.sh:326` |
 | `update_all_project_hooks` | `src/75-tip-notices.sh:368` |
 | `update_check_bg` | `src/75-tip-notices.sh:315` |
-| `usage` | `src/10-flags.sh:269` |
+| `usage` | `src/10-flags.sh:277` |
 | `version_gt` | `src/30-helpers.sh:70` |
 | `write_install_config` | `src/30-helpers.sh:276` |
 | `write_running_marker` | `src/50-restore-state.sh:87` |
