@@ -1,8 +1,8 @@
 ---
 kind: feature
-lifecycle: building
+lifecycle: shipped
 feature: shutdown-fresh
-status: BUILT on branch shutdown-fresh, live-tested 2026-10-01 (kill, busy, protected, self-refusal, multi-name); pending code review and commit approval; resume-after-clear behavior verified live 2026-09-30; flag decided: --fresh extended to --shutdown (architect review agreed); chat confirmation for all fresh/clear triggers added
+status: SHIPPED in v2.5.0 on 2026-11-14; release review findings and fixes in shutdown-fresh-tests.md
 target_version: 2.5.0 (minor): new flag on --shutdown + injection vocabulary
 severity: N/A (enhancement)
 related: clear-ready-handshake.md, restart-in-place.md

@@ -19,8 +19,6 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
 | `hook-session-guard` | building | 2.5.0 (minor), alongside --shutdown --fresh | BUILT 2026-10-28 on branch hook-session-guard; tests pass (see -tests.md); awaiting cod... | Medium (a compaction or clear outside claude-mux types "Ready?" into an unrelated live ... | [hook-session-guard.md](hook-session-guard.md) |
-| `ignore-path-prefixes` | building | — | built and tested on branch ignore-path-prefixes 2026-11-14; review clean; awaiting merg... | — | [ignore-path-prefixes.md](ignore-path-prefixes.md) |
-| `shutdown-fresh` | building | 2.5.0 (minor): new flag on --shutdown + injection vocabulary | BUILT on branch shutdown-fresh, live-tested 2026-10-01 (kill, busy, protected, self-ref... | N/A (enhancement) | [shutdown-fresh.md](shutdown-fresh.md) |
 
 ## designing
 
@@ -60,6 +58,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `claude-code-upgrade-detection` | shipped | — | — | — | [claude-code-upgrade-detection.md](claude-code-upgrade-detection.md) |
 | `clear-ready-handshake` | shipped | 2.2.0 (minor) — new always-on hook + new capability (cl... | SHIPPED in v2.2.0 (committed 3542d98, RELEASED 2026-07-23, deployed to ~/bin). Code rev... | N/A (enhancement) — UX parity with compact; clear currently gives no confirmation and... | [clear-ready-handshake.md](clear-ready-handshake.md) |
 | `home-prompt-split` | shipped | 2.1.0 (minor — changes session-visible injection behavi... | SHIPPED in v2.1.0 (committed aa6627c, RELEASED 2026-07-23, deployed to ~/bin). Architec... | — | [home-prompt-split.md](home-prompt-split.md) |
+| `ignore-path-prefixes` | shipped | — | SHIPPED in v2.5.0 on 2026-11-14 | — | [ignore-path-prefixes.md](ignore-path-prefixes.md) |
 | `make-codemap` | shipped | 2.0.x (patch; dev-tooling, no runtime change) | IMPLEMENTED 2026-06-19 (dev-tooling; claude-mux artifact byte-identical, no release) | N/A (developer-tooling) — but it closes the structural-doc-drift class that produced ... | [make-codemap.md](make-codemap.md) |
 | `model-handling-derot` | shipped | 2.0.9 (patch; one real bug + drift removal) | IMPLEMENTED 2026-06-19 (v2.0.9; membership→format pass-through + de-versioned injection) | MEDIUM — claude-mux's closed model allowlist now REJECTS valid models (e.g. `fable`);... | [model-handling-derot.md](model-handling-derot.md) |
 | `model-resolution-notice-cleanup` | shipped | 2.0.13 (patch; one real bug fix + one display regression ... | IMPLEMENTED 2026-06-21 (v2.0.13; expand-from-knowledge model resolution + notice-displa... | MEDIUM — "change model to <family>" silently no-ops (in-session model switch broken f... | [model-resolution-notice-cleanup.md](model-resolution-notice-cleanup.md) |
@@ -71,6 +70,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `restart-caller-shutdown-fix` | shipped | 2.0.4 | implemented (v2.0.4) | HIGH (correctness) | [restart-caller-shutdown-fix.md](restart-caller-shutdown-fix.md) |
 | `restart-in-place` | shipped | 2.0.6 (patch - fixes existing broken behavior, not new fu... | IMPLEMENTED in v2.0.6 (pending the real restart-all-from-home test) | HIGH (fixes caller-restart context loss) | [restart-in-place.md](restart-in-place.md) |
 | `session-target-disambiguation` | shipped | 2.0.5 | implemented (v2.0.5) | MEDIUM (correctness / footgun) | [session-target-disambiguation.md](session-target-disambiguation.md) |
+| `shutdown-fresh` | shipped | 2.5.0 (minor): new flag on --shutdown + injection vocabulary | SHIPPED in v2.5.0 on 2026-11-14; release review findings and fixes in shutdown-fresh-te... | N/A (enhancement) | [shutdown-fresh.md](shutdown-fresh.md) |
 | `src-module-split` | shipped | 2.0.x (patch; no release - shipped artifact byte-identical) | IMPLEMENTED (2026-06-17) | N/A (developer-ergonomics refactor, zero runtime behavior change) | [src-module-split.md](src-module-split.md) |
 | `start-by-name` | shipped | 2.0.7 (patch) - user decision 2026-06-17 | IMPLEMENTED in v2.0.7 (2026-06-17); both open questions resolved 2026-06-17 | MEDIUM (UX gap + injection inconsistency) | [start-by-name.md](start-by-name.md) |
 | `status-filter` | shipped | — | shipped | — | [status-filter.md](status-filter.md) |

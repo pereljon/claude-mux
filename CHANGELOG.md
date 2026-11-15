@@ -2,7 +2,7 @@
 
 All notable changes to claude-mux are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.5.0] - 2026-11-14
 
 ### Added
 - **`--shutdown SESSION --fresh`: "kill".** Clears the conversation (`/clear`, waiting for the post-clear `Ready?` turn and an idle pane, not the reply wording), then stops the session, so the next start is a new conversation instead of a resume. A busy session is interrupted first; if the clear fails it falls back to a plain stop with a warning. A session cannot kill itself (use "end this session"). `--fresh` is now valid with `--shutdown`.

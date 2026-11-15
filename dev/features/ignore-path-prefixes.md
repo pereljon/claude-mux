@@ -1,8 +1,8 @@
 ---
 kind: feature
-lifecycle: building
+lifecycle: shipped
 feature: ignore-path-prefixes
-status: built and tested on branch ignore-path-prefixes 2026-11-14; review clean; awaiting merge approval
+status: SHIPPED in v2.5.0 on 2026-11-14
 version: 2.5.0
 ---
 

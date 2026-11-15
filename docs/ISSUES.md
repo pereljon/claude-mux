@@ -2,9 +2,9 @@
 
 ## Open
 
-### Release state: 2.5.0 is not cut, and the deployed build lacks kill
-**Status:** `main` is clean and pushed (`67f9fd7`) with `VERSION` 2.4.5. v2.4.4 and v2.4.5 were released from a line that branched at `4e182f5` (v2.4.3), so `v2.4.5` is not an ancestor of `main`, and `main` holds 28 commits that line lacks. The deployed `~/bin/claude-mux` is the 2.4.5 release build; it has no `--shutdown --fresh` and differs from `main`'s artifact.
-- [ ] Next: the user decides whether to release 2.5.0 from `main` (bump `VERSION`, `make check`, tag, push the tag, `gh release create`, deploy). It ships kill (`--shutdown --fresh`) and the readiness-gate follow-ups.
+### Release state: 2.5.0 released; translations pending
+**Status:** v2.5.0 released 2026-11-14 from `main`. It ships kill (`--shutdown --fresh`), the readiness-gate follow-ups, `IGNORE_PATH_PREFIXES`, and the release review's kill fixes. v2.4.4 and v2.4.5 were released from a side line, so `v2.4.5` is not an ancestor of `main`; their changes reached `main` as separate commits.
+- [ ] Next: the translation pass for 2.5.0 (`translations/README.*.md` against `README.md` changes since v2.4.5). The user set it to run after a clear, on Sonnet.
 - [ ] Remove the merged leftover branch `hook-session-guard` once the user agrees.
 
 ### Deferred findings from the 2.5.0 release review
