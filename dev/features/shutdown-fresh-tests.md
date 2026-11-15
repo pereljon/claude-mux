@@ -48,3 +48,11 @@ Use a throwaway project (`-n ~/Claude/development/zz-test -p`), delete it after.
 
 - [ ] `make codemap`, `make features-index`, `make check` clean on the branch and again on `main` after merge.
 - [ ] Throwaway project deleted.
+
+## Review findings
+
+Release review for 2.5.0, 2026-11-14 (Opus, high effort), scope `git diff v2.4.5 main -- src/ config.example install.sh`. It ran the kill flow on a private tmux server with a fake Claude pane under `/bin/bash` 3.2. No Critical findings.
+
+- HIGH: a named shutdown of a stopped project prefix-matched a running session (`api` hit `api-server`), and `--fresh` cleared and killed it with exit 0. Resolved: the named path checks `has-session -t "=NAME"` first (`src/40-shutdown.sh`). Verified on a private tmux server: the `main` build killed `api-server` for both `--shutdown api` and `--shutdown api --fresh`; the fixed build exits 1 with "'api' is not running" and leaves it running.
+- MEDIUM: `/clear` was typed after unsent text in the input row, which submitted the draft. Resolved: `pane_input_empty` gates the `/clear`. Verified on drawn panes (empty row passes; draft, echoed turn, and numbered dialog fail) and read-only on 19 live panes (every idle pane reads empty).
+- LOW, deferred to `docs/ISSUES.md`: misleading fallback messages and exit 0 after a fallback; a long multi-name kill can pass a 2-minute tool timeout and leave a cleared session without its marker (uncertain); three injection-text inconsistencies.

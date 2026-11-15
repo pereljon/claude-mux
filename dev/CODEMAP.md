@@ -157,6 +157,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `detect_github_ssh_accounts` | `()` | Parse `~/.ssh/config` for GitHub accounts; set `GITHUB_SSH_INFO` |
 | `pane_accepts_input` | `(session)` | Return 0 if the pane's input row is on screen (idle or busy); an open dialog hides it. Checked before every send to a Claude pane |
 | `dismiss_dialog_for_exit` | `(session)` | Before `/exit`: if the input row is hidden, send Escape once and wait up to 2s; return 1 if it stays hidden, so the caller kills without Enter |
+| `pane_input_empty` | `(session)` | Return 0 if the input row is on screen and empty. `clear_session_for_fresh` checks it before typing `/clear`, so a draft is never submitted |
 | `send_ready_handshake` | `(session)` | Send `Ready?`+Enter if `pane_accepts_input` passes; otherwise log and return 1 |
 | `poll_until_ready` | `(session, [timeout=120])` | Wait until a session is genuinely ready: busy = "esc to interrupt" in bottom 4 lines; ready = not busy + prompt + quiescent. Handles trust/bypass auto-accept. Returns 0 ready / 1 timeout |
 | `await_ready_handshake` | `(session)` | `--await-ready` body: re-capture `@claude-mux-claude-id` (so the upgrade notice self-clears on in-place restart — the only restart path skipping the kill+recreate capture sites), then `poll_until_ready` then send "Ready?". Used by the looped launch wrapper to fire the handshake from OUTSIDE the pane after an in-place restart relaunch (the pane itself is busy relaunching claude) |

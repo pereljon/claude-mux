@@ -94,7 +94,7 @@ clear_session_for_fresh() {
         done
         [[ $_w -ge 20 ]] && { log "WARN: '$session' still busy after interrupt"; return 1; }
     fi
-    pane_accepts_input "$session" || { log "WARN: '$session' has no input row; not sending /clear"; return 1; }
+    pane_input_empty "$session" || { log "WARN: '$session' has no empty input row (dialog or unsent text); not sending /clear"; return 1; }
     log "Sending /clear to session '$session'"
     "$TMUX_BIN" send-keys -t "$session" -l "/clear" && "$TMUX_BIN" send-keys -t "$session" Enter
     # The handshake reply's wording varies ("Session ready!", "Ready. What's the task?"),
@@ -156,6 +156,13 @@ shutdown_claude_sessions() {
             if ! is_managed_session "$_sess"; then
                 echo "ERROR: '$_sess' is not a claude-mux managed session" >&2
                 echo "Run 'claude-mux -l' to see managed sessions." >&2
+                (( _shutdown_errors++ ))
+                continue
+            fi
+            # Exact match: a bare -t NAME falls back to a prefix match, so a stopped
+            # project 'api' would otherwise target a running 'api-server'.
+            if ! "$TMUX_BIN" has-session -t "=$_sess" 2>/dev/null; then
+                echo "ERROR: '$_sess' is not running" >&2
                 (( _shutdown_errors++ ))
                 continue
             fi

@@ -14,6 +14,8 @@ All notable changes to claude-mux are documented here. Format follows [Keep a Ch
 - **"Kill" no longer means stop** (reverses the 2.4.3 wording). "Stop" and "shut down" keep the conversation; "kill" clears it.
 
 ### Fixed
+- **`--shutdown NAME` could stop a different session.** For a stopped project such as `api`, tmux matched a running `api-server` by prefix and stopped it; with `--fresh` it also cleared that session's conversation. A named shutdown now requires an exact running session and otherwise exits 1 with "not running".
+- **Kill could submit a half-written prompt.** `--shutdown --fresh` typed `/clear` after any text left in the input row. It now types only into an empty row and otherwise falls back to a plain stop with a warning.
 - **A `BASE_DIR` whose own name starts with `-` found no projects.** The prefix rule now applies only to folders below `BASE_DIR`.
 
 ## [2.4.5] - 2026-10-31
