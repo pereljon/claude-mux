@@ -779,6 +779,14 @@ pane_accepts_input() {
     echo "$_pane" | tail -8 | awk '_r && /^(❯|> )/ && !/^(❯|>) [0-9]+\./ { _f = 1 } { _r = /^─/ } END { exit !_f }'
 }
 
+# Return 0 if the input row is on screen and empty. Typing into a row that holds a
+# draft would append to it and submit the draft as a prompt.
+pane_input_empty() {
+    local _pane
+    _pane=$("$TMUX_BIN" capture-pane -t "$1" -p 2>/dev/null) || return 1
+    echo "$_pane" | tail -8 | awk '_r && /^(❯|>)[[:space:]]*$/ { _f = 1 } { _r = /^─/ } END { exit !_f }'
+}
+
 # Clear a dialog before /exit: Escape once, then wait up to 2s for the input row.
 # Returns 1 if it stays hidden; the caller then kills the session without sending
 # Enter, so a pending command is never approved.

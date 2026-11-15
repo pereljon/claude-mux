@@ -7,6 +7,13 @@
 - [ ] Next: the user decides whether to release 2.5.0 from `main` (bump `VERSION`, `make check`, tag, push the tag, `gh release create`, deploy). It ships kill (`--shutdown --fresh`) and the readiness-gate follow-ups.
 - [ ] Remove the merged leftover branch `hook-session-guard` once the user agrees.
 
+### Deferred findings from the 2.5.0 release review
+**Severity:** Low, except the first item. Found 2026-11-14. Findings and resolutions: `dev/features/shutdown-fresh-tests.md`.
+- [ ] Other named commands may share the prefix-match bug fixed in `--shutdown NAME`: a bare `tmux -t NAME` matches a running session by prefix when NAME is not running. Not checked: `--restart NAME`, `-s`, `--permission-mode`, `--get-mode`. Fix direction: target `=NAME`.
+- [ ] Kill messages: a failed clear followed by a successful plain stop exits 0, so a script cannot see the fallback.
+- [ ] Uncertain: a multi-name kill takes about 10 seconds per session, so 12 or more can pass the Bash tool's 2-minute timeout. A kill interrupted after the clear leaves the session running and cleared, without its `.claudemux-running` marker.
+- [ ] Injection text: `src/10-flags.sh` lists "kill this session" as a kill, but the trigger refuses it; the "end this session" rule's "otherwise confirm first" branch has no question to combine with; the NAME-resolution rule does not list kill in the running-session (`-l`) group.
+
 ### Self-rename and self-move stop the session and rename nothing (in progress)
 **Severity:** Medium. Design and status: `dev/features/self-rename.md` (branch `self-rename-via-home`).
 - [ ] Next: the user picks between the wrapper design with the architect fixes and the tmux-server build (`320ae28`); then revise the docs, get test-plan approval, build, and live-test.

@@ -75,7 +75,7 @@ _(no function definitions)_
 | `clear_session_for_fresh` | 73 |
 | `fresh_prepare_session` | 137 |
 | `shutdown_claude_sessions` | 148 |
-| `status_claude_sessions` | 256 |
+| `status_claude_sessions` | 263 |
 
 ### `src/50-restore-state.sh`
 
@@ -106,9 +106,10 @@ _(no function definitions)_
 | `setup_claude_mux_permissions` | 549 |
 | `detect_github_ssh_accounts` | 741 |
 | `pane_accepts_input` | 776 |
-| `dismiss_dialog_for_exit` | 785 |
-| `send_ready_handshake` | 800 |
-| `poll_until_ready` | 818 |
+| `pane_input_empty` | 784 |
+| `dismiss_dialog_for_exit` | 793 |
+| `send_ready_handshake` | 808 |
+| `poll_until_ready` | 826 |
 
 ### `src/55-session-launch.sh`
 
@@ -266,7 +267,7 @@ _(no function definitions)_
 | `detect_github_ssh_accounts` | `src/50-restore-state.sh:741` |
 | `disable_tips` | `src/75-tip-notices.sh:410` |
 | `discover_projects` | `src/60-discovery.sh:74` |
-| `dismiss_dialog_for_exit` | `src/50-restore-state.sh:785` |
+| `dismiss_dialog_for_exit` | `src/50-restore-state.sh:793` |
 | `do_install` | `src/30-helpers.sh:335` |
 | `do_uninstall` | `src/75-tip-notices.sh:422` |
 | `do_update` | `src/30-helpers.sh:131` |
@@ -303,7 +304,8 @@ _(no function definitions)_
 | `on_compact` | `src/75-tip-notices.sh:285` |
 | `on_prompt` | `src/75-tip-notices.sh:119` |
 | `pane_accepts_input` | `src/50-restore-state.sh:776` |
-| `poll_until_ready` | `src/50-restore-state.sh:818` |
+| `pane_input_empty` | `src/50-restore-state.sh:784` |
+| `poll_until_ready` | `src/50-restore-state.sh:826` |
 | `protect_command` | `src/50-restore-state.sh:286` |
 | `remove_running_marker` | `src/50-restore-state.sh:97` |
 | `rename_move_command` | `src/75-tip-notices.sh:601` |
@@ -317,7 +319,7 @@ _(no function definitions)_
 | `restore_state_write` | `src/50-restore-state.sh:132` |
 | `sanitize_session_name` | `src/30-helpers.sh:602` |
 | `save_template_command` | `src/75-tip-notices.sh:540` |
-| `send_ready_handshake` | `src/50-restore-state.sh:800` |
+| `send_ready_handshake` | `src/50-restore-state.sh:808` |
 | `session_marker_dir` | `src/50-restore-state.sh:154` |
 | `session_name_for_dir` | `src/50-restore-state.sh:272` |
 | `set_command` | `src/10-flags.sh:347` |
@@ -331,7 +333,7 @@ _(no function definitions)_
 | `shutdown_single_session` | `src/40-shutdown.sh:21` |
 | `spawn_ready_handshake_monitor` | `src/75-tip-notices.sh:254` |
 | `start_sessions` | `src/70-start-launch.sh:3` |
-| `status_claude_sessions` | `src/40-shutdown.sh:256` |
+| `status_claude_sessions` | `src/40-shutdown.sh:263` |
 | `tip_of_day` | `src/75-tip-notices.sh:4` |
 | `unprotect_command` | `src/50-restore-state.sh:326` |
 | `update_all_project_hooks` | `src/75-tip-notices.sh:368` |
