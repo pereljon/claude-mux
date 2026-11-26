@@ -26,28 +26,29 @@ claude-mux ~/path/to/your/project
 
 يَعِد Remote Control باستخدام Claude Code من أي مكان - لكن بدون إدارة الجلسات، فهو واجهة من الدرجة الثانية حتى من Claude Desktop:
 
-- **تموت الجلسات** عند إغلاق الطرفية
+- **تموت الجلسات** عند إغلاق الطرفية - ولا تعود بعد انهيار أو إعادة تشغيل
 - **سياق المحادثة** لا يُستأنف تلقائيا
 - **لا قاعدة دائمة** - لا شيء يعمل عند التقاط هاتفك ما لم تترك شيئا مفتوحا
 - **Remote Control يتطلب جلسة قيد التشغيل** - لا يمكنك بدء واحدة من RC
 - **الأوامر المائلة لا تعمل في جلسات RC** - لا تبديل نموذج ولا ضغط ولا تغيير وضع أذونات
-- **بدء مشاريع جديدة** يتطلب إنشاء مجلد يدويا وتهيئة git وكتابة CLAUDE.md واختيار نموذج
+- **بدء مشاريع جديدة** - يتطلب إنشاء مجلد يدويا وتهيئة git وكتابة ملف تعليمات (AGENTS.md أو CLAUDE.md) واختيار نموذج
 - **لا إدارة مشاريع** - لا طريقة لرؤية المشاريع الخاملة أو إعادة تسمية المشاريع ونقلها وحذفها دون كسر السجل
 
-**claude-mux يسد ثغرة إدارة الجلسات.** يُغلِّف Claude Code في tmux لتستمر الجلسات، ويحقن موجِّه نظام حتى يتمكن Claude من إدارة جلساته بنفسه، ويُوجِّه الأوامر المائلة عبر tmux لتعمل فوق Remote Control. بمجرد تشغيل جلسة، تُدير كل شيء بالتحدث مع Claude - في الطرفية أو تطبيق الهاتف.
+**claude-mux يسد ثغرة إدارة الجلسات.** يُغلِّف Claude Code في tmux لتستمر الجلسات، ويستعيدها تلقائيا بعد الانهيارات وإعادة التشغيل (ما دام تسجيل الدخول التلقائي مفعلا)، ويحقن موجِّه نظام حتى يتمكن Claude من إدارة جلساته بنفسه، ويُوجِّه الأوامر المائلة عبر tmux لتعمل فوق Remote Control. بمجرد تشغيل جلسة، تُدير كل شيء بالتحدث مع Claude - في الطرفية أو تطبيق الهاتف.
 
 ## ما يمكنك فعله في جلسة claude-mux
 
+- **ينجو من الانهيارات وإعادة التشغيل** - تُستعاد الجلسات تلقائيا عند تسجيل الدخول من جديد، وتستأنف آخر محادثة. الخروج النظيف بـ `/exit` أو الإيقاف يُبقي الجلسة متوقفة؛ والجلسة التي تنهار في حلقة تُوقَف وتُوسَم بدل إعادة تشغيلها إلى الأبد.
 - **إدارة أي جلسة من أي جلسة** - بدء الجلسات وإيقافها وإعادة تشغيلها وسردها وضغطها باستخدام اللغة الطبيعية
 - **الوصول إلى كل شيء من أي مكان** - كل جلسة مُفعَّل فيها Remote Control، فتطبيق Claude للهاتف أو سطح المكتب أو أي عميل بعيد هو واجهة كاملة
 - **تبديل النماذج وأوضاع الأذونات** - قل "switch to Haiku" أو "switch to plan mode" وClaude يتولى الأمر، حتى عبر Remote Control
-- **إنشاء مشاريع جديدة** - "create a new project called my-app" يُنشئ المجلد وgit وCLAUDE.md ويُطلق جلسة. قوالب CLAUDE.md تتيح إعادة استخدام التعليمات عبر المشاريع.
-- **إبقاء الجلسات حية عبر إعادة التشغيل** - جلسة رئيسية اختيارية تُطلق عند تسجيل الدخول وتبقى تعمل؛ كل الجلسات تستأنف آخر محادثة تلقائيا
-- **إرسال أوامر مائلة عبر Remote Control** - Claude يُوجِّه `/model` و`/compact` و`/clear` وأوامر مائلة أخرى إلى الجلسة قيد التشغيل، متجاوزا [قيدا معروفا](https://github.com/anthropics/claude-code/issues/30674)
+- **إنشاء مشاريع جديدة** - "create a new project called my-app" يُنشئ المجلد وgit وملف AGENTS.md من قالب ويُطلق جلسة. القوالب تتيح إعادة استخدام التعليمات عبر المشاريع.
+- **إرسال أوامر مائلة عبر Remote Control** - Claude يُوجِّه `/model` و`/compact` و`/clear` وأوامر مائلة أخرى إلى الجلسة قيد التشغيل، متجاوزا [قيدا معروفا](https://github.com/anthropics/claude-code/issues/30674). يعيد RC الاتصال تلقائيا بعد `/compact` عبر hook من نوع `PreCompact`.
+- **اكتشاف ترقية Claude Code** - عند تغيّر الملف التنفيذي `claude` (بعد `brew upgrade` أو تحديث npm)، تعرض الجلسات قيد التشغيل إشعارا بإعادة التشغيل لتحميل الملف الجديد؛ ويبقى الإشعار عبر الموجِّهات حتى تعيد التشغيل، فلا يضيع إن فاتك دور
 - **حفظ سجل المحادثات** - إعادة التسمية والنقل وإعادة التشغيل تحفظ سجل المحادثات تلقائيا
 - **تنظيم المشاريع** - إخفاء المشاريع وإعادة تسميتها ونقلها وحذفها وحمايتها من داخل أي جلسة
 - **دعم حسابات GitHub المتعددة** - يكتشف أسماء SSH المستعارة في `~/.ssh/config` ويحقنها في الجلسات حتى يستخدم Claude الحساب الصحيح لكل مشروع
-- **دعم أدوات CLI المتعددة** - يُنشئ `AGENTS.md` و`GEMINI.md` كروابط رمزية تلقائيا حتى تشترك Codex CLI وGemini CLI وغيرها في التعليمات
+- **AGENTS.md كملف تعليمات المشروع** - `AGENTS.md` هو الملف الحقيقي الوحيد، ويقرؤه Claude Code وCodex CLI. قل "migrate to AGENTS.md" لتحويل شجرة قائمة من `CLAUDE.md` (تقرير أولا، ولا يُنفَّذ commit لأي شيء). يتطلب Claude Code 2.1.277 أو أحدث؛ الإصدارات الأقدم تبقى على `CLAUDE.md`. يقرؤه Gemini CLI فقط إذا احتوى `~/.gemini/settings.json` على `"context": {"fileName": ["AGENTS.md"]}`.
 - **يعمل بأي لغة** - الأوامر التحاورية تُستنتج من المعنى لا من الكلمات المفتاحية
 
 ## التحدث مع Claude
@@ -55,74 +56,92 @@ claude-mux ~/path/to/your/project
 هكذا تستخدم claude-mux يوميا. كل جلسة مُحقونة بأوامر حتى يتمكن Claude من إدارة الجلسات وتبديل النماذج وإرسال الأوامر المائلة وإنشاء مشاريع جديدة - كل ذلك من داخل المحادثة. لا تحتاج إلى تذكر خيارات سطر الأوامر.
 
 ```
-أنت: "status"
-Claude: يُبلِّغ عن اسم الجلسة والنموذج ووضع الأذونات واستخدام السياق ويعرض جميع الجلسات
+قل: "status"
+يُبلِّغ عن اسم الجلسة والنموذج ووضع الأذونات واستخدام السياق ويعرض جميع الجلسات
 
-أنت: "list active sessions"
-Claude: يعرض جميع الجلسات قيد التشغيل وحالاتها
+قل: "list active sessions"
+يعرض جميع الجلسات قيد التشغيل وحالاتها
 
-أنت: "start a session for my api-server project"
-Claude: يُطلق جلسة في ~/Claude/work/api-server
+قل: "list idle sessions"
+يعرض المشاريع الخاملة فقط
 
-أنت: "create a new project called mobile-app using the web template"
-Claude: يُنشئ مجلد المشروع ويُهيِّئ git ويُطبِّق القالب ويُطلق جلسة
+قل: "list stopped sessions"
+يعرض الجلسات المتوقفة فقط
 
-أنت: "switch this session to Haiku"
-Claude: يُرسل /model haiku إلى نفسه عبر tmux
+قل: "start a session for my api-server project"
+يُطلق الجلسة بالاسم؛ لا يفعل شيئا إن كانت تعمل أصلا
 
-أنت: "compact the api-server session"
-Claude: يُرسل /compact إلى جلسة api-server
+قل: "create a new project called mobile-app using the web template"
+يُنشئ مجلد المشروع ويُهيِّئ git ويُطبِّق القالب ويُطلق جلسة
 
-أنت: "restart the web-dashboard session"
-Claude: يُوقف ويُعيد إطلاق الجلسة مع الحفاظ على سياق المحادثة
+قل: "switch this session to Haiku"
+يحلّ العائلة إلى أحدث معرّف فعلي ويُرسل /model claude-haiku-4-5 إلى نفسه
 
-أنت: "switch the api-server session to plan mode"
-Claude: يُعيد تشغيل الجلسة بوضع أذونات plan
+قل: "compact the api-server session"
+يُرسل /compact إلى جلسة api-server
 
-أنت: "switch this session to yolo mode"
-Claude: يتحول إلى وضع bypassPermissions عبر Shift+Tab دون الحاجة لإعادة التشغيل
+قل: "restart the web-dashboard session"
+يُوقف ويُعيد إطلاق الجلسة مع الحفاظ على سياق المحادثة
 
-أنت: "what mode is this session"
-Claude: يُبلِّغ عن وضع الأذونات الحالي (default أو acceptEdits أو plan أو bypassPermissions)
+قل: "restart this session fresh"
+يطلب التأكيد ثم يُعيد التشغيل بمحادثة جديدة - بلا استئناف وبلا سياق سابق
 
-أنت: "switch this session to Opus"
-Claude: يُرسل /model opus إلى نفسه عبر tmux
+قل: "kill the api-server session"
+يطلب التأكيد ثم يمسح المحادثة ويوقف الجلسة؛ البدء التالي محادثة جديدة لا استئناف
 
-أنت: "clear this session"
-Claude: يُرسل /clear إلى نفسه ويُعيد تعيين المحادثة
+قل: "end this session"
+يحفظ أولا العمل غير المكتمل والخطوة التالية، ويطلب التأكيد (ويسأل إن كان هناك شيء غير محفوظ)، ثم يُعيد التشغيل من جديد
 
-أنت: "hide this project"
-Claude: يكتب .claudemux-ignore فيُستثنى المشروع من قوائم -L
+قل: "switch the api-server session to plan mode"
+يُعيد تشغيل الجلسة بوضع أذونات plan
 
-أنت: "protect this session"
-Claude: يكتب .claudemux-protected ويضبط إشارة tmux - الإيقاف يتطلب الآن --force
+قل: "switch this session to yolo mode"
+يتحول إلى وضع bypassPermissions عبر Shift+Tab دون الحاجة لإعادة التشغيل
 
-أنت: "is this session protected"
-Claude: يتحقق من وجود .claudemux-protected في مجلد المشروع ويُبلِّغ
+قل: "what mode is this session"
+يُبلِّغ عن وضع الأذونات الحالي (default أو acceptEdits أو plan أو bypassPermissions)
 
-أنت: "delete the old-prototype project"
-Claude: يُؤكد في المحادثة ثم ينقل مجلد المشروع إلى سلة المحذوفات
+قل: "switch this session to Opus"
+يحلّ العائلة إلى أحدث معرّف فعلي ويُرسل /model claude-opus-4-8 إلى نفسه
 
-أنت: "rename this project to my-new-name"
-Claude: يُوقف الجلسة ويُعيد تسمية المجلد ويُرحِّل سجل المحادثات ويُعيد التشغيل
+قل: "clear this session"
+يطلب التأكيد ثم يُرسل /clear إلى نفسه ويُعيد تعيين المحادثة
 
-أنت: "save this as a template named web"
-Claude: ينسخ CLAUDE.md إلى ~/.claude-mux/templates/web.md
+قل: "hide this project"
+يكتب .claudemux-ignore فيُستثنى المشروع من قوائم -L
 
-أنت: "tip"
-Claude: يطبع نصيحة - نفس النصيحة طوال اليوم أو عشوائية إذا ضُبط TIP_MODE=random
+قل: "protect this session"
+يكتب .claudemux-protected ويضبط إشارة tmux - الإيقاف يتطلب الآن --force
 
-أنت: "enable tips" / "disable tips"
-Claude: يُفعّل أو يُعطّل نصيحة اليوم عبر جميع المشاريع
+قل: "is this session protected"
+يتحقق من وجود .claudemux-protected في مجلد المشروع ويُبلِّغ
 
-أنت: "update claude-mux"
-Claude: يُحذِّر بأن جميع الجلسات ستُعاد تشغيلها ويطلب التأكيد ثم يُحدِّث ويُعيد التشغيل
+قل: "delete the old-prototype project"
+يُؤكد في المحادثة ثم ينقل مجلد المشروع إلى سلة المحذوفات
 
-أنت: "stop all sessions"
-Claude: يخرج بسلاسة من جميع الجلسات المُدارة
+قل: "rename this project to my-new-name"
+يُوقف الجلسة ويُعيد تسمية المجلد ويُرحِّل سجل المحادثات ويُعيد التشغيل
 
-أنت: "help"
-Claude: يطبع قائمة الأوامر التحاورية كاملة
+قل: "save this as a template named web"
+ينسخ AGENTS.md (أو CLAUDE.md) إلى ~/.claude-mux/templates/web.md
+
+قل: "check agents migration" / "migrate to AGENTS.md"
+يُبلِّغ (للقراءة فقط) عن ملفات CLAUDE.md التي يمكن نقلها إلى AGENTS.md؛ وبعد التأكيد يعيد تسميتها في الشجرة كلها ويعيد تشغيل الجلسات العاملة تحت المجلد الأساسي
+
+قل: "tip"
+يطبع نصيحة - نفس النصيحة طوال اليوم أو عشوائية إذا ضُبط TIP_MODE=random
+
+قل: "enable tips" / "disable tips"
+يُفعّل أو يُعطّل نصيحة اليوم عبر جميع المشاريع
+
+قل: "update claude-mux"
+يُحذِّر بأن جميع الجلسات ستُعاد تشغيلها ويطلب التأكيد ثم يُحدِّث ويُعيد التشغيل
+
+قل: "stop all sessions"
+يخرج بسلاسة من جميع الجلسات المُدارة
+
+قل: "help"
+يطبع قائمة الأوامر التحاورية كاملة
 ```
 
 **تعمل هذه الأوامر بأي لغة.** إذا كتبت ما يعادلها بالإسبانية أو اليابانية أو العبرية أو أي لغة أخرى، يستنتج Claude القصد ويُنفِّذ الأمر المقابل.
@@ -132,7 +151,7 @@ Claude: يطبع قائمة الأوامر التحاورية كاملة
 ## المزيد
 
 - [مرجع CLI](../docs/CLI.md) - مرجع أوامر كامل للبرمجة النصية والأتمتة
-- [الدليل](../docs/guide.md) - الإعدادات وتفاصيل الجلسات والبنية الداخلية واستكشاف الأخطاء
+- [الدليل](../docs/GUIDE.md) - الإعدادات وتفاصيل الجلسات والبنية الداخلية واستكشاف الأخطاء
 - [خيارات التثبيت](../docs/INSTALL.md) - Homebrew والتثبيت اليدوي وإعداد LaunchAgent
 - [الأسئلة الشائعة](../docs/FAQ.md) - أسئلة شائعة حول claude-mux
 - [المشكلات المعروفة](../docs/ISSUES.md) - أخطاء مفتوحة وميزات مخططة ومشكلات محلولة

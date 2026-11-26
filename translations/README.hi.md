@@ -26,28 +26,29 @@ claude-mux ~/path/to/your/project
 
 Remote Control का वादा है कि Claude Code को कहीं से भी इस्तेमाल किया जा सके - लेकिन session management के बिना, यह Claude Desktop से भी एक second-class इंटरफ़ेस है:
 
-- **सेशन खत्म हो जाते हैं** जब आप टर्मिनल बंद करते हैं
+- **सेशन खत्म हो जाते हैं** जब आप टर्मिनल बंद करते हैं - और क्रैश या रीबूट के बाद वापस नहीं आते
 - **Conversation context** अपने आप resume नहीं होता
 - **कोई home base नहीं** - जब आप फोन उठाते हैं तो कुछ नहीं चल रहा होता जब तक आपने कुछ खुला न छोड़ा हो
 - **Remote Control को चल रहे सेशन की ज़रूरत है** - आप RC से नया सेशन शुरू नहीं कर सकते
 - **Slash commands RC सेशन में काम नहीं करते** - न model switching, न compacting, न permission mode बदलना
-- **नए प्रोजेक्ट शुरू करना** - manually डायरेक्टरी बनाना, git initialize करना, CLAUDE.md लिखना, और model चुनना होता है
+- **नए प्रोजेक्ट शुरू करना** - manually डायरेक्टरी बनाना, git initialize करना, instructions फ़ाइल (AGENTS.md या CLAUDE.md) लिखना, और model चुनना होता है
 - **कोई प्रोजेक्ट management नहीं** - idle प्रोजेक्ट देखने, या rename, move, delete करने का कोई तरीका नहीं बिना history तोड़े
 
-**claude-mux session management की कमी को पूरा करता है।** यह Claude Code को tmux में wrap करता है ताकि सेशन बने रहें, एक system prompt inject करता है ताकि Claude अपने सेशन खुद मैनेज कर सके, और slash commands को tmux के माध्यम से route करता है ताकि वे Remote Control पर भी काम करें। एक बार सेशन चलने के बाद, आप Claude से बात करके सब कुछ मैनेज करते हैं - टर्मिनल में या मोबाइल ऐप से।
+**claude-mux session management की कमी को पूरा करता है।** यह Claude Code को tmux में wrap करता है ताकि सेशन बने रहें, क्रैश और रीबूट के बाद उन्हें अपने आप बहाल करता है (जब तक auto-login चालू है), एक system prompt inject करता है ताकि Claude अपने सेशन खुद मैनेज कर सके, और slash commands को tmux के माध्यम से route करता है ताकि वे Remote Control पर भी काम करें। एक बार सेशन चलने के बाद, आप Claude से बात करके सब कुछ मैनेज करते हैं - टर्मिनल में या मोबाइल ऐप से।
 
 ## claude-mux सेशन में आप क्या कर सकते हैं
 
+- **क्रैश और रीबूट से बच निकलता है** - दोबारा लॉगिन करने पर सेशन अपने आप बहाल होते हैं और आखिरी बातचीत जारी रखते हैं। साफ़ `/exit` या shutdown सेशन को बंद रखता है; बार-बार क्रैश होने वाला सेशन हमेशा restart होने के बजाय रोककर चिह्नित कर दिया जाता है।
 - **किसी भी सेशन से किसी भी सेशन को मैनेज करें** - natural language से प्रोजेक्ट शुरू, बंद, restart, list, और compact करें
 - **कहीं से भी सब कुछ एक्सेस करें** - हर सेशन में Remote Control सक्षम है, तो Claude मोबाइल ऐप, डेस्कटॉप ऐप, या कोई भी remote client पूरा इंटरफ़ेस है
 - **मॉडल और permission modes बदलें** - "switch to Haiku" या "switch to plan mode" कहें और Claude संभाल लेता है, Remote Control पर भी
-- **नए प्रोजेक्ट बनाएँ** - "create a new project called my-app" डायरेक्टरी, git, CLAUDE.md सेट करता है और सेशन लॉन्च करता है। CLAUDE.md templates से आप प्रोजेक्ट्स में instructions दोबारा उपयोग कर सकते हैं।
-- **रीबूट के बाद भी सेशन चालू रखें** - एक वैकल्पिक होम सेशन लॉगिन पर लॉन्च होता है और चलता रहता है; सभी सेशन अपनी आखिरी बातचीत स्वचालित रूप से resume करते हैं
-- **Remote Control पर slash commands भेजें** - Claude `/model`, `/compact`, `/clear`, और अन्य slash commands को चल रहे सेशन में route करता है, एक [ज्ञात सीमा](https://github.com/anthropics/claude-code/issues/30674) का समाधान करते हुए
+- **नए प्रोजेक्ट बनाएँ** - "create a new project called my-app" डायरेक्टरी, git, template से AGENTS.md सेट करता है और सेशन लॉन्च करता है। Templates से आप प्रोजेक्ट्स में instructions दोबारा उपयोग कर सकते हैं।
+- **Remote Control पर slash commands भेजें** - Claude `/model`, `/compact`, `/clear`, और अन्य slash commands को चल रहे सेशन में route करता है, एक [ज्ञात सीमा](https://github.com/anthropics/claude-code/issues/30674) का समाधान करते हुए। `/compact` के बाद RC एक `PreCompact` hook के ज़रिए अपने आप दोबारा जुड़ता है।
+- **Claude Code upgrade की पहचान** - जब `claude` binary बदलती है (`brew upgrade` या npm update के बाद), चल रहे सेशन नई binary लोड करने के लिए restart का नोटिस दिखाते हैं; यह नोटिस restart होने तक prompts में बना रहता है, इसलिए छूटा हुआ turn इसे खो नहीं सकता
 - **Conversation history सुरक्षित रखें** - rename, move, और restart सभी conversation history स्वचालित रूप से संरक्षित करते हैं
 - **प्रोजेक्ट व्यवस्थित करें** - किसी भी सेशन के अंदर से प्रोजेक्ट छिपाएँ, rename करें, move करें, delete करें, और protect करें
 - **GitHub multi-account support** - `~/.ssh/config` में SSH aliases पहचानता है और उन्हें सेशन में inject करता है ताकि Claude हर प्रोजेक्ट के लिए सही account उपयोग करे
-- **Multi-CLI-coder support** - `AGENTS.md` और `GEMINI.md` symlinks स्वचालित रूप से बनाता है ताकि Codex CLI, Gemini CLI, और अन्य tools instructions शेयर करें
+- **AGENTS.md प्रोजेक्ट-instructions फ़ाइल के रूप में** - `AGENTS.md` एकमात्र असली फ़ाइल है, जिसे Claude Code और Codex CLI पढ़ते हैं। मौजूदा tree को `CLAUDE.md` से बदलने के लिए "migrate to AGENTS.md" कहें (पहले रिपोर्ट, कुछ भी commit नहीं होता)। Claude Code 2.1.277 या बाद का चाहिए; पुराने versions `CLAUDE.md` रखते हैं। Gemini CLI इसे तभी पढ़ता है जब `~/.gemini/settings.json` में `"context": {"fileName": ["AGENTS.md"]}` हो।
 - **किसी भी भाषा में काम करता है** - conversational commands intent से समझे जाते हैं, keywords से नहीं
 
 ## Claude से बात करना
@@ -55,74 +56,92 @@ Remote Control का वादा है कि Claude Code को कहीं
 यही है claude-mux का रोज़ाना उपयोग। हर सेशन में commands inject किए जाते हैं ताकि Claude सेशन मैनेज कर सके, मॉडल बदल सके, slash commands भेज सके, और नए प्रोजेक्ट बना सके - सब बातचीत के अंदर से। CLI flags याद रखने की ज़रूरत नहीं।
 
 ```
-आप: "status"
-Claude: सेशन नाम, मॉडल, permission mode, context usage, और सभी सेशन की सूची रिपोर्ट करता है
+कहें: "status"
+सेशन नाम, मॉडल, permission mode, context usage, और सभी सेशन की सूची रिपोर्ट करता है
 
-आप: "list active sessions"
-Claude: उनके status के साथ सभी चल रहे सेशन दिखाता है
+कहें: "list active sessions"
+उनके status के साथ सभी चल रहे सेशन दिखाता है
 
-आप: "start a session for my api-server project"
-Claude: ~/Claude/work/api-server में एक सेशन लॉन्च करता है
+कहें: "list idle sessions"
+सिर्फ़ idle प्रोजेक्ट दिखाता है
 
-आप: "create a new project called mobile-app using the web template"
-Claude: प्रोजेक्ट डायरेक्टरी बनाता है, git initialize करता है, template लागू करता है, सेशन लॉन्च करता है
+कहें: "list stopped sessions"
+सिर्फ़ बंद सेशन दिखाता है
 
-आप: "switch this session to Haiku"
-Claude: tmux के माध्यम से खुद को /model haiku भेजता है
+कहें: "start a session for my api-server project"
+नाम से सेशन शुरू करता है; पहले से चल रहा हो तो कुछ नहीं करता
 
-आप: "compact the api-server session"
-Claude: api-server सेशन को /compact भेजता है
+कहें: "create a new project called mobile-app using the web template"
+प्रोजेक्ट डायरेक्टरी बनाता है, git initialize करता है, template लागू करता है, सेशन लॉन्च करता है
 
-आप: "restart the web-dashboard session"
-Claude: सेशन बंद करके पुनः लॉन्च करता है, conversation context बनाए रखते हुए
+कहें: "switch this session to Haiku"
+family को नवीनतम concrete ID में बदलता है और खुद को /model claude-haiku-4-5 भेजता है
 
-आप: "switch the api-server session to plan mode"
-Claude: plan permission mode के साथ सेशन पुनः शुरू करता है
+कहें: "compact the api-server session"
+api-server सेशन को /compact भेजता है
 
-आप: "switch this session to yolo mode"
-Claude: Shift+Tab के माध्यम से bypassPermissions mode में स्विच करता है - restart की ज़रूरत नहीं
+कहें: "restart the web-dashboard session"
+सेशन बंद करके पुनः लॉन्च करता है, conversation context बनाए रखते हुए
 
-आप: "what mode is this session"
-Claude: वर्तमान permission mode (default, acceptEdits, plan, bypassPermissions) रिपोर्ट करता है
+कहें: "restart this session fresh"
+पुष्टि माँगता है, फिर नई बातचीत के साथ restart करता है - कोई resume नहीं, कोई पिछला context नहीं
 
-आप: "switch this session to Opus"
-Claude: tmux के माध्यम से खुद को /model opus भेजता है
+कहें: "kill the api-server session"
+पुष्टि माँगता है, फिर बातचीत साफ़ करके सेशन रोकता है; अगली शुरुआत नई बातचीत होती है, resume नहीं
 
-आप: "clear this session"
-Claude: खुद को /clear भेजता है, बातचीत रीसेट करते हुए
+कहें: "end this session"
+पहले अधूरा काम और अगला कदम सहेजता है, पुष्टि माँगता है (और पूछता है कि कुछ बिना सहेजा तो नहीं), फिर नए सिरे से restart करता है
 
-आप: "hide this project"
-Claude: .claudemux-ignore लिखता है ताकि प्रोजेक्ट -L लिस्टिंग से बाहर हो जाए
+कहें: "switch the api-server session to plan mode"
+plan permission mode के साथ सेशन पुनः शुरू करता है
 
-आप: "protect this session"
-Claude: .claudemux-protected लिखता है और tmux मार्कर सेट करता है - shutdown अब --force माँगता है
+कहें: "switch this session to yolo mode"
+Shift+Tab के माध्यम से bypassPermissions mode में स्विच करता है - restart की ज़रूरत नहीं
 
-आप: "is this session protected"
-Claude: प्रोजेक्ट फ़ोल्डर में .claudemux-protected चेक करता है और बताता है
+कहें: "what mode is this session"
+वर्तमान permission mode (default, acceptEdits, plan, bypassPermissions) रिपोर्ट करता है
 
-आप: "delete the old-prototype project"
-Claude: चैट में पुष्टि करता है, फिर प्रोजेक्ट फ़ोल्डर सिस्टम ट्रैश में भेजता है
+कहें: "switch this session to Opus"
+family को नवीनतम concrete ID में बदलता है और खुद को /model claude-opus-4-8 भेजता है
 
-आप: "rename this project to my-new-name"
-Claude: सेशन रोकता है, फ़ोल्डर का नाम बदलता है, conversation history migrate करता है, पुनः शुरू करता है
+कहें: "clear this session"
+पुष्टि माँगता है, फिर खुद को /clear भेजता है, बातचीत रीसेट करते हुए
 
-आप: "save this as a template named web"
-Claude: CLAUDE.md को ~/.claude-mux/templates/web.md में कॉपी करता है
+कहें: "hide this project"
+.claudemux-ignore लिखता है ताकि प्रोजेक्ट -L लिस्टिंग से बाहर हो जाए
 
-आप: "tip"
-Claude: एक tip प्रिंट करता है - पूरे दिन वही tip, या TIP_MODE=random सेट होने पर random
+कहें: "protect this session"
+.claudemux-protected लिखता है और tmux मार्कर सेट करता है - shutdown अब --force माँगता है
 
-आप: "enable tips" / "disable tips"
-Claude: सभी प्रोजेक्ट्स में डेली टिप चालू या बंद करता है
+कहें: "is this session protected"
+प्रोजेक्ट फ़ोल्डर में .claudemux-protected चेक करता है और बताता है
 
-आप: "update claude-mux"
-Claude: चेतावनी देता है कि सभी सेशन restart होंगे, पुष्टि माँगता है, फिर update और restart करता है
+कहें: "delete the old-prototype project"
+चैट में पुष्टि करता है, फिर प्रोजेक्ट फ़ोल्डर सिस्टम ट्रैश में भेजता है
 
-आप: "stop all sessions"
-Claude: सभी managed सेशन gracefully बंद करता है
+कहें: "rename this project to my-new-name"
+सेशन रोकता है, फ़ोल्डर का नाम बदलता है, conversation history migrate करता है, पुनः शुरू करता है
 
-आप: "help"
-Claude: conversational commands की पूरी सूची प्रिंट करता है
+कहें: "save this as a template named web"
+AGENTS.md (या CLAUDE.md) को ~/.claude-mux/templates/web.md में कॉपी करता है
+
+कहें: "check agents migration" / "migrate to AGENTS.md"
+(सिर्फ़ पढ़कर) बताता है कि कौन सी CLAUDE.md फ़ाइलें AGENTS.md में जा सकती हैं; पुष्टि मिलने पर पूरे tree में उनका नाम बदलता है और base directory के अंतर्गत चल रहे सेशन restart करता है
+
+कहें: "tip"
+एक tip प्रिंट करता है - पूरे दिन वही tip, या TIP_MODE=random सेट होने पर random
+
+कहें: "enable tips" / "disable tips"
+सभी प्रोजेक्ट्स में डेली टिप चालू या बंद करता है
+
+कहें: "update claude-mux"
+चेतावनी देता है कि सभी सेशन restart होंगे, पुष्टि माँगता है, फिर update और restart करता है
+
+कहें: "stop all sessions"
+सभी managed सेशन gracefully बंद करता है
+
+कहें: "help"
+conversational commands की पूरी सूची प्रिंट करता है
 ```
 
 **ये commands किसी भी भाषा में काम करते हैं।** अगर आप हिन्दी, जापानी, हिब्रू, या किसी अन्य भाषा में समकक्ष टाइप करते हैं, तो Claude intent समझकर matching command चलाता है।
@@ -132,7 +151,7 @@ Claude: conversational commands की पूरी सूची प्रिं
 ## और जानें
 
 - [CLI संदर्भ](../docs/CLI.md) - scripting और automation के लिए पूरा command reference
-- [गाइड](../docs/guide.md) - कॉन्फ़िगरेशन, सेशन विवरण, आंतरिक संरचना, और समस्या निवारण
+- [गाइड](../docs/GUIDE.md) - कॉन्फ़िगरेशन, सेशन विवरण, आंतरिक संरचना, और समस्या निवारण
 - [इंस्टॉल विकल्प](../docs/INSTALL.md) - Homebrew, मैन्युअल इंस्टॉल, LaunchAgent सेटअप
 - [FAQ](../docs/FAQ.md) - claude-mux के बारे में आम सवाल
 - [ज्ञात समस्याएँ](../docs/ISSUES.md) - open bugs, नियोजित features, और हल की गई समस्याएँ

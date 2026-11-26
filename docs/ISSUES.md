@@ -2,9 +2,10 @@
 
 ## Open
 
-### Release state: 2.6.0 released; translations pending
+### Release state: 2.6.0 released; translations updated, not yet committed
 **Status:** v2.6.0 released 2026-11-26 from `main`: the session name prefix marker. v2.5.0 released 2026-11-14 from `main`. It ships kill (`--shutdown --fresh`), the readiness-gate follow-ups, `IGNORE_PATH_PREFIXES`, and the release review's kill fixes. v2.4.4 and v2.4.5 were released from a side line, so `v2.4.5` is not an ancestor of `main`; their changes reached `main` as separate commits.
-- [ ] Next: the translation pass for 2.5.0 and 2.6.0 (`translations/README.*.md` against `README.md` changes since v2.4.5; 2.6.0 changed no README text). The user set it to run after a clear, on Sonnet.
+- [x] Translation pass for 2.5.0 and 2.6.0 (done 2026-11-26): the 12 `translations/README.*.md` now match `README.md`. They had last been updated at v1.15.0, so the pass covered every README change since then. Not covered: `FAQ.*.md` and `ISSUES.*.md` translations.
+- [ ] `README.md` language switcher reads `한국語` (mixed Hanja) where the translations read `한국어`.
 - [x] Merged branches removed (resolved 2026-11-26): `hook-session-guard`, `ignore-path-prefixes`, `release-review-fixes`, `session-name-prefix`.
 
 ### Deferred findings from the 2.5.0 release review

@@ -26,28 +26,29 @@ Tutto qui. Sei in una sessione Claude persistente, consapevole del contesto, con
 
 Remote Control promette Claude Code da qualsiasi luogo - ma senza gestione delle sessioni, e un'interfaccia di seconda classe anche da Claude Desktop:
 
-- **Le sessioni terminano** quando chiudi il terminale
+- **Le sessioni terminano** quando chiudi il terminale - e non tornano dopo un crash o un riavvio
 - **Il contesto della conversazione** non riprende automaticamente
 - **Nessuna base operativa** - nulla e in esecuzione quando prendi il telefono, a meno che tu non abbia lasciato qualcosa aperto
 - **Remote Control richiede una sessione attiva** - non puoi avviarne una da RC
 - **I comandi slash non funzionano nelle sessioni RC** - nessun cambio modello, compattazione o modifica della modalita di permessi
-- **Avviare nuovi progetti** - richiede creare manualmente una directory, inizializzare git, scrivere un CLAUDE.md e scegliere un modello
+- **Avviare nuovi progetti** - richiede creare manualmente una directory, inizializzare git, scrivere un file di istruzioni (AGENTS.md o CLAUDE.md) e scegliere un modello
 - **Nessuna gestione dei progetti** - nessun modo per vedere i progetti inattivi, o rinominare, spostare ed eliminare progetti senza perdere la cronologia
 
-**claude-mux colma la lacuna nella gestione delle sessioni.** Avvolge Claude Code in tmux cosi le sessioni persistono, inietta un system prompt cosi Claude puo gestire le proprie sessioni e instrada i comandi slash attraverso tmux cosi funzionano su Remote Control. Una volta avviata una sessione, gestisci tutto parlando con Claude - dal terminale o dall'app mobile.
+**claude-mux colma la lacuna nella gestione delle sessioni.** Avvolge Claude Code in tmux cosi le sessioni persistono, le ripristina automaticamente dopo crash e riavvii (purche il login automatico sia abilitato), inietta un system prompt cosi Claude puo gestire le proprie sessioni e instrada i comandi slash attraverso tmux cosi funzionano su Remote Control. Una volta avviata una sessione, gestisci tutto parlando con Claude - dal terminale o dall'app mobile.
 
 ## Cosa puoi fare in una sessione claude-mux
 
+- **Sopravvive a crash e riavvii** - le sessioni vengono ripristinate automaticamente quando accedi di nuovo, riprendendo l'ultima conversazione. Un `/exit` pulito o uno spegnimento mantiene la sessione ferma; una sessione che va in crash ripetuti viene fermata e segnalata, invece di essere riavviata all'infinito.
 - **Gestire qualsiasi sessione da qualsiasi sessione** - avviare, arrestare, riavviare, elencare e compattare i progetti usando il linguaggio naturale
 - **Accedere a tutto da ovunque** - ogni sessione ha Remote Control abilitato, quindi l'app mobile di Claude, l'app desktop o qualsiasi client remoto e un'interfaccia completa
 - **Cambiare modelli e modalita di permessi** - di' "switch to Haiku" o "switch to plan mode" e Claude lo gestisce, anche tramite Remote Control
-- **Creare nuovi progetti** - "create a new project called my-app" configura la directory, git, CLAUDE.md e avvia una sessione. I template CLAUDE.md permettono di riutilizzare le istruzioni tra i progetti.
-- **Mantenere le sessioni attive tra i riavvii** - una sessione home opzionale si avvia al login e resta attiva; tutte le sessioni riprendono automaticamente l'ultima conversazione
-- **Inviare comandi slash tramite Remote Control** - Claude instrada `/model`, `/compact`, `/clear` e altri comandi slash alla sessione attiva, aggirando una [limitazione nota](https://github.com/anthropics/claude-code/issues/30674)
+- **Creare nuovi progetti** - "create a new project called my-app" configura la directory, git, un AGENTS.md da un template e avvia una sessione. I template permettono di riutilizzare le istruzioni tra i progetti.
+- **Inviare comandi slash tramite Remote Control** - Claude instrada `/model`, `/compact`, `/clear` e altri comandi slash alla sessione attiva, aggirando una [limitazione nota](https://github.com/anthropics/claude-code/issues/30674). RC si riconnette automaticamente dopo `/compact` tramite un hook `PreCompact`.
+- **Rilevamento degli aggiornamenti di Claude Code** - quando il binario `claude` cambia (dopo `brew upgrade` o un aggiornamento npm), le sessioni in esecuzione mostrano un avviso per riavviare e caricare il nuovo binario; l'avviso persiste tra i prompt finche non riavvii, quindi un turno perso non lo fa sparire
 - **Preservare la cronologia delle conversazioni** - rinominare, spostare e riavviare i progetti preserva automaticamente la cronologia
 - **Organizzare i progetti** - nascondere, rinominare, spostare, eliminare e proteggere i progetti dall'interno di qualsiasi sessione
 - **Supporto multi-account GitHub** - rileva gli alias SSH in `~/.ssh/config` e li inietta nelle sessioni cosi Claude usa l'account giusto per ogni progetto
-- **Supporto multi-CLI-coder** - crea automaticamente i symlink `AGENTS.md` e `GEMINI.md` cosi Codex CLI, Gemini CLI e altri condividono le istruzioni
+- **AGENTS.md come file di istruzioni del progetto** - `AGENTS.md` e l'unico file reale, letto da Claude Code e da Codex CLI. Di' "migrate to AGENTS.md" per convertire un albero esistente da `CLAUDE.md` (prima un report, nulla viene committato). Richiede Claude Code 2.1.277 o successivo; le versioni precedenti mantengono `CLAUDE.md`. Gemini CLI lo legge solo se `~/.gemini/settings.json` contiene `"context": {"fileName": ["AGENTS.md"]}`.
 - **Funziona in qualsiasi lingua** - i comandi conversazionali sono dedotti dall'intento, non dalle parole chiave
 
 ## Parlare con Claude
@@ -55,74 +56,92 @@ Remote Control promette Claude Code da qualsiasi luogo - ma senza gestione delle
 Cosi si usa claude-mux quotidianamente. Ogni sessione riceve comandi iniettati cosi Claude puo gestire sessioni, cambiare modello, inviare comandi slash e creare nuovi progetti - tutto dall'interno della conversazione. Non serve ricordare i flag CLI.
 
 ```
-Tu: "status"
-Claude: riporta nome sessione, modello, modalita permessi, utilizzo contesto ed elenca tutte le sessioni
+Di': "status"
+Riporta nome sessione, modello, modalita permessi, utilizzo contesto ed elenca tutte le sessioni
 
-Tu: "elenco sessioni attive"
-Claude: mostra tutte le sessioni in esecuzione con il loro stato
+Di': "elenco sessioni attive"
+Mostra tutte le sessioni in esecuzione con il loro stato
 
-Tu: "avvia una sessione per il mio progetto api-server"
-Claude: avvia una sessione in ~/Claude/work/api-server
+Di': "elenco sessioni inattive"
+Mostra solo i progetti inattivi
 
-Tu: "crea un nuovo progetto chiamato mobile-app usando il template web"
-Claude: crea la directory del progetto, inizializza git, applica il template, avvia una sessione
+Di': "elenco sessioni ferme"
+Mostra solo le sessioni ferme
 
-Tu: "passa questa sessione a Haiku"
-Claude: invia /model haiku a se stesso tramite tmux
+Di': "avvia una sessione per il mio progetto api-server"
+Avvia la sessione per nome; non fa nulla se e gia in esecuzione
 
-Tu: "compatta la sessione api-server"
-Claude: invia /compact alla sessione api-server
+Di': "crea un nuovo progetto chiamato mobile-app usando il template web"
+Crea la directory del progetto, inizializza git, applica il template, avvia una sessione
 
-Tu: "riavvia la sessione web-dashboard"
-Claude: arresta e rilancia la sessione, preservando il contesto della conversazione
+Di': "passa questa sessione a Haiku"
+Risolve la famiglia nell'ID concreto piu recente e invia /model claude-haiku-4-5 a se stesso
 
-Tu: "passa la sessione api-server in plan mode"
-Claude: riavvia la sessione con la modalita di permessi plan
+Di': "compatta la sessione api-server"
+Invia /compact alla sessione api-server
 
-Tu: "passa questa sessione in yolo mode"
-Claude: passa a bypassPermissions tramite Shift+Tab, senza bisogno di riavvio
+Di': "riavvia la sessione web-dashboard"
+Arresta e rilancia la sessione, preservando il contesto della conversazione
 
-Tu: "in che modalita e questa sessione"
-Claude: riporta la modalita di permessi corrente (default, acceptEdits, plan, bypassPermissions)
+Di': "riavvia questa sessione da zero"
+Chiede conferma, poi riavvia con una nuova conversazione - nessuna ripresa, nessun contesto precedente
 
-Tu: "passa questa sessione a Opus"
-Claude: invia /model opus a se stesso tramite tmux
+Di': "uccidi la sessione api-server"
+Chiede conferma, poi cancella la conversazione e la ferma; il prossimo avvio e una nuova conversazione, non una ripresa
 
-Tu: "pulisci questa sessione"
-Claude: invia /clear a se stesso, resettando la conversazione
+Di': "chiudi questa sessione"
+Salva prima il lavoro non finito e il passo successivo, chiede conferma (e se c'e qualcosa di non salvato), poi riavvia da zero
 
-Tu: "nascondi questo progetto"
-Claude: scrive .claudemux-ignore cosi il progetto e escluso dai listati -L
+Di': "passa la sessione api-server in plan mode"
+Riavvia la sessione con la modalita di permessi plan
 
-Tu: "proteggi questa sessione"
-Claude: scrive .claudemux-protected e imposta il marcatore tmux; lo shutdown ora richiede --force
+Di': "passa questa sessione in yolo mode"
+Passa alla modalita bypassPermissions tramite Shift+Tab - nessun riavvio necessario
 
-Tu: "questa sessione e protetta"
-Claude: controlla .claudemux-protected nella cartella del progetto e risponde
+Di': "in che modalita e questa sessione"
+Riporta la modalita di permessi corrente (default, acceptEdits, plan, bypassPermissions)
 
-Tu: "elimina il progetto old-prototype"
-Claude: conferma in chat, poi sposta la cartella del progetto nel cestino di sistema
+Di': "passa questa sessione a Opus"
+Risolve la famiglia nell'ID concreto piu recente e invia /model claude-opus-4-8 a se stesso
 
-Tu: "rinomina questo progetto in my-new-name"
-Claude: arresta la sessione, rinomina la cartella, migra la cronologia delle conversazioni, riavvia
+Di': "pulisci questa sessione"
+Chiede conferma, poi invia /clear a se stesso, resettando la conversazione
 
-Tu: "salva questo come template con nome web"
-Claude: copia CLAUDE.md in ~/.claude-mux/templates/web.md
+Di': "nascondi questo progetto"
+Scrive .claudemux-ignore cosi il progetto e escluso dai listati -L
 
-Tu: "tip"
-Claude: stampa un consiglio - lo stesso tutto il giorno, o casuale se TIP_MODE=random e impostato
+Di': "proteggi questa sessione"
+Scrive .claudemux-protected e imposta il marcatore tmux - lo shutdown ora richiede --force
 
-Tu: "attiva i consigli" / "disattiva i consigli"
-Claude: attiva o disattiva il consiglio del giorno su tutti i progetti
+Di': "questa sessione e protetta"
+Controlla .claudemux-protected nella cartella del progetto e risponde
 
-Tu: "aggiorna claude-mux"
-Claude: avvisa che tutte le sessioni verranno riavviate, chiede conferma, poi aggiorna e riavvia
+Di': "elimina il progetto old-prototype"
+Conferma in chat, poi sposta la cartella del progetto nel cestino di sistema
 
-Tu: "arresta tutte le sessioni"
-Claude: esce in modo controllato da tutte le sessioni gestite
+Di': "rinomina questo progetto in my-new-name"
+Arresta la sessione, rinomina la cartella, migra la cronologia delle conversazioni, riavvia
 
-Tu: "help"
-Claude: stampa l'elenco completo dei comandi conversazionali
+Di': "salva questo come template con nome web"
+Copia AGENTS.md (o CLAUDE.md) in ~/.claude-mux/templates/web.md
+
+Di': "controlla la migrazione ad agents" / "migra ad AGENTS.md"
+Riporta (sola lettura) quali file CLAUDE.md possono passare ad AGENTS.md; dopo conferma li rinomina in tutto l'albero e riavvia le sessioni in esecuzione nella directory base
+
+Di': "tip"
+Stampa un consiglio - lo stesso tutto il giorno, o casuale se TIP_MODE=random e impostato
+
+Di': "attiva i consigli" / "disattiva i consigli"
+Attiva o disattiva il consiglio del giorno su tutti i progetti
+
+Di': "aggiorna claude-mux"
+Avvisa che tutte le sessioni verranno riavviate, chiede conferma, poi aggiorna e riavvia
+
+Di': "arresta tutte le sessioni"
+Esce in modo controllato da tutte le sessioni gestite
+
+Di': "help"
+Stampa l'elenco completo dei comandi conversazionali
 ```
 
 **Questi comandi funzionano in qualsiasi lingua.** Se scrivi l'equivalente in spagnolo, giapponese, ebraico o qualsiasi altra lingua, Claude ne deduce l'intento ed esegue il comando corrispondente.
@@ -132,7 +151,7 @@ Claude: stampa l'elenco completo dei comandi conversazionali
 ## Altro
 
 - [Riferimento CLI](../docs/CLI.md) - riferimento completo dei comandi per scripting e automazione
-- [Guida](../docs/guide.md) - configurazione, dettagli sulle sessioni, meccanismi interni e risoluzione problemi
+- [Guida](../docs/GUIDE.md) - configurazione, dettagli sulle sessioni, meccanismi interni e risoluzione problemi
 - [Opzioni di installazione](../docs/INSTALL.md) - Homebrew, installazione manuale, configurazione LaunchAgent
 - [FAQ](../docs/FAQ.md) - domande frequenti su claude-mux
 - [Problemi noti](../docs/ISSUES.md) - bug aperti, funzionalita pianificate e problemi risolti
