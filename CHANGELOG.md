@@ -2,7 +2,7 @@
 
 All notable changes to claude-mux are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.6.1] - 2026-11-26
 
 ### Fixed
 - **`--get-mode` recognises auto mode.** It printed `unknown` for every session in auto mode, the default launch mode. It now prints `auto`.
