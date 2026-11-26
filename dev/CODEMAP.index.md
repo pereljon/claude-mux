@@ -53,11 +53,11 @@ _(no function definitions)_
 | `apply_tmux_options` | 649 |
 | `get_version_prompt_lines` | 673 |
 | `get_session_mode` | 703 |
-| `claude_version_line` | 738 |
-| `agents_md_supported` | 746 |
-| `agents_md_path_clear` | 766 |
-| `agents_md_in_walkup` | 785 |
-| `build_system_prompt` | 797 |
+| `claude_version_line` | 740 |
+| `agents_md_supported` | 748 |
+| `agents_md_path_clear` | 768 |
+| `agents_md_in_walkup` | 787 |
+| `build_system_prompt` | 799 |
 
 ### `src/35-validate-deps.sh`
 
@@ -215,9 +215,9 @@ _(no function definitions)_
 | Function | Location |
 |---|---|
 | `agents_md_drift_notice` | `src/65-agents-md-migration.sh:797` |
-| `agents_md_in_walkup` | `src/30-helpers.sh:785` |
-| `agents_md_path_clear` | `src/30-helpers.sh:766` |
-| `agents_md_supported` | `src/30-helpers.sh:746` |
+| `agents_md_in_walkup` | `src/30-helpers.sh:787` |
+| `agents_md_path_clear` | `src/30-helpers.sh:768` |
+| `agents_md_supported` | `src/30-helpers.sh:748` |
 | `am_add_record` | `src/65-agents-md-migration.sh:94` |
 | `am_classify_dir` | `src/65-agents-md-migration.sh:113` |
 | `am_enrich` | `src/65-agents-md-migration.sh:271` |
@@ -252,11 +252,11 @@ _(no function definitions)_
 | `autorestore_walk` | `src/80-templates-restore.sh:164` |
 | `await_ready_handshake` | `src/55-session-launch.sh:13` |
 | `build_ignore_name_tests` | `src/60-discovery.sh:60` |
-| `build_system_prompt` | `src/30-helpers.sh:797` |
+| `build_system_prompt` | `src/30-helpers.sh:799` |
 | `check_for_update` | `src/30-helpers.sh:83` |
 | `claude_binary_id` | `src/75-tip-notices.sh:70` |
 | `claude_running_in_session` | `src/30-helpers.sh:581` |
-| `claude_version_line` | `src/30-helpers.sh:738` |
+| `claude_version_line` | `src/30-helpers.sh:740` |
 | `clear_session_for_fresh` | `src/40-shutdown.sh:73` |
 | `commands_help` | `src/10-flags.sh:94` |
 | `config_help` | `src/10-flags.sh:162` |

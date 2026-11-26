@@ -116,7 +116,7 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `session_name_for_dir` | `(dir)` | The one folder-to-session-name mapping: `home` for BASE_DIR, else sanitized name-prefix + basename; works for a not-yet-existing `-n` folder |
 | `apply_tmux_options` | `(session_name)` | Apply TMUX_* config vars to session options |
 | `get_version_prompt_lines` | `()` | Return version string + optional update notice for injection |
-| `get_session_mode` | `(session_name)` | Read `permissions.defaultMode` from session's settings.local.json |
+| `get_session_mode` | `(session_name)` | Detect the permission mode from the last 4 lines of the session's tmux pane (footer text such as `auto mode on`); prints `unknown` when none match |
 | `build_system_prompt` | `(session_name, [permission_mode], [project_dir])` | Build full injection prompt string (defined in `30-helpers`; called from launch paths). `project_dir` (resolved from `@claude-mux-dir`/`resolve_session_dir` if omitted) drives the conditional "never create CLAUDE.md" rule: emitted only when `agents_md_supported` && `agents_md_path_clear` && `agents_md_in_walkup`. Also carries the `--migrate-agents-md` feature-list, trigger and lookup lines |
 | `migration_lock_active` | `()` | Return 0 if `BASE_DIR/.claudemux-migrating/` is an ACTIVE lock (live pid and < 60 min, or no pid file yet and < 10 s). Read-only: a dead-pid, missing-pid or old lock logs a WARN and returns 1; never deletes it. Honored by `autolaunch_dispatch`, `autorestore_walk`, `create_claude_session`, `launch_home_session` |
 | `claude_version_line` | `()` | First line of `"${CLAUDE_BIN:-claude}" --version` |

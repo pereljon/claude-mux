@@ -698,7 +698,7 @@ get_version_prompt_lines() {
 }
 
 # Detect the current permission mode of a session from its tmux status bar.
-# Outputs one of: bypassPermissions, acceptEdits, plan, default, unknown
+# Outputs one of: bypassPermissions, acceptEdits, plan, auto, default, unknown
 # Usage: get_session_mode SESSION
 get_session_mode() {
     local session="${1:-}"
@@ -727,6 +727,8 @@ get_session_mode() {
         echo "acceptEdits"
     elif echo "$pane_tail" | grep -q "plan mode on"; then
         echo "plan"
+    elif echo "$pane_tail" | grep -q "auto mode on"; then
+        echo "auto"
     elif echo "$pane_tail" | grep -q "? for shortcuts"; then
         echo "default"
     else
