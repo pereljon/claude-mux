@@ -2,9 +2,9 @@
 
 ## Open
 
-### Release state: 2.5.0 released; translations pending
-**Status:** v2.5.0 released 2026-11-14 from `main`. It ships kill (`--shutdown --fresh`), the readiness-gate follow-ups, `IGNORE_PATH_PREFIXES`, and the release review's kill fixes. v2.4.4 and v2.4.5 were released from a side line, so `v2.4.5` is not an ancestor of `main`; their changes reached `main` as separate commits.
-- [ ] Next: the translation pass for 2.5.0 (`translations/README.*.md` against `README.md` changes since v2.4.5). The user set it to run after a clear, on Sonnet.
+### Release state: 2.6.0 released; translations pending
+**Status:** v2.6.0 released 2026-11-26 from `main`: the session name prefix marker. v2.5.0 released 2026-11-14 from `main`. It ships kill (`--shutdown --fresh`), the readiness-gate follow-ups, `IGNORE_PATH_PREFIXES`, and the release review's kill fixes. v2.4.4 and v2.4.5 were released from a side line, so `v2.4.5` is not an ancestor of `main`; their changes reached `main` as separate commits.
+- [ ] Next: the translation pass for 2.5.0 and 2.6.0 (`translations/README.*.md` against `README.md` changes since v2.4.5; 2.6.0 changed no README text). The user set it to run after a clear, on Sonnet.
 - [ ] Remove the merged leftover branch `hook-session-guard` once the user agrees.
 
 ### Deferred findings from the 2.5.0 release review
@@ -14,12 +14,12 @@
 - [ ] Uncertain: a multi-name kill takes about 10 seconds per session, so 12 or more can pass the Bash tool's 2-minute timeout. A kill interrupted after the clear leaves the session running and cleared, without its `.claudemux-running` marker.
 - [ ] Injection text: `src/10-flags.sh` lists "kill this session" as a kill, but the trigger refuses it; the "end this session" rule's "otherwise confirm first" branch has no question to combine with; the NAME-resolution rule does not list kill in the running-session (`-l`) group.
 
-### Session name prefix marker (built, awaiting merge)
+### Session name prefix marker (shipped in 2.6.0)
 **Status:** design ready 2026-11-26: `dev/features/session-name-prefix.md`. Requested for `client-manager` (`cm-` prefix on client sessions). Planned for 2.6.0.
 - [x] Architect review and test-plan approval (resolved 2026-11-26).
 - [x] Built (resolved 2026-11-26): branch `session-name-prefix`, 2.6.0; tests pass, review triaged.
-- [ ] Next: merge, deploy, then tell `client-manager` it can add its marker (after stopping its client sessions).
-- [ ] Translations for 2.6.0, batched at release.
+- [x] Merged, deployed and released (resolved 2026-11-26): v2.6.0.
+- [ ] Next: tell `client-manager` it can add its marker, after stopping its client sessions.
 
 ### Launching a folder whose name matches another folder's running session misattributes that session
 **Severity:** Medium. Found 2026-11-26 while designing `session-name-prefix`. `-d` (`src/70-start-launch.sh:88-96`) and `create_claude_session` (`src/55-session-launch.sh:226-248`) report "already running", then overwrite the other session's `@claude-mux-dir` and write `.claudemux-running` into the launched folder. Only `-a` detects name collisions, within one run.

@@ -19,7 +19,6 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
 | `hook-session-guard` | building | 2.5.0 (minor), alongside --shutdown --fresh | BUILT 2026-10-28 on branch hook-session-guard; tests pass (see -tests.md); awaiting cod... | Medium (a compaction or clear outside claude-mux types "Ready?" into an unrelated live ... | [hook-session-guard.md](hook-session-guard.md) |
-| `session-name-prefix` | building | — | built 2026-11-26 on branch session-name-prefix for 2.6.0; tests pass and code review tr... | — | [session-name-prefix.md](session-name-prefix.md) |
 
 ## designing
 
@@ -70,6 +69,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `ready-handshake` | shipped | — | — | — | [ready-handshake.md](ready-handshake.md) |
 | `restart-caller-shutdown-fix` | shipped | 2.0.4 | implemented (v2.0.4) | HIGH (correctness) | [restart-caller-shutdown-fix.md](restart-caller-shutdown-fix.md) |
 | `restart-in-place` | shipped | 2.0.6 (patch - fixes existing broken behavior, not new fu... | IMPLEMENTED in v2.0.6 (pending the real restart-all-from-home test) | HIGH (fixes caller-restart context loss) | [restart-in-place.md](restart-in-place.md) |
+| `session-name-prefix` | shipped | — | SHIPPED in v2.6.0 on 2026-11-26; tests and review in -tests.md | — | [session-name-prefix.md](session-name-prefix.md) |
 | `session-target-disambiguation` | shipped | 2.0.5 | implemented (v2.0.5) | MEDIUM (correctness / footgun) | [session-target-disambiguation.md](session-target-disambiguation.md) |
 | `shutdown-fresh` | shipped | 2.5.0 (minor): new flag on --shutdown + injection vocabulary | SHIPPED in v2.5.0 on 2026-11-14; release review findings and fixes in shutdown-fresh-te... | N/A (enhancement) | [shutdown-fresh.md](shutdown-fresh.md) |
 | `src-module-split` | shipped | 2.0.x (patch; no release - shipped artifact byte-identical) | IMPLEMENTED (2026-06-17) | N/A (developer-ergonomics refactor, zero runtime behavior change) | [src-module-split.md](src-module-split.md) |

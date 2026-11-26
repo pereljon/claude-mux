@@ -1,8 +1,8 @@
 ---
 kind: feature
-lifecycle: building
+lifecycle: shipped
 feature: session-name-prefix
-status: built 2026-11-26 on branch session-name-prefix for 2.6.0; tests pass and code review triaged (see -tests.md); awaiting merge
+status: SHIPPED in v2.6.0 on 2026-11-26; tests and review in -tests.md
 ---
 
 # Feature: session name prefix (`.claudemux-name-prefix`)
