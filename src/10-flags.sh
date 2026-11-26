@@ -68,6 +68,7 @@ claude-mux conversational commands:
   update claude-mux
   hide this project / show this project
   protect this session / unprotect this session
+  give projects under [FOLDER] the name prefix [PREFIX]
   check agents migration / migrate to AGENTS.md
   tip / tip of the day
   enable tips / disable tips
@@ -270,6 +271,16 @@ Per-project state lives in .claudemux-* marker files in each project folder
 (not in this config). Use claude-mux --hide / --show / --protect / --unprotect
 to manage markers. The pattern .claudemux-* is auto-added to .gitignore in
 git-tracked projects.
+
+Session name prefix: a file .claudemux-name-prefix in a folder under BASE_DIR
+(or BASE_DIR itself) prefixes the session name of every project below it. Its
+first line is the prefix, used as written, so include the separator: "cm-"
+turns clients/home_network into the session cm-home-network. The nearest such
+file above a project wins. Folders starting with "_" directly inside the
+marker folder are not treated as projects (use them for staging). Create the
+file by hand. Stop the running sessions below the folder first: a session
+started before the file existed keeps its old name and claude-mux no longer
+recognizes it.
 CONFIGHELP
     echo_hint_end
 }

@@ -136,12 +136,12 @@ while args remain:
         if LAUNCH_DIR == BASE_DIR:
             HOME_LAUNCH=true, LAUNCH_SESSION_NAME="home"
         else:
-            LAUNCH_SESSION_NAME = sanitize(basename(LAUNCH_DIR))
+            LAUNCH_SESSION_NAME = session_name_for_dir(LAUNCH_DIR)  # sanitize(name-prefix + basename)
 
     # Resolve new-project directory and derive session name
     if COMMAND == "new":
         resolve NEW_PROJECT_DIR to absolute path
-        NEW_SESSION_NAME = sanitize(basename(NEW_PROJECT_DIR))
+        NEW_SESSION_NAME = session_name_for_dir(NEW_PROJECT_DIR)  # sanitize(name-prefix + basename)
 
     # Autolaunch boot delay — avoid races on initial login
     if COMMAND == "autolaunch":
@@ -648,7 +648,7 @@ now = epoch
 candidates = []
 in_flight = 0
 for proj in PROJECT_DIRS + HIDDEN_PROJECT_DIRS:
-    name = sanitize(basename(proj))
+    name = session_name_for_dir(proj)  # sanitize(name-prefix + basename)
     skip if empty or name == "home"
     if proj/.claudemux-restarting exists:                 # restart in flight (or crashed)
         rmdir proj/.claudemux-restarting                  # consume-on-sight

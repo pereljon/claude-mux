@@ -50,7 +50,9 @@ Projects are discovered by the presence of a `.claude/` directory, at any depth 
     └── .claudemux-ignore
 ```
 
-Exclusion rules: hidden directories (`.`-prefixed) are pruned from search. A directory whose name starts with an `IGNORE_PATH_PREFIXES` character (default `-`) is pruned with everything below it; the AGENTS.md migration scans use the same rule. The scan start (`BASE_DIR`) is never pruned by its own name. Directories containing `.claudemux-ignore` are skipped. The legacy `.ignore-claudemux` filename is also respected for backwards compatibility.
+Exclusion rules: hidden directories (`.`-prefixed) are pruned from search. A directory whose name starts with an `IGNORE_PATH_PREFIXES` character (default `-`) is pruned with everything below it; the AGENTS.md migration scans use the same rule. The scan start (`BASE_DIR`) is never pruned by its own name. Directories containing `.claudemux-ignore` are skipped. The legacy `.ignore-claudemux` filename is also respected for backwards compatibility. A directory whose name starts with `_` is skipped when its parent holds `.claudemux-name-prefix`.
+
+Session names: `session_name_for_dir()` is the one place a folder becomes a session name. It returns `home` for `BASE_DIR`, otherwise `sanitize_session_name(prefix + basename)`, where the prefix comes from the nearest `.claudemux-name-prefix` between the project's physical parent and the physical `BASE_DIR`. A folder outside `BASE_DIR` gets no prefix.
 
 ## Deliverables
 
@@ -537,6 +539,7 @@ Per-project state lives in marker files at the project root, not in central conf
 |--------|---------|------------|
 | `.claudemux-protected` | Session is protected at launch. `--shutdown` requires `--force`. | `claude-mux --protect` or `claude-mux --install` (for `$BASE_DIR`) |
 | `.claudemux-ignore` | Project is hidden from `claude-mux -L` listings and `discover_projects()`. | `claude-mux --hide` |
+| `.claudemux-name-prefix` | In a parent folder, not a project: its first line, trimmed, prefixes the session name of every project below it (nearest file wins, lookup by physical path, stops at `BASE_DIR`). `discover_projects()` skips `_`-prefixed folders directly inside it. | By hand |
 | `.claudemux-running` | Auto-restore intent: this session should be alive. The LaunchAgent tick restores it if its Claude process has died. Removed on a clean in-pane `/exit` (exit 0, no restart pending) or `--shutdown`. | `write_running_marker()` at session launch (skipped for the home session) |
 | `.claudemux-migrating/` | AGENTS.md migration lock (directory, at `BASE_DIR`): `pid` + `started`. Blocks launches while the owner is live and younger than 60 minutes. | `claude-mux --migrate-agents-md --apply` |
 | `.claudemux-agents-migrated` | Record that `BASE_DIR` was migrated (date, file count, manifest). Not a gate; arms the daily drift notice. | `claude-mux --migrate-agents-md --apply` |

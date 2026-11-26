@@ -16,6 +16,10 @@ Companion to `session-name-prefix.md`. It holds the test procedures and the revi
 10. `--config-help` and `--guide` show the marker text.
 11. `make check` clean; `make codemap` and `make features-index` run.
 
+## Results
+
+Run 2026-11-26 on branch `session-name-prefix`: tests 1-11 pass. Rig: a scratch HOME and config, its own tmux socket (`-L`), a compiled stand-in `claude` that draws the input row, and `BASE_DIR` given through `/tmp` (a symlink to `/private/tmp`). Unset `TMUX` before running `--restart` in such a rig: an inherited `$TMUX` makes claude-mux treat the target as the caller. Also checked: `--rename --dry-run` names the prefixed target session; lint, smoke, and shellcheck show no new findings.
+
 ## Review findings
 
 Architect review, 2026-11-26 (Sonnet, high effort):
@@ -25,3 +29,9 @@ Architect review, 2026-11-26 (Sonnet, high effort):
 4. The `_` skip rule is correct and placed right: no change.
 5. An empty marker gives an empty prefix: dropped, no trigger in the use case.
 6. Remove the tip: dropped, because the project `AGENTS.md` Change Checklist requires a tip for a user-facing feature. Tests for a hidden project, `-n`, a symlinked `BASE_DIR` and an outside folder: added as tests 6-9.
+
+Code review before merge, 2026-11-26 (Sonnet, high effort):
+1. `--rename`/`--move` messages named the folder, not the prefixed session: fixed (`src/75-tip-notices.sh` uses `session_name_for_dir`); trigger rename or move below a marker folder; breaks design rule 1.
+2. A prefix masks the empty-name check (`cm-` plus an all-symbol basename gives `cm`): dropped, no requirement; rule 4 keeps the existing checks and `-a` catches the collision.
+3. A symlinked project folder takes its target's parent prefix: dropped, no requirement; discovery never lists symlinks.
+4. `BASE_DIR=/` never applies a prefix: dropped, no trigger.

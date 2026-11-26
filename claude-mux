@@ -2,7 +2,7 @@
 # claude-mux - Claude Code Multiplexer
 # Persistent Claude Code sessions for all your projects.
 
-VERSION="2.5.0"
+VERSION="2.6.0"
 
 # Minimum Claude Code version that falls back to AGENTS.md when no CLAUDE.md is present.
 # A constant, not a config var.
@@ -181,6 +181,7 @@ claude-mux conversational commands:
   update claude-mux
   hide this project / show this project
   protect this session / unprotect this session
+  give projects under [FOLDER] the name prefix [PREFIX]
   check agents migration / migrate to AGENTS.md
   tip / tip of the day
   enable tips / disable tips
@@ -383,6 +384,16 @@ Per-project state lives in .claudemux-* marker files in each project folder
 (not in this config). Use claude-mux --hide / --show / --protect / --unprotect
 to manage markers. The pattern .claudemux-* is auto-added to .gitignore in
 git-tracked projects.
+
+Session name prefix: a file .claudemux-name-prefix in a folder under BASE_DIR
+(or BASE_DIR itself) prefixes the session name of every project below it. Its
+first line is the prefix, used as written, so include the separator: "cm-"
+turns clients/home_network into the session cm-home-network. The nearest such
+file above a project wins. Folders starting with "_" directly inside the
+marker folder are not treated as projects (use them for staging). Create the
+file by hand. Stop the running sessions below the folder first: a session
+started before the file existed keeps its old name and claude-mux no longer
+recognizes it.
 CONFIGHELP
     echo_hint_end
 }
@@ -1484,6 +1495,48 @@ sanitize_session_name() {
     echo "$1" | tr ' ' '-' | tr -cs 'a-zA-Z0-9-' '-' | sed 's/-\{2,\}/-/g' | sed 's/^-*//' | sed 's/-*$//'
 }
 
+# Print the prefix from the nearest .claudemux-name-prefix, walking up from the
+# physical folder $1 to the physical BASE_DIR inclusive. Nothing above BASE_DIR
+# counts, and a folder outside BASE_DIR gets no prefix (as in discovery).
+name_prefix_for_parent() {
+    local cur="$1" base_p="$2" line
+    while [[ -n "$cur" && ( "$cur" == "$base_p" || "$cur" == "$base_p/"* ) ]]; do
+        if [[ -f "$cur/.claudemux-name-prefix" ]]; then
+            line=""
+            IFS= read -r line < "$cur/.claudemux-name-prefix" || true
+            line="${line#"${line%%[![:space:]]*}"}"
+            line="${line%"${line##*[![:space:]]}"}"
+            printf '%s' "$line"
+            return 0
+        fi
+        [[ "$cur" == "$base_p" ]] && break
+        cur="${cur%/*}"
+    done
+}
+
+# Derive the tmux session name for a project folder: "home" for BASE_DIR,
+# otherwise the sanitized name-prefix + basename. The folder may not exist yet
+# (-n); the prefix lookup then starts at its nearest existing ancestor.
+session_name_for_dir() {
+    local dir="${1%/}"
+    local base_p dir_p start
+    base_p=$(cd "$BASE_DIR" 2>/dev/null && pwd -P) || base_p="$BASE_DIR"
+    if dir_p=$(cd "$dir" 2>/dev/null && pwd -P); then
+        if [[ "$dir_p" == "$base_p" ]]; then
+            echo "home"
+            return 0
+        fi
+        start="${dir_p%/*}"
+    else
+        start="$(dirname "$dir")"
+        while [[ ! -d "$start" && "$start" != "/" && "$start" != "." ]]; do
+            start="$(dirname "$start")"
+        done
+        start=$(cd "$start" 2>/dev/null && pwd -P) || start=""
+    fi
+    sanitize_session_name "$(name_prefix_for_parent "$start" "$base_p")$(basename "$dir")"
+}
+
 # Apply tmux session options from rc settings
 apply_tmux_options() {
     local session="$1"
@@ -1818,7 +1871,7 @@ if [[ "$COMMAND" == "launch" ]]; then
         HOME_LAUNCH=true
         LAUNCH_SESSION_NAME="home"
     else
-        LAUNCH_SESSION_NAME="$(sanitize_session_name "$(basename "$LAUNCH_DIR")")"
+        LAUNCH_SESSION_NAME="$(session_name_for_dir "$LAUNCH_DIR")"
         if [[ -z "$LAUNCH_SESSION_NAME" ]]; then
             echo "ERROR: Directory name sanitizes to empty: $(basename "$LAUNCH_DIR")" >&2
             exit 1
@@ -1837,7 +1890,7 @@ if [[ "$COMMAND" == "new" ]]; then
         }
         NEW_PROJECT_DIR="$_parent/$(basename "$NEW_PROJECT_DIR")"
     fi
-    NEW_SESSION_NAME="$(sanitize_session_name "$(basename "$NEW_PROJECT_DIR")")"
+    NEW_SESSION_NAME="$(session_name_for_dir "$NEW_PROJECT_DIR")"
     if [[ -z "$NEW_SESSION_NAME" ]]; then
         echo "ERROR: Directory name sanitizes to empty: $(basename "$NEW_PROJECT_DIR")" >&2
         exit 1
@@ -1894,7 +1947,7 @@ get_managed_session_names() {
     discover_projects
     for _proj in "${PROJECT_DIRS[@]}"; do
         local _sanitized
-        _sanitized="$(sanitize_session_name "$(basename "$_proj")")"
+        _sanitized="$(session_name_for_dir "$_proj")"
         [[ -n "$_sanitized" ]] && MANAGED_SESSIONS+=("$_sanitized")
     done
 }
@@ -2243,7 +2296,7 @@ status_claude_sessions() {
         if [[ "${LIST_HIDDEN_MODE:-none}" != "only" ]]; then
             for _proj in "${PROJECT_DIRS[@]}"; do
                 local _name
-                _name="$(sanitize_session_name "$(basename "$_proj")")"
+                _name="$(session_name_for_dir "$_proj")"
                 [[ -z "$_name" ]] && continue
                 if echo "$active_sessions" | grep -qx "$_name"; then
                     continue
@@ -2266,7 +2319,7 @@ status_claude_sessions() {
         if [[ "${LIST_HIDDEN_MODE:-none}" != "none" ]]; then
             for _proj in "${HIDDEN_PROJECT_DIRS[@]+"${HIDDEN_PROJECT_DIRS[@]}"}"; do
                 local _name
-                _name="$(sanitize_session_name "$(basename "$_proj")")"
+                _name="$(session_name_for_dir "$_proj")"
                 [[ -z "$_name" ]] && continue
                 if echo "$active_sessions" | grep -qx "$_name"; then
                     continue
@@ -2568,7 +2621,7 @@ resolve_session_dir() {
     discover_projects
     local _proj _sname
     for _proj in "${PROJECT_DIRS[@]}" "${HIDDEN_PROJECT_DIRS[@]+"${HIDDEN_PROJECT_DIRS[@]}"}"; do
-        _sname=$(sanitize_session_name "$(basename "$_proj")")
+        _sname=$(session_name_for_dir "$_proj")
         if [[ "$_sname" == "$name" ]]; then
             echo "$_proj"
             return 0
@@ -2615,20 +2668,6 @@ hide_command() {
     fi
     ensure_gitignore_entry "$dir" ".claudemux-*"
     echo "Hidden: $(basename "$dir")"
-}
-
-# Derive the tmux session name for a given working directory.
-# Special-case: $BASE_DIR is the home session. Otherwise, basename of dir.
-session_name_for_dir() {
-    local dir="$1"
-    local norm_dir norm_base
-    norm_dir=$(cd "$dir" 2>/dev/null && pwd) || norm_dir="$dir"
-    norm_base=$(cd "$BASE_DIR" 2>/dev/null && pwd) || norm_base="$BASE_DIR"
-    if [[ "$norm_dir" == "$norm_base" ]]; then
-        echo "home"
-    else
-        sanitize_session_name "$(basename "$dir")"
-    fi
 }
 
 # Mark a project as protected: create marker file and, if a tmux session
@@ -3716,7 +3755,8 @@ build_ignore_name_tests() {
 # ── Discover Claude projects ──────────────────────────────────────────────────
 # Finds all directories under BASE_DIR that contain a .claude/ subdirectory.
 # Skips directories whose name starts with an IGNORE_PATH_PREFIXES character,
-# with everything below them, and directories containing .claudemux-ignore.
+# with everything below them, directories containing .claudemux-ignore, and
+# _-prefixed directories directly below a folder holding .claudemux-name-prefix.
 # Hidden directories (starting with '.') are pruned from the search tree.
 
 discover_projects() {
@@ -3732,6 +3772,9 @@ discover_projects() {
 
         # Skip BASE_DIR itself if it has .claude
         [[ "$project_dir" == "$BASE_DIR" ]] && continue
+
+        # Staging folders (_name) directly below a name-prefix marker folder
+        [[ "${project_dir##*/}" == _* && -f "${project_dir%/*}/.claudemux-name-prefix" ]] && continue
 
         # Hidden via .claudemux-ignore: separated into HIDDEN_PROJECT_DIRS
         if [[ -f "$project_dir/.claudemux-ignore" ]]; then
@@ -4593,7 +4636,7 @@ start_sessions() {
     for PROJECT_DIR in "${PROJECT_DIRS[@]}"; do
         dir_name="$(basename "$PROJECT_DIR")"
 
-        session_name="$(sanitize_session_name "$dir_name")"
+        session_name="$(session_name_for_dir "$PROJECT_DIR")"
         if [[ "$session_name" != "$dir_name" ]]; then
             log "Sanitized session name: '$dir_name' → '$session_name'"
         fi
@@ -4894,6 +4937,7 @@ tip_of_day() {
         "claude-mux checks for new releases in the background and tells you right in the conversation when an update is available. Say \"update claude-mux\" when you see the notice."
         "Say \"start the api-server session\" to bring an idle project back online by name. Only brand-new projects need a path."
         "Say \"check agents migration\" from the home session to see whether your projects can move from CLAUDE.md to AGENTS.md. It reports first and changes nothing until you confirm."
+        "Ask the home session to \"give projects under clients the name prefix cm-\" and every project in that folder gets a session name starting with cm-, so the group stands out in Remote Control. Stop those sessions first."
     )
 
     local num_tips=${#tips[@]}
@@ -5532,7 +5576,7 @@ rename_move_command() {
             echo "Would update homunculus registry"
         fi
         if "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
-            echo "Would stop session '$session' and restart as '$(basename "$dst_abs")'"
+            echo "Would stop session '$session' and restart as '$(session_name_for_dir "$dst_abs")'"
         fi
         return 0
     fi
@@ -5619,7 +5663,7 @@ except Exception:
 
     # Restart session in new location if it was running
     if [[ "$was_running" == "true" ]]; then
-        echo "Restarting session as '$dst_name'..."
+        echo "Restarting session as '$(session_name_for_dir "$dst_abs")'..."
         local mux_bin
         mux_bin=$(command -v claude-mux 2>/dev/null) || mux_bin="${BASH_SOURCE[0]}"
         "$mux_bin" -d "$dst_abs" --no-attach 2>&1
@@ -5802,7 +5846,7 @@ autorestore_walk() {
     local candidates=() in_flight=0
     local _proj _name _la
     for _proj in "${PROJECT_DIRS[@]}" "${HIDDEN_PROJECT_DIRS[@]+"${HIDDEN_PROJECT_DIRS[@]}"}"; do
-        _name=$(sanitize_session_name "$(basename "$_proj")")
+        _name=$(session_name_for_dir "$_proj")
         [[ -z "$_name" || "$_name" == "home" ]] && continue
 
         # Restart-in-flight marker: an intentional restart is mid-flight (or crashed).

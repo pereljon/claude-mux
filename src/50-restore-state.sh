@@ -218,7 +218,7 @@ resolve_session_dir() {
     discover_projects
     local _proj _sname
     for _proj in "${PROJECT_DIRS[@]}" "${HIDDEN_PROJECT_DIRS[@]+"${HIDDEN_PROJECT_DIRS[@]}"}"; do
-        _sname=$(sanitize_session_name "$(basename "$_proj")")
+        _sname=$(session_name_for_dir "$_proj")
         if [[ "$_sname" == "$name" ]]; then
             echo "$_proj"
             return 0
@@ -265,20 +265,6 @@ hide_command() {
     fi
     ensure_gitignore_entry "$dir" ".claudemux-*"
     echo "Hidden: $(basename "$dir")"
-}
-
-# Derive the tmux session name for a given working directory.
-# Special-case: $BASE_DIR is the home session. Otherwise, basename of dir.
-session_name_for_dir() {
-    local dir="$1"
-    local norm_dir norm_base
-    norm_dir=$(cd "$dir" 2>/dev/null && pwd) || norm_dir="$dir"
-    norm_base=$(cd "$BASE_DIR" 2>/dev/null && pwd) || norm_base="$BASE_DIR"
-    if [[ "$norm_dir" == "$norm_base" ]]; then
-        echo "home"
-    else
-        sanitize_session_name "$(basename "$dir")"
-    fi
 }
 
 # Mark a project as protected: create marker file and, if a tmux session

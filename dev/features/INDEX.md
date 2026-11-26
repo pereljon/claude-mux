@@ -13,13 +13,13 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
 | `session-identity-reply` | ready | 2.5.0 (minor; was 2.4.0, which shipped agents-md-canonica... | READY 2026-08-17. Architect-reviewed twice; second pass APPROVE-WITH-CHANGES, all chang... | N/A (enhancement) — orientation-on-reconnect UX; the current handshake gives no sessi... | [session-identity-reply.md](session-identity-reply.md) |
-| `session-name-prefix` | ready | — | design drafted and architect-reviewed 2026-11-26; test plan approved by the user 2026-1... | — | [session-name-prefix.md](session-name-prefix.md) |
 
 ## building
 
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
 | `hook-session-guard` | building | 2.5.0 (minor), alongside --shutdown --fresh | BUILT 2026-10-28 on branch hook-session-guard; tests pass (see -tests.md); awaiting cod... | Medium (a compaction or clear outside claude-mux types "Ready?" into an unrelated live ... | [hook-session-guard.md](hook-session-guard.md) |
+| `session-name-prefix` | building | — | built 2026-11-26 on branch session-name-prefix for 2.6.0; tests pass and code review tr... | — | [session-name-prefix.md](session-name-prefix.md) |
 
 ## designing
 

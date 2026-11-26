@@ -47,6 +47,7 @@ tip_of_day() {
         "claude-mux checks for new releases in the background and tells you right in the conversation when an update is available. Say \"update claude-mux\" when you see the notice."
         "Say \"start the api-server session\" to bring an idle project back online by name. Only brand-new projects need a path."
         "Say \"check agents migration\" from the home session to see whether your projects can move from CLAUDE.md to AGENTS.md. It reports first and changes nothing until you confirm."
+        "Ask the home session to \"give projects under clients the name prefix cm-\" and every project in that folder gets a session name starting with cm-, so the group stands out in Remote Control. Stop those sessions first."
     )
 
     local num_tips=${#tips[@]}
@@ -685,7 +686,7 @@ rename_move_command() {
             echo "Would update homunculus registry"
         fi
         if "$TMUX_BIN" has-session -t "$session" 2>/dev/null; then
-            echo "Would stop session '$session' and restart as '$(basename "$dst_abs")'"
+            echo "Would stop session '$session' and restart as '$(session_name_for_dir "$dst_abs")'"
         fi
         return 0
     fi
@@ -772,7 +773,7 @@ except Exception:
 
     # Restart session in new location if it was running
     if [[ "$was_running" == "true" ]]; then
-        echo "Restarting session as '$dst_name'..."
+        echo "Restarting session as '$(session_name_for_dir "$dst_abs")'..."
         local mux_bin
         mux_bin=$(command -v claude-mux 2>/dev/null) || mux_bin="${BASH_SOURCE[0]}"
         "$mux_bin" -d "$dst_abs" --no-attach 2>&1

@@ -112,6 +112,8 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `do_install` | `()` | Interactive setup wizard; calls `write_install_config`, installs plist |
 | `claude_running_in_session` | `(session_name)` | Return 0 if claude process found in session's process tree (2 levels deep) |
 | `sanitize_session_name` | `(raw_name)` | Strip non-`[a-zA-Z0-9-]` chars; return sanitized name |
+| `name_prefix_for_parent` | `(physical_dir, physical_base)` | Print the trimmed first line of the nearest `.claudemux-name-prefix` from dir up to BASE_DIR; nothing outside BASE_DIR |
+| `session_name_for_dir` | `(dir)` | The one folder-to-session-name mapping: `home` for BASE_DIR, else sanitized name-prefix + basename; works for a not-yet-existing `-n` folder |
 | `apply_tmux_options` | `(session_name)` | Apply TMUX_* config vars to session options |
 | `get_version_prompt_lines` | `()` | Return version string + optional update notice for injection |
 | `get_session_mode` | `(session_name)` | Read `permissions.defaultMode` from session's settings.local.json |
@@ -146,7 +148,6 @@ All defined at top of script; any can be overridden in `~/.claude-mux/config`.
 | `autorestore_status` | `(name, dir, [fallback])` | Map a non-running session to `queued`/`failed`/`stopped`/fallback |
 | `resolve_session_dir` | `(session_name)` | Return working dir for a named session (tmux or PROJECT_DIRS scan). Used by `--start` and by `--restart`'s stopped-session dir fallback (where `session_marker_dir` comes up empty) |
 | `hide_command` | `(session_name)` | Create `.claudemux-ignore` marker |
-| `session_name_for_dir` | `(dir)` | Return session name that would be assigned to dir |
 | `protect_command` | `(session_name)` | Create `.claudemux-protected` marker; set tmux option |
 | `unprotect_command` | `(session_name)` | Remove `.claudemux-protected` marker; clear tmux option |
 | `move_to_trash` | `(path)` | Move path to system Trash (macOS) |
@@ -267,6 +268,7 @@ Per-project state files. All use `.claudemux-` prefix. Auto-added to `.gitignore
 |---|---|---|---|
 | `.claudemux-ignore` | `hide_command` | `show_command` | Hide from `-L` and `discover_projects` |
 | `.claudemux-protected` | `protect_command`, `--install` (BASE_DIR only) | `unprotect_command` | Protect from `--shutdown`; requires `--force` |
+| `.claudemux-name-prefix` (in a parent folder) | by hand | by hand | First line prefixes the session name of every project below it; read by `name_prefix_for_parent`. `discover_projects` skips `_` folders directly inside it |
 | `.claudemux-running` | `write_running_marker` (at launch; not home) | `remove_running_marker` (`--shutdown`), launch-script clean-exit (rc 0, no restart pending) | Auto-restore intent: session should be alive; tick restores it if Claude died. Preserved through `--restart` (`shutdown_single_session` `preserve_marker=true`) |
 | `.claudemux-restarting/` | restart paths: restart-all loop, single-named `--restart` for non-callers (`mkdir`) | same paths after `create_claude_session` (`rmdir`); `autorestore_walk` consume-on-sight (`rmdir`) | Transient restart lock (directory). Presence = restart in flight; auto-restore defers one tick. NOT used for in-place caller restarts (the pane never goes down) |
 | `.claudemux-migrating/` (at `BASE_DIR`) | `am_take_lock` (`mkdir`; contains `pid` + `started`) | `am_release_lock` (after verify, on failure, EXIT/signal trap); a stale lock is taken over by the next `--apply` | AGENTS.md migration lock (directory). Read (never consumed) by `migration_lock_active` in `autolaunch_dispatch`, `autorestore_walk`, `create_claude_session`, `launch_home_session`. Stale = dead/missing pid or > 60 min: launchers WARN and continue |

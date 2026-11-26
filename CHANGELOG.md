@@ -2,6 +2,14 @@
 
 All notable changes to claude-mux are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+- **Session name prefix (`.claudemux-name-prefix`).** A file in a folder whose first line is a prefix, such as `cm-`, prefixes the session name of every project below it: `clients/home_network` becomes `cm-home-network`. The nearest file wins; files above `BASE_DIR` are ignored. Folders starting with `_` directly inside the marker folder are not projects, so they can serve as staging folders. Stop the sessions below a folder before adding the file. See `--config-help`.
+
+### Changed
+- **The home session is detected by physical path** everywhere, so a `BASE_DIR` reached through a symlink still maps to `home`.
+
 ## [2.5.0] - 2026-11-14
 
 ### Added

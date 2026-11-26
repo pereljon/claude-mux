@@ -174,7 +174,7 @@ autorestore_walk() {
     local candidates=() in_flight=0
     local _proj _name _la
     for _proj in "${PROJECT_DIRS[@]}" "${HIDDEN_PROJECT_DIRS[@]+"${HIDDEN_PROJECT_DIRS[@]}"}"; do
-        _name=$(sanitize_session_name "$(basename "$_proj")")
+        _name=$(session_name_for_dir "$_proj")
         [[ -z "$_name" || "$_name" == "home" ]] && continue
 
         # Restart-in-flight marker: an intentional restart is mid-flight (or crashed).

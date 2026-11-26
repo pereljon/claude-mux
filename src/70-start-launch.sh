@@ -21,7 +21,7 @@ start_sessions() {
     for PROJECT_DIR in "${PROJECT_DIRS[@]}"; do
         dir_name="$(basename "$PROJECT_DIR")"
 
-        session_name="$(sanitize_session_name "$dir_name")"
+        session_name="$(session_name_for_dir "$PROJECT_DIR")"
         if [[ "$session_name" != "$dir_name" ]]; then
             log "Sanitized session name: '$dir_name' → '$session_name'"
         fi

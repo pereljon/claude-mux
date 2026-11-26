@@ -40,7 +40,7 @@ if [[ "$COMMAND" == "launch" ]]; then
         HOME_LAUNCH=true
         LAUNCH_SESSION_NAME="home"
     else
-        LAUNCH_SESSION_NAME="$(sanitize_session_name "$(basename "$LAUNCH_DIR")")"
+        LAUNCH_SESSION_NAME="$(session_name_for_dir "$LAUNCH_DIR")"
         if [[ -z "$LAUNCH_SESSION_NAME" ]]; then
             echo "ERROR: Directory name sanitizes to empty: $(basename "$LAUNCH_DIR")" >&2
             exit 1
@@ -59,7 +59,7 @@ if [[ "$COMMAND" == "new" ]]; then
         }
         NEW_PROJECT_DIR="$_parent/$(basename "$NEW_PROJECT_DIR")"
     fi
-    NEW_SESSION_NAME="$(sanitize_session_name "$(basename "$NEW_PROJECT_DIR")")"
+    NEW_SESSION_NAME="$(session_name_for_dir "$NEW_PROJECT_DIR")"
     if [[ -z "$NEW_SESSION_NAME" ]]; then
         echo "ERROR: Directory name sanitizes to empty: $(basename "$NEW_PROJECT_DIR")" >&2
         exit 1
@@ -116,7 +116,7 @@ get_managed_session_names() {
     discover_projects
     for _proj in "${PROJECT_DIRS[@]}"; do
         local _sanitized
-        _sanitized="$(sanitize_session_name "$(basename "$_proj")")"
+        _sanitized="$(session_name_for_dir "$_proj")"
         [[ -n "$_sanitized" ]] && MANAGED_SESSIONS+=("$_sanitized")
     done
 }

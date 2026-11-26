@@ -334,7 +334,7 @@ status_claude_sessions() {
         if [[ "${LIST_HIDDEN_MODE:-none}" != "only" ]]; then
             for _proj in "${PROJECT_DIRS[@]}"; do
                 local _name
-                _name="$(sanitize_session_name "$(basename "$_proj")")"
+                _name="$(session_name_for_dir "$_proj")"
                 [[ -z "$_name" ]] && continue
                 if echo "$active_sessions" | grep -qx "$_name"; then
                     continue
@@ -357,7 +357,7 @@ status_claude_sessions() {
         if [[ "${LIST_HIDDEN_MODE:-none}" != "none" ]]; then
             for _proj in "${HIDDEN_PROJECT_DIRS[@]+"${HIDDEN_PROJECT_DIRS[@]}"}"; do
                 local _name
-                _name="$(sanitize_session_name "$(basename "$_proj")")"
+                _name="$(session_name_for_dir "$_proj")"
                 [[ -z "$_name" ]] && continue
                 if echo "$active_sessions" | grep -qx "$_name"; then
                     continue

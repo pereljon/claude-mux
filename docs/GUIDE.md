@@ -100,6 +100,16 @@ Projects are discovered by the presence of a `.claude/` directory, at any depth:
 
 Session names are derived from directory names: spaces become hyphens, non-alphanumeric characters (except hyphens) are replaced, and leading/trailing hyphens are stripped. Directories whose name sanitizes to empty are skipped with a log warning.
 
+### Session name prefix
+
+A `.claudemux-name-prefix` file in a folder prefixes the session name of every project below it. Use it to make a group of sessions stand out, for example in Remote Control, which shows only the session name.
+
+- The first line of the file is the prefix, used as written, so include the separator. With `cm-` in `clients/.claudemux-name-prefix`, the project `clients/home_network` becomes the session `cm-home-network`.
+- The nearest file above a project wins. The lookup stops at `BASE_DIR`, so a file above `BASE_DIR` has no effect.
+- A folder whose name starts with `_` directly inside the marker folder is not treated as a project. Use such folders for staging a project before you move it into place.
+- Create the file by hand (say "give projects under [FOLDER] the name prefix [PREFIX]"; the home session does it, since other sessions write only inside their own folder).
+- Stop the running sessions below the folder before you add the file. A session started before the file existed keeps its old name, and claude-mux no longer recognizes it.
+
 ## How It Works
 
 Under the hood, claude-mux handles:

@@ -603,6 +603,48 @@ sanitize_session_name() {
     echo "$1" | tr ' ' '-' | tr -cs 'a-zA-Z0-9-' '-' | sed 's/-\{2,\}/-/g' | sed 's/^-*//' | sed 's/-*$//'
 }
 
+# Print the prefix from the nearest .claudemux-name-prefix, walking up from the
+# physical folder $1 to the physical BASE_DIR inclusive. Nothing above BASE_DIR
+# counts, and a folder outside BASE_DIR gets no prefix (as in discovery).
+name_prefix_for_parent() {
+    local cur="$1" base_p="$2" line
+    while [[ -n "$cur" && ( "$cur" == "$base_p" || "$cur" == "$base_p/"* ) ]]; do
+        if [[ -f "$cur/.claudemux-name-prefix" ]]; then
+            line=""
+            IFS= read -r line < "$cur/.claudemux-name-prefix" || true
+            line="${line#"${line%%[![:space:]]*}"}"
+            line="${line%"${line##*[![:space:]]}"}"
+            printf '%s' "$line"
+            return 0
+        fi
+        [[ "$cur" == "$base_p" ]] && break
+        cur="${cur%/*}"
+    done
+}
+
+# Derive the tmux session name for a project folder: "home" for BASE_DIR,
+# otherwise the sanitized name-prefix + basename. The folder may not exist yet
+# (-n); the prefix lookup then starts at its nearest existing ancestor.
+session_name_for_dir() {
+    local dir="${1%/}"
+    local base_p dir_p start
+    base_p=$(cd "$BASE_DIR" 2>/dev/null && pwd -P) || base_p="$BASE_DIR"
+    if dir_p=$(cd "$dir" 2>/dev/null && pwd -P); then
+        if [[ "$dir_p" == "$base_p" ]]; then
+            echo "home"
+            return 0
+        fi
+        start="${dir_p%/*}"
+    else
+        start="$(dirname "$dir")"
+        while [[ ! -d "$start" && "$start" != "/" && "$start" != "." ]]; do
+            start="$(dirname "$start")"
+        done
+        start=$(cd "$start" 2>/dev/null && pwd -P) || start=""
+    fi
+    sanitize_session_name "$(name_prefix_for_parent "$start" "$base_p")$(basename "$dir")"
+}
+
 # Apply tmux session options from rc settings
 apply_tmux_options() {
     local session="$1"

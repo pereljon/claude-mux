@@ -21,12 +21,12 @@ _(no function definitions)_
 | Function | Line |
 |---|---|
 | `guide` | 43 |
-| `echo_hint` | 79 |
-| `echo_hint_end` | 85 |
-| `commands_help` | 93 |
-| `config_help` | 161 |
-| `usage` | 277 |
-| `set_command` | 347 |
+| `echo_hint` | 80 |
+| `echo_hint_end` | 86 |
+| `commands_help` | 94 |
+| `config_help` | 162 |
+| `usage` | 288 |
+| `set_command` | 358 |
 
 ### `src/20-config.sh`
 
@@ -48,14 +48,16 @@ _(no function definitions)_
 | `do_install` | 335 |
 | `claude_running_in_session` | 581 |
 | `sanitize_session_name` | 602 |
-| `apply_tmux_options` | 607 |
-| `get_version_prompt_lines` | 631 |
-| `get_session_mode` | 661 |
-| `claude_version_line` | 696 |
-| `agents_md_supported` | 704 |
-| `agents_md_path_clear` | 724 |
-| `agents_md_in_walkup` | 743 |
-| `build_system_prompt` | 755 |
+| `name_prefix_for_parent` | 609 |
+| `session_name_for_dir` | 628 |
+| `apply_tmux_options` | 649 |
+| `get_version_prompt_lines` | 673 |
+| `get_session_mode` | 703 |
+| `claude_version_line` | 738 |
+| `agents_md_supported` | 746 |
+| `agents_md_path_clear` | 766 |
+| `agents_md_in_walkup` | 785 |
+| `build_system_prompt` | 797 |
 
 ### `src/35-validate-deps.sh`
 
@@ -96,20 +98,19 @@ _(no function definitions)_
 | `autorestore_status` | 180 |
 | `resolve_session_dir` | 195 |
 | `hide_command` | 232 |
-| `session_name_for_dir` | 272 |
-| `protect_command` | 286 |
-| `unprotect_command` | 326 |
-| `move_to_trash` | 365 |
-| `delete_command` | 390 |
-| `show_command` | 473 |
-| `setup_default_mode` | 498 |
-| `setup_claude_mux_permissions` | 549 |
-| `detect_github_ssh_accounts` | 741 |
-| `pane_accepts_input` | 776 |
-| `pane_input_empty` | 784 |
-| `dismiss_dialog_for_exit` | 793 |
-| `send_ready_handshake` | 808 |
-| `poll_until_ready` | 826 |
+| `protect_command` | 272 |
+| `unprotect_command` | 312 |
+| `move_to_trash` | 351 |
+| `delete_command` | 376 |
+| `show_command` | 459 |
+| `setup_default_mode` | 484 |
+| `setup_claude_mux_permissions` | 535 |
+| `detect_github_ssh_accounts` | 727 |
+| `pane_accepts_input` | 762 |
+| `pane_input_empty` | 770 |
+| `dismiss_dialog_for_exit` | 779 |
+| `send_ready_handshake` | 794 |
+| `poll_until_ready` | 812 |
 
 ### `src/55-session-launch.sh`
 
@@ -128,8 +129,8 @@ _(no function definitions)_
 |---|---|
 | `migrate_stray_sessions` | 6 |
 | `build_ignore_name_tests` | 60 |
-| `discover_projects` | 74 |
-| `ensure_base_dir` | 100 |
+| `discover_projects` | 75 |
+| `ensure_base_dir` | 104 |
 
 ### `src/65-agents-md-migration.sh`
 
@@ -177,22 +178,22 @@ _(no function definitions)_
 | Function | Line |
 |---|---|
 | `tip_of_day` | 4 |
-| `claude_binary_id` | 69 |
-| `detect_claude_upgrade` | 88 |
-| `hook_session` | 104 |
-| `on_prompt` | 119 |
-| `spawn_ready_handshake_monitor` | 254 |
-| `on_compact` | 285 |
-| `on_clear` | 299 |
-| `update_check_bg` | 315 |
-| `set_tip_config` | 345 |
-| `update_all_project_hooks` | 368 |
-| `install_hooks_command` | 394 |
-| `enable_tips` | 403 |
-| `disable_tips` | 410 |
-| `do_uninstall` | 422 |
-| `save_template_command` | 540 |
-| `rename_move_command` | 601 |
+| `claude_binary_id` | 70 |
+| `detect_claude_upgrade` | 89 |
+| `hook_session` | 105 |
+| `on_prompt` | 120 |
+| `spawn_ready_handshake_monitor` | 255 |
+| `on_compact` | 286 |
+| `on_clear` | 300 |
+| `update_check_bg` | 316 |
+| `set_tip_config` | 346 |
+| `update_all_project_hooks` | 369 |
+| `install_hooks_command` | 395 |
+| `enable_tips` | 404 |
+| `disable_tips` | 411 |
+| `do_uninstall` | 423 |
+| `save_template_command` | 541 |
+| `rename_move_command` | 602 |
 
 ### `src/80-templates-restore.sh`
 
@@ -214,9 +215,9 @@ _(no function definitions)_
 | Function | Location |
 |---|---|
 | `agents_md_drift_notice` | `src/65-agents-md-migration.sh:797` |
-| `agents_md_in_walkup` | `src/30-helpers.sh:743` |
-| `agents_md_path_clear` | `src/30-helpers.sh:724` |
-| `agents_md_supported` | `src/30-helpers.sh:704` |
+| `agents_md_in_walkup` | `src/30-helpers.sh:785` |
+| `agents_md_path_clear` | `src/30-helpers.sh:766` |
+| `agents_md_supported` | `src/30-helpers.sh:746` |
 | `am_add_record` | `src/65-agents-md-migration.sh:94` |
 | `am_classify_dir` | `src/65-agents-md-migration.sh:113` |
 | `am_enrich` | `src/65-agents-md-migration.sh:271` |
@@ -244,49 +245,49 @@ _(no function definitions)_
 | `am_verify_walkup` | `src/65-agents-md-migration.sh:344` |
 | `am_write_manifest` | `src/65-agents-md-migration.sh:440` |
 | `apply_template` | `src/80-templates-restore.sh:26` |
-| `apply_tmux_options` | `src/30-helpers.sh:607` |
+| `apply_tmux_options` | `src/30-helpers.sh:649` |
 | `attach_to_session` | `src/35-validate-deps.sh:3` |
 | `autolaunch_dispatch` | `src/80-templates-restore.sh:257` |
 | `autorestore_status` | `src/50-restore-state.sh:180` |
 | `autorestore_walk` | `src/80-templates-restore.sh:164` |
 | `await_ready_handshake` | `src/55-session-launch.sh:13` |
 | `build_ignore_name_tests` | `src/60-discovery.sh:60` |
-| `build_system_prompt` | `src/30-helpers.sh:755` |
+| `build_system_prompt` | `src/30-helpers.sh:797` |
 | `check_for_update` | `src/30-helpers.sh:83` |
-| `claude_binary_id` | `src/75-tip-notices.sh:69` |
+| `claude_binary_id` | `src/75-tip-notices.sh:70` |
 | `claude_running_in_session` | `src/30-helpers.sh:581` |
-| `claude_version_line` | `src/30-helpers.sh:696` |
+| `claude_version_line` | `src/30-helpers.sh:738` |
 | `clear_session_for_fresh` | `src/40-shutdown.sh:73` |
-| `commands_help` | `src/10-flags.sh:93` |
-| `config_help` | `src/10-flags.sh:161` |
+| `commands_help` | `src/10-flags.sh:94` |
+| `config_help` | `src/10-flags.sh:162` |
 | `confirm_model_switch` | `src/55-session-launch.sh:29` |
 | `create_claude_session` | `src/55-session-launch.sh:213` |
 | `create_new_project` | `src/80-templates-restore.sh:92` |
-| `delete_command` | `src/50-restore-state.sh:390` |
-| `detect_claude_upgrade` | `src/75-tip-notices.sh:88` |
-| `detect_github_ssh_accounts` | `src/50-restore-state.sh:741` |
-| `disable_tips` | `src/75-tip-notices.sh:410` |
-| `discover_projects` | `src/60-discovery.sh:74` |
-| `dismiss_dialog_for_exit` | `src/50-restore-state.sh:793` |
+| `delete_command` | `src/50-restore-state.sh:376` |
+| `detect_claude_upgrade` | `src/75-tip-notices.sh:89` |
+| `detect_github_ssh_accounts` | `src/50-restore-state.sh:727` |
+| `disable_tips` | `src/75-tip-notices.sh:411` |
+| `discover_projects` | `src/60-discovery.sh:75` |
+| `dismiss_dialog_for_exit` | `src/50-restore-state.sh:779` |
 | `do_install` | `src/30-helpers.sh:335` |
-| `do_uninstall` | `src/75-tip-notices.sh:422` |
+| `do_uninstall` | `src/75-tip-notices.sh:423` |
 | `do_update` | `src/30-helpers.sh:131` |
-| `echo_hint_end` | `src/10-flags.sh:85` |
-| `echo_hint` | `src/10-flags.sh:79` |
-| `enable_tips` | `src/75-tip-notices.sh:403` |
+| `echo_hint_end` | `src/10-flags.sh:86` |
+| `echo_hint` | `src/10-flags.sh:80` |
+| `enable_tips` | `src/75-tip-notices.sh:404` |
 | `encode_claude_path` | `src/70-start-launch.sh:271` |
-| `ensure_base_dir` | `src/60-discovery.sh:100` |
+| `ensure_base_dir` | `src/60-discovery.sh:104` |
 | `ensure_git_repo` | `src/50-restore-state.sh:3` |
 | `ensure_gitignore_entry` | `src/50-restore-state.sh:69` |
 | `fresh_prepare_session` | `src/40-shutdown.sh:137` |
 | `generate_plist` | `src/30-helpers.sh:234` |
 | `get_managed_session_names` | `src/35-validate-deps.sh:112` |
-| `get_session_mode` | `src/30-helpers.sh:661` |
-| `get_version_prompt_lines` | `src/30-helpers.sh:631` |
+| `get_session_mode` | `src/30-helpers.sh:703` |
+| `get_version_prompt_lines` | `src/30-helpers.sh:673` |
 | `guide` | `src/10-flags.sh:43` |
 | `hide_command` | `src/50-restore-state.sh:232` |
-| `hook_session` | `src/75-tip-notices.sh:104` |
-| `install_hooks_command` | `src/75-tip-notices.sh:394` |
+| `hook_session` | `src/75-tip-notices.sh:105` |
+| `install_hooks_command` | `src/75-tip-notices.sh:395` |
 | `is_claude_mux_session` | `src/40-shutdown.sh:14` |
 | `is_managed_session` | `src/35-validate-deps.sh:124` |
 | `is_protected_session` | `src/40-shutdown.sh:4` |
@@ -298,17 +299,18 @@ _(no function definitions)_
 | `migrate_agents_md` | `src/65-agents-md-migration.sh:626` |
 | `migrate_stray_sessions` | `src/60-discovery.sh:6` |
 | `migration_lock_active` | `src/30-helpers.sh:36` |
-| `move_to_trash` | `src/50-restore-state.sh:365` |
+| `move_to_trash` | `src/50-restore-state.sh:351` |
+| `name_prefix_for_parent` | `src/30-helpers.sh:609` |
 | `notify_home` | `src/80-templates-restore.sh:150` |
-| `on_clear` | `src/75-tip-notices.sh:299` |
-| `on_compact` | `src/75-tip-notices.sh:285` |
-| `on_prompt` | `src/75-tip-notices.sh:119` |
-| `pane_accepts_input` | `src/50-restore-state.sh:776` |
-| `pane_input_empty` | `src/50-restore-state.sh:784` |
-| `poll_until_ready` | `src/50-restore-state.sh:826` |
-| `protect_command` | `src/50-restore-state.sh:286` |
+| `on_clear` | `src/75-tip-notices.sh:300` |
+| `on_compact` | `src/75-tip-notices.sh:286` |
+| `on_prompt` | `src/75-tip-notices.sh:120` |
+| `pane_accepts_input` | `src/50-restore-state.sh:762` |
+| `pane_input_empty` | `src/50-restore-state.sh:770` |
+| `poll_until_ready` | `src/50-restore-state.sh:812` |
+| `protect_command` | `src/50-restore-state.sh:272` |
 | `remove_running_marker` | `src/50-restore-state.sh:97` |
-| `rename_move_command` | `src/75-tip-notices.sh:601` |
+| `rename_move_command` | `src/75-tip-notices.sh:602` |
 | `resolve_session_dir` | `src/50-restore-state.sh:195` |
 | `restart_caller_in_place` | `src/55-session-launch.sh:91` |
 | `restart_sessions_in` | `src/55-session-launch.sh:117` |
@@ -318,27 +320,27 @@ _(no function definitions)_
 | `restore_state_tripped` | `src/50-restore-state.sh:126` |
 | `restore_state_write` | `src/50-restore-state.sh:132` |
 | `sanitize_session_name` | `src/30-helpers.sh:602` |
-| `save_template_command` | `src/75-tip-notices.sh:540` |
-| `send_ready_handshake` | `src/50-restore-state.sh:808` |
+| `save_template_command` | `src/75-tip-notices.sh:541` |
+| `send_ready_handshake` | `src/50-restore-state.sh:794` |
 | `session_marker_dir` | `src/50-restore-state.sh:154` |
-| `session_name_for_dir` | `src/50-restore-state.sh:272` |
-| `set_command` | `src/10-flags.sh:347` |
-| `set_tip_config` | `src/75-tip-notices.sh:345` |
-| `setup_claude_mux_permissions` | `src/50-restore-state.sh:549` |
-| `setup_default_mode` | `src/50-restore-state.sh:498` |
+| `session_name_for_dir` | `src/30-helpers.sh:628` |
+| `set_command` | `src/10-flags.sh:358` |
+| `set_tip_config` | `src/75-tip-notices.sh:346` |
+| `setup_claude_mux_permissions` | `src/50-restore-state.sh:535` |
+| `setup_default_mode` | `src/50-restore-state.sh:484` |
 | `setup_gitignore` | `src/50-restore-state.sh:13` |
 | `should_be_alive` | `src/50-restore-state.sh:165` |
-| `show_command` | `src/50-restore-state.sh:473` |
+| `show_command` | `src/50-restore-state.sh:459` |
 | `shutdown_claude_sessions` | `src/40-shutdown.sh:148` |
 | `shutdown_single_session` | `src/40-shutdown.sh:21` |
-| `spawn_ready_handshake_monitor` | `src/75-tip-notices.sh:254` |
+| `spawn_ready_handshake_monitor` | `src/75-tip-notices.sh:255` |
 | `start_sessions` | `src/70-start-launch.sh:3` |
 | `status_claude_sessions` | `src/40-shutdown.sh:263` |
 | `tip_of_day` | `src/75-tip-notices.sh:4` |
-| `unprotect_command` | `src/50-restore-state.sh:326` |
-| `update_all_project_hooks` | `src/75-tip-notices.sh:368` |
-| `update_check_bg` | `src/75-tip-notices.sh:315` |
-| `usage` | `src/10-flags.sh:277` |
+| `unprotect_command` | `src/50-restore-state.sh:312` |
+| `update_all_project_hooks` | `src/75-tip-notices.sh:369` |
+| `update_check_bg` | `src/75-tip-notices.sh:316` |
+| `usage` | `src/10-flags.sh:288` |
 | `version_gt` | `src/30-helpers.sh:70` |
 | `write_install_config` | `src/30-helpers.sh:276` |
 | `write_running_marker` | `src/50-restore-state.sh:87` |

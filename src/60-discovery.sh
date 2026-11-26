@@ -68,7 +68,8 @@ build_ignore_name_tests() {
 # ── Discover Claude projects ──────────────────────────────────────────────────
 # Finds all directories under BASE_DIR that contain a .claude/ subdirectory.
 # Skips directories whose name starts with an IGNORE_PATH_PREFIXES character,
-# with everything below them, and directories containing .claudemux-ignore.
+# with everything below them, directories containing .claudemux-ignore, and
+# _-prefixed directories directly below a folder holding .claudemux-name-prefix.
 # Hidden directories (starting with '.') are pruned from the search tree.
 
 discover_projects() {
@@ -84,6 +85,9 @@ discover_projects() {
 
         # Skip BASE_DIR itself if it has .claude
         [[ "$project_dir" == "$BASE_DIR" ]] && continue
+
+        # Staging folders (_name) directly below a name-prefix marker folder
+        [[ "${project_dir##*/}" == _* && -f "${project_dir%/*}/.claudemux-name-prefix" ]] && continue
 
         # Hidden via .claudemux-ignore: separated into HIDDEN_PROJECT_DIRS
         if [[ -f "$project_dir/.claudemux-ignore" ]]; then
