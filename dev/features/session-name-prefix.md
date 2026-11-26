@@ -1,8 +1,8 @@
 ---
 kind: feature
-lifecycle: designing
+lifecycle: ready
 feature: session-name-prefix
-status: design drafted 2026-11-26; needs architect review before ready
+status: design drafted and architect-reviewed 2026-11-26; test plan approved by the user 2026-11-26
 ---
 
 # Feature: session name prefix (`.claudemux-name-prefix`)
@@ -27,25 +27,26 @@ The user runs about 85 projects. The `client-manager` session (2026-11-26) needs
 
 - `sanitize_session_name()` (`src/30-helpers.sh:602`) turns every character outside `[a-zA-Z0-9-]` into `-`. So `home_network` becomes `home-network`.
 - `session_name_for_dir()` (`src/50-restore-state.sh:272`) returns `home` for `BASE_DIR` and the sanitized basename otherwise.
-- Nine other sites compute `sanitize_session_name "$(basename ...)"` inline: `src/35-validate-deps.sh:43,62,119`, `src/40-shutdown.sh:337,360`, `src/50-restore-state.sh:221`, `src/80-templates-restore.sh:177`, `src/70-start-launch.sh:24`.
+- Eight other sites compute `sanitize_session_name "$(basename ...)"` inline: `src/35-validate-deps.sh:43,62,119`, `src/40-shutdown.sh:337,360`, `src/50-restore-state.sh:221`, `src/80-templates-restore.sh:177`, `src/70-start-launch.sh:24`.
 - `discover_projects()` (`src/60-discovery.sh`) finds projects by their `.claude/` folder.
 
 ## Design
 
 1. The session name is `sanitize_session_name(prefix + basename)`. The prefix is used verbatim, so it carries its own separator (`cm-`).
-2. The prefix is the first line of the nearest `.claudemux-name-prefix`, trimmed. The lookup walks up from the project's parent and stops at the first marker, never above `BASE_DIR`.
-3. `session_name_for_dir()` implements this. The nine inline sites call it.
-4. `discover_projects()` skips a project folder whose name starts with `_` when its parent folder holds the marker. This keeps staging folders from ever becoming sessions.
-5. Add the marker before the projects below it are running. A session already running keeps its old name, and claude-mux no longer recognizes it by name, so stop it before adding the marker. The `--config-help` text says so.
-6. An agent creates the marker by hand. In practice that is the home session, because agents write only inside their own project folder.
-7. Docs: the marker paragraph in `--config-help`, one `--guide` line ("give projects under [FOLDER] the name prefix [PREFIX]"), `docs/GUIDE.md`, `dev/IMPLEMENTATION-SPEC.md`, `dev/CODEMAP.md` Marker File Registry, `CHANGELOG.md`, a tip.
-8. Injection: no change.
+2. The prefix is the first line of the nearest `.claudemux-name-prefix`, trimmed. The lookup walks up from the project's parent and stops at the first marker. `BASE_DIR` itself is checked; nothing above it is.
+3. The lookup compares physical paths (`pwd -P`) for both the folder and `BASE_DIR`. For `-n`, where the folder may not exist yet, it starts from the nearest existing ancestor. A folder that is not under `BASE_DIR` gets no prefix, as discovery does. The loop also ends at `/`.
+4. `session_name_for_dir()` implements this. Move it and the lookup helper to `src/30-helpers.sh`, next to `sanitize_session_name`, because the `-d` and `-n` sites (`src/35-validate-deps.sh:43,62`) run at load time, before `src/50-restore-state.sh` is defined. The eight inline sites call it. Their empty-name checks stay as they are.
+5. `discover_projects()` skips a project folder whose name starts with `_` when its parent folder holds the marker. This keeps staging folders from ever becoming sessions.
+6. Add the marker before the projects below it are running. A session already running keeps its old name, and claude-mux no longer recognizes it by name, so stop it before adding the marker. The `--config-help` text says so.
+7. An agent creates the marker by hand. In practice that is the home session, because agents write only inside their own project folder.
+8. Docs: the marker paragraph in `--config-help`, one `--guide` line ("give projects under [FOLDER] the name prefix [PREFIX]"), `docs/GUIDE.md`, `dev/IMPLEMENTATION-SPEC.md`, `dev/CODEMAP.md` Marker File Registry, `CHANGELOG.md`, a tip.
+9. Injection: no change.
 
 Version: 2.6.0, because name derivation changes. No migration: no folder has a marker yet.
 
 ## Out of scope
 
-- Renaming sessions that are running when a marker is added (rule 5 avoids it).
+- Renaming sessions that are running when a marker is added (rule 6 avoids it).
 - The existing same-name collision bug, where launching a folder whose name matches another folder's running session misattributes that session. It is recorded in `docs/ISSUES.md`.
 
 ## Decisions

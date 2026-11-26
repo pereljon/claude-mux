@@ -13,6 +13,7 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | Feature | Lifecycle | Target | Status | Severity | Doc |
 |---|---|---|---|---|---|
 | `session-identity-reply` | ready | 2.5.0 (minor; was 2.4.0, which shipped agents-md-canonica... | READY 2026-08-17. Architect-reviewed twice; second pass APPROVE-WITH-CHANGES, all chang... | N/A (enhancement) — orientation-on-reconnect UX; the current handshake gives no sessi... | [session-identity-reply.md](session-identity-reply.md) |
+| `session-name-prefix` | ready | — | design drafted and architect-reviewed 2026-11-26; test plan approved by the user 2026-1... | — | [session-name-prefix.md](session-name-prefix.md) |
 
 ## building
 
@@ -29,7 +30,6 @@ verified reality (a doc can claim `ready` before it is). `kind: investigation` d
 | `inter-agent-messaging` | designing | UNSCHEDULED — parked behind 3 gates (close exfiltration... | REOPENED (was SHELVED) — discussion-log #15 narrowed the obstacle: a worker boots in ... | N/A (new capability) — but ships a prompt-injection attack surface; see Threat Model | [inter-agent-messaging.md](inter-agent-messaging.md) |
 | `launched-version-detection` | designing | 2.x (minor; notify-only behavior) | REVISED 2026-06-24 (bare-home incident exposed that a truly stale wrapper does NOT re-b... | LOW for the version nudge; HIGH for the degraded-launch case (a stale | [launched-version-detection.md](launched-version-detection.md) |
 | `session-activity-timestamps` | designing | 2.1.0 (minor) — new capability, new hook, new per-proje... | DESIGNING 2026-07-15 (decisions captured from live brainstorm; pre-architect-review). H... | N/A (enhancement) — feeds v2.0 situational-awareness + v2.1 context-discipline | [session-activity-timestamps.md](session-activity-timestamps.md) |
-| `session-name-prefix` | designing | — | design drafted 2026-11-26; needs architect review before ready | — | [session-name-prefix.md](session-name-prefix.md) |
 | `terminate-session` | designing | unscheduled | DESIGNING 2026-07-24 (promoted from idea; concept + pre-termination behavior + concurre... | N/A (enhancement) — gives a "destructive stop" (next start is fresh) distinct from to... | [terminate-session.md](terminate-session.md) |
 
 ## idea

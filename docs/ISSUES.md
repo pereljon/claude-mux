@@ -14,9 +14,10 @@
 - [ ] Uncertain: a multi-name kill takes about 10 seconds per session, so 12 or more can pass the Bash tool's 2-minute timeout. A kill interrupted after the clear leaves the session running and cleared, without its `.claudemux-running` marker.
 - [ ] Injection text: `src/10-flags.sh` lists "kill this session" as a kill, but the trigger refuses it; the "end this session" rule's "otherwise confirm first" branch has no question to combine with; the NAME-resolution rule does not list kill in the running-session (`-l`) group.
 
-### Session name prefix marker (designing)
-**Status:** design and test plan written 2026-11-26: `dev/features/session-name-prefix.md`. Requested for `client-manager` (`cm-` prefix on client sessions). Planned for 2.6.0.
-- [ ] Next: architect review, then test-plan approval and build.
+### Session name prefix marker (ready to build)
+**Status:** design ready 2026-11-26: `dev/features/session-name-prefix.md`. Requested for `client-manager` (`cm-` prefix on client sessions). Planned for 2.6.0.
+- [x] Architect review and test-plan approval (resolved 2026-11-26).
+- [ ] Next: build on a branch.
 
 ### Launching a folder whose name matches another folder's running session misattributes that session
 **Severity:** Medium. Found 2026-11-26 while designing `session-name-prefix`. `-d` (`src/70-start-launch.sh:88-96`) and `create_claude_session` (`src/55-session-launch.sh:226-248`) report "already running", then overwrite the other session's `@claude-mux-dir` and write `.claudemux-running` into the launched folder. Only `-a` detects name collisions, within one run.
